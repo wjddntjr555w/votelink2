@@ -37,22 +37,46 @@ uv run votelink geo lookup 풍납1동          # 확인
 6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
    `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
-### ⚠️ 지금 막혀 있는 지점 — 행정동코드 10자리
+### ✅ 검증 완료 (2026-09-01) — 응답 형식·봉투·에러 처리
 
-이 API의 `admmCd` 는 **행정동코드 10자리**다 (예: `1111054000`).
-받아둔 송파갑 코드 9개는 **행정기관코드 7자리**(`3230040`)라 여기에 못 넣는다.
-체계가 다르다.
+키가 정상 동작하고, 실제 응답(`admmCd=1111054000`, 종로구 삼청동)으로
+필드명·봉투 구조·에러 코드 처리를 전부 확인했다. `meta.verified: true`.
 
-```bash
-uv run votelink district list --emd    # 미확인 9개가 그대로 보인다
+```
+$ .../selectAdmmSexdAgePpltn?admmCd=1111054000&srchFrYm=202210&srchToYm=202210&lv=4&regSeCd=1&type=JSON
+resultCode: 0 (NORMAL_SERVICE), totalCount: 42
+→ dongNm/sggNm/ctpvNm/admmCd, male{N}AgeNmprCnt·feml{N}AgeNmprCnt (N=0,10,...,100), totNmprCnt
 ```
 
-`data/reference/districts.yaml` 의 `code:` 를 채워야 수집이 시작된다.
-채우는 방법 두 가지:
+### ⚠️ 지금 막혀 있는 지점 — 송파갑 9개 동의 실제 코드 검증
 
-1. **행정표준코드관리시스템**(https://www.code.go.kr) 에서 송파구 행정동 코드 10자리 조회
-2. **API로 알아내기** — 상위 단위로 한 번 호출하면 응답에 각 동의 `admmCd` 가 들어 있다.
-   `lv` 를 낮추고 송파구 코드로 조회하면 관할 행정동이 한꺼번에 나온다
+`admmCd`는 10자리이고 계층이 접두사로 인코딩된다(시도2+시군구3+동3+리2).
+받아둔 행정기관코드 7자리(`3230040` 등)와는 다른 체계라 그대로 못 쓴다.
+
+행정안전부 게시판에서 받은 **법정동코드**(예: 풍납동 `1171010300`)를
+`districts.yaml`에 넣어뒀지만 **미확인 상태**다:
+
+```bash
+uv run votelink district list --emd    # 9개 모두 (미확인)으로 나온다
+```
+
+**다음 확인이 필요하다**: 아래 요청을 과거 기간(예: `202412`)으로 시도해서
+데이터가 나오는지 봐야 한다. `admmCd=1111054000`(도큐먼트 예제)이 성공했던
+바로 그 요청 형식이고, 다른 점은 코드값뿐이라 이 테스트가 코드 자체의
+유효성을 가른다.
+
+```
+.../selectAdmmSexdAgePpltn
+  ?serviceKey=<키>&admmCd=1171010300&srchFrYm=202412&srchToYm=202412
+  &lv=4&regSeCd=1&type=JSON&numOfRows=100&pageNo=1
+```
+
+- **데이터가 나오면**: 이전 `NODATA_ERROR`는 미래 월(`202607`) 때문이었을
+  뿐이고 코드는 맞았다는 뜻. `districts.yaml`의 `code:` 필드를 채우고
+  (풍납1동/2동 둘 다 `1171010300`), `reference_month`를 실제 데이터가 있는
+  월로 맞추면 수집이 된다.
+- **여전히 NODATA면**: 이 코드 체계 자체가 `admmCd`로 안 맞는 것이고
+  다른 코드 출처를 찾아야 한다.
 
 미확인인 채로 두면 수집이 **실패**한다 (조용히 일부만 수집하지 않는다).
 9개 중 3개만 들어와도 그 3개로 그럴듯한 전략이 나오기 때문이다.

@@ -12,12 +12,11 @@ requires_secrets: [DATA_GO_KR_SERVICE_KEY]
 rate_limit_rps: 2
 proposal: docs/proposals/C-001-mois-population.md
 
-# 실제 응답으로 아직 검증되지 않았다. 첫 실행 전에 아래 절차를 따를 것:
-#   1) config.endpoint 를 포털에서 복사한 실제 URL로 교체
-#   2) uv run votelink collect mois_population --capture-fixture
-#   3) uv run pytest collectors/mois_population/
-#   4) 통과하면 verified: true 로 바꾼다
-verified: false
+# 2026-09-01: 실제 응답(종로구 삼청동, admmCd=1111054000)으로 형식을 확인했다.
+# 응답 필드명·봉투 구조·에러 코드 처리는 검증 완료.
+# 다만 송파갑 자체 코드(admm_codes 아래)로는 아직 실제 수집을 못 해봤다 —
+# 그 코드들이 이 API에서 유효한지, 어느 기간에 데이터가 있는지 미확인.
+verified: true
 
 config:
   # 포털 '상세기능'의 요청 URL. <기관>/<서비스>/<오퍼레이션> 3단이다.

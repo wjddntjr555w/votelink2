@@ -16,6 +16,9 @@ log = logging.getLogger(__name__)
 
 # 알려진 봉투 경로. 위에서부터 시도한다.
 KNOWN_PATHS: tuple[tuple[str, ...], ...] = (
+    # 실제 확인됨 (2026-09-01, admmSexdAgePpltn/selectAdmmSexdAgePpltn).
+    # 이 서비스 계열은 최상위 키가 대문자 "Response" 다 — 흔한 소문자 표준과 다르다.
+    ("Response", "items", "item"),
     ("data",),  # odcloud 자동변환
     ("response", "body", "items", "item"),  # 포털 표준 REST
     ("response", "body", "items"),  # 표준 REST 변형

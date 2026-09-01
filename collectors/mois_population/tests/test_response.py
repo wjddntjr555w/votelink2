@@ -114,3 +114,50 @@ def test_unknown_error_code_still_shows_message():
     body = {"resultCode": "99", "resultMsg": "UNKNOWN_ERROR"}
     with pytest.raises(ApiError, match="UNKNOWN_ERROR"):
         extract_rows(body)
+
+
+# --- 실제로 받은 성공 응답 -------------------------------------------------------
+# 2026-09-01, admmCd=1111054000(종로구 삼청동)로 조회했을 때 포털이 돌려준 실제 본문
+# (10개 통·반 행 중 앞부분 발췌). 최상위 키가 대문자 "Response" 인 것이 이 서비스의 특징이다.
+REAL_SUCCESS_ENVELOPE = {
+    "Response": {
+        "head": {
+            "pageNo": "1",
+            "resultCode": "0",
+            "totalCount": "42",
+            "numOfRows": "10",
+            "resultMsg": "NORMAL_SERVICE",
+        },
+        "items": {
+            "item": [
+                {
+                    "dongNm": "삼청동",
+                    "sggNm": "종로구",
+                    "ctpvNm": "서울특별시",
+                    "admmCd": "1111054000",
+                    "totNmprCnt": "60",
+                },
+                {
+                    "dongNm": "삼청동",
+                    "sggNm": "종로구",
+                    "ctpvNm": "서울특별시",
+                    "admmCd": "1111054000",
+                    "totNmprCnt": "27",
+                },
+            ]
+        },
+    }
+}
+
+
+def test_real_success_envelope_is_opened_by_known_path(caplog):
+    """대문자 Response 봉투가 탐색이 아니라 알려진 경로로 바로 열려야 한다."""
+    rows = extract_rows(REAL_SUCCESS_ENVELOPE)
+    assert len(rows) == 2
+    assert rows[0]["dongNm"] == "삼청동"
+    assert "config.data_path" not in caplog.text  # 알려진 경로라 탐색 경고가 없어야 한다
+
+
+def test_real_success_envelope_result_code_is_not_mistaken_for_error():
+    """resultCode: "0" 은 정상이다. 숫자 0을 falsy 로 착각해 에러 취급하면 안 된다."""
+    assert extract_rows(REAL_SUCCESS_ENVELOPE)  # 예외 없이 통과해야 한다

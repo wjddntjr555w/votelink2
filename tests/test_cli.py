@@ -65,4 +65,26 @@ def test_collect_reports_missing_config_without_traceback(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "DATA_GO_KR_SERVICE_KEY" in captured.err
     assert "Traceback" not in captured.err
-    assert "검증되지 않았다" in captured.out
+
+
+def test_collect_warns_when_meta_is_unverified(monkeypatch, capsys):
+    """검증되지 않은 수집기는 실행할 때마다 경고가 떠야 한다."""
+    from tests.conftest import FakeCollector, make_meta
+    from votelink.collect import registry
+
+    unverified = FakeCollector([], meta=make_meta(id="unverified_x", verified=False))
+    monkeypatch.setattr(registry, "load", lambda collector_id: unverified)
+
+    assert cli.main(["collect", "unverified_x", "--dry-run"]) == 0
+    assert "검증되지 않았다" in capsys.readouterr().out
+
+
+def test_collect_is_quiet_when_verified(monkeypatch, capsys):
+    from tests.conftest import FakeCollector, make_meta
+    from votelink.collect import registry
+
+    verified = FakeCollector([{"n": 1}], meta=make_meta(id="verified_x", verified=True))
+    monkeypatch.setattr(registry, "load", lambda collector_id: verified)
+
+    assert cli.main(["collect", "verified_x", "--dry-run"]) == 0
+    assert "검증되지 않았다" not in capsys.readouterr().out

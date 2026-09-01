@@ -1,8 +1,8 @@
 """재집계 로직 검증.
 
-여기서 쓰는 데이터는 **합성 데이터**다. 출처 응답 형식을 흉내낸 것이 아니라
-'통·반 행을 행정동으로 접는 산수'만 검증한다.
-실제 응답 형식 검증은 test_parse.py 가 하며, 그쪽은 실제 fixture를 요구한다.
+필드명은 실제 API 응답(2026-09-01 확인)에서 가져왔다. 여기서 쓰는 값 자체는
+합성 데이터지만, 필드 '이름'은 실제와 같다 — '산수'만 검증하고, 실제 응답이
+이 형태와 맞는지는 test_parse.py 가 실제 fixture로 검증한다.
 """
 
 import pytest
@@ -11,43 +11,36 @@ from collectors.mois_population.aggregate import (
     SourceFieldMissing,
     _to_int,
     aggregate_rows,
+    source_field,
 )
 
+AGE_STARTS = (0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
 
-def row(sido="서울특별시", sigungu="송파구", emd="풍납1동", total=None, **ages):
-    """모든 연령·성별 칸을 0으로 채운 행을 만들고 ages 로 덮어쓴다."""
-    labels = [
-        "만0~9세",
-        "만10~19세",
-        "만20~29세",
-        "만30~39세",
-        "만40~49세",
-        "만50~59세",
-        "만60~69세",
-        "만70~79세",
-        "만80~89세",
-        "만90~99세",
-        "만100세이상",
-    ]
-    data = {"시도명": sido, "시군구명": sigungu, "행정동명": emd}
-    for label in labels:
-        for suffix in ("남자", "여자"):
-            data[f"{label}{suffix}"] = 0
+
+def row(sido="서울특별시", sigungu="송파구", emd="풍납1동", total=None, admm_code=None, **ages):
+    """모든 연령·성별 칸을 0으로 채운 행을 만들고 ages 로 덮어쓴다.
+
+    ages 는 source_field() 가 만드는 실제 필드명으로 덮어쓴다
+    (예: row(male20AgeNmprCnt=10)).
+    """
+    from votelink.contract.enums import Sex
+
+    data = {"ctpvNm": sido, "sggNm": sigungu, "dongNm": emd}
+    for sex in Sex:
+        for age in AGE_STARTS:
+            data[source_field(sex, age)] = 0
     data.update(ages)
-    data["총인구수"] = sum(_to_int(v) for k, v in data.items() if k.endswith(("남자", "여자")))
+    if admm_code is not None:
+        data["admmCd"] = admm_code
+    data["totNmprCnt"] = sum(_to_int(v) for k, v in data.items() if k.endswith("AgeNmprCnt"))
     if total is not None:
-        data["총인구수"] = total
+        data["totNmprCnt"] = total
     return data
 
 
 def test_rows_of_same_emd_are_folded():
     """통·반이 여러 행으로 쪼개져 와도 행정동 하나로 합쳐진다."""
-    aggs = aggregate_rows(
-        [
-            row(**{"만20~29세남자": 100}),
-            row(**{"만20~29세남자": 50}),
-        ]
-    )
+    aggs = aggregate_rows([row(male20AgeNmprCnt=100), row(male20AgeNmprCnt=50)])
     assert len(aggs) == 1
     assert aggs[0].rows == 2
     assert aggs[0].cells[("20-29", "M")] == 150
@@ -59,8 +52,8 @@ def test_different_emds_are_separated():
 
 
 def test_over_80_is_folded_into_one_band():
-    """출처는 80대/90대/100세이상을 나누지만 계약은 80+ 하나다."""
-    aggs = aggregate_rows([row(**{"만80~89세여자": 30, "만90~99세여자": 8, "만100세이상여자": 2})])
+    """출처는 80/90/100세를 나누지만 계약은 80+ 하나다."""
+    aggs = aggregate_rows([row(feml80AgeNmprCnt=30, feml90AgeNmprCnt=8, feml100AgeNmprCnt=2)])
     assert aggs[0].cells[("80+", "F")] == 40
 
 
@@ -75,21 +68,21 @@ def test_breakdown_keeps_zero_cells():
 
 
 def test_comma_separated_numbers_are_parsed():
-    aggs = aggregate_rows([row(**{"만30~39세남자": "1,234"})])
+    aggs = aggregate_rows([row(male30AgeNmprCnt="1,234")])
     assert aggs[0].cells[("30-39", "M")] == 1234
 
 
 def test_total_mismatch_is_detected():
     """연령 필드를 하나라도 놓치면 합이 안 맞고, 그 레코드는 격리된다."""
-    agg = aggregate_rows([row(**{"만40~49세남자": 100}, total=999)])[0]
+    agg = aggregate_rows([row(male40AgeNmprCnt=100, total=999)])[0]
     with pytest.raises(ValueError, match="다르다"):
         agg.check_total()
 
 
 def test_missing_source_field_is_explicit():
     broken = row()
-    del broken["만50~59세여자"]
-    with pytest.raises(SourceFieldMissing, match="만50~59세여자"):
+    del broken["feml50AgeNmprCnt"]
+    with pytest.raises(SourceFieldMissing, match="feml50AgeNmprCnt"):
         aggregate_rows([broken])
 
 
@@ -101,16 +94,16 @@ def test_aggregation_is_order_independent():
 
 def test_admm_code_is_taken_from_the_row():
     """출처가 코드를 주면 이름으로 되돌려 찾지 않는다."""
-    aggs = aggregate_rows([dict(row(), admmCd="1111054000")])
-    assert aggs[0].admm_code == "1111054000"
+    aggs = aggregate_rows([row(admm_code="1171010300")])
+    assert aggs[0].admm_code == "1171010300"
 
 
 def test_rows_group_by_code_even_if_name_spelling_differs():
     """표기가 흔들려도 코드가 같으면 같은 행정동이다."""
     aggs = aggregate_rows(
         [
-            dict(row(emd="풍납1동", **{"만20~29세남자": 10}), admmCd="1111054000"),
-            dict(row(emd="풍납제1동", **{"만20~29세남자": 5}), admmCd="1111054000"),
+            row(emd="풍납1동", male20AgeNmprCnt=10, admm_code="1171010300"),
+            row(emd="풍납제1동", male20AgeNmprCnt=5, admm_code="1171010300"),
         ]
     )
     assert len(aggs) == 1
