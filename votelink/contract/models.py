@@ -33,15 +33,19 @@ KST = timezone(timedelta(hours=9), "KST")
 
 RECORD_ID_LEN = 16
 
-# 내부 표준 코드 체계: 행정안전부 **행정표준코드의 행정기관코드 7자리**.
-# (예: 서울 송파구 풍납1동 = 3230040)
+# 내부 표준 코드 체계: **행정표준코드의 행정동코드 10자리** (0으로 우측 패딩).
+#   서울특별시   1100000000
+#   송파구       11710 00000  (예시 형태)
+#   행정동       1111054000   ← 행안부 주민등록 인구 API 의 admmCd 가 이 체계다
 #
-# 계층에 따라 자릿수가 달라지지 않는다 — 시도·시군구·행정동 모두 7자리다.
-# 그래서 자릿수는 약한 검증이고, 진짜 검증은 "매핑표/출처에 존재하는 코드인가"이다.
+# 계층이 접두사로 인코딩되어 있어 상위 단위 집계가 문자열 prefix 로 된다.
+# 그래서 모든 레벨이 10자리이고, 레벨 구분은 뒤쪽 0의 개수로 드러난다.
 #
-# 다른 체계(법정동코드 10자리, 통계청 행정구역코드 8자리)는 내부 표준이 아니며
-# 매핑표의 source_code 로만 존재한다.
-GEO_CODE_DIGITS = 7
+# 다른 체계(행정기관코드 7자리, 통계청 행정구역코드 8자리)는 내부 표준이 아니며
+# 매핑표(data/reference/geo_mapping.csv)의 source_code 로만 존재한다.
+#
+# 이 값은 프로젝트에서 단 한 곳이다. 주 출처가 바뀌어 체계가 달라지면 여기만 고친다.
+GEO_CODE_DIGITS = 10
 GEO_CODE_LEVELS = {GeoLevel.SIDO, GeoLevel.SIGUNGU, GeoLevel.EMD, GeoLevel.POINT}
 GEO_CODE_FORBIDDEN = {GeoLevel.NATION, GeoLevel.NONE}
 
@@ -162,8 +166,8 @@ class Record(BaseModel):
             )
         if not (code.isdigit() and len(code) == GEO_CODE_DIGITS):
             raise ValueError(
-                f"geo_code 는 행정기관코드 숫자 {GEO_CODE_DIGITS}자리여야 한다: {code!r}. "
-                "법정동코드(10자리)나 통계청 행정구역코드(8자리)를 그대로 넣지 않는다"
+                f"geo_code 는 행정동코드 숫자 {GEO_CODE_DIGITS}자리여야 한다: {code!r}. "
+                "행정기관코드(7자리)나 통계청 행정구역코드(8자리)를 그대로 넣지 않는다"
             )
         if not self.geo_name:
             raise ValueError("geo_code 가 있으면 geo_name 도 있어야 한다")

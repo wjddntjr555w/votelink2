@@ -37,7 +37,27 @@ uv run votelink geo lookup 풍납1동          # 확인
 6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
    `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
-### 엔드포인트 경로 (현재 막혀 있는 지점)
+### ⚠️ 지금 막혀 있는 지점 — 행정동코드 10자리
+
+이 API의 `admmCd` 는 **행정동코드 10자리**다 (예: `1111054000`).
+받아둔 송파갑 코드 9개는 **행정기관코드 7자리**(`3230040`)라 여기에 못 넣는다.
+체계가 다르다.
+
+```bash
+uv run votelink district list --emd    # 미확인 9개가 그대로 보인다
+```
+
+`data/reference/districts.yaml` 의 `code:` 를 채워야 수집이 시작된다.
+채우는 방법 두 가지:
+
+1. **행정표준코드관리시스템**(https://www.code.go.kr) 에서 송파구 행정동 코드 10자리 조회
+2. **API로 알아내기** — 상위 단위로 한 번 호출하면 응답에 각 동의 `admmCd` 가 들어 있다.
+   `lv` 를 낮추고 송파구 코드로 조회하면 관할 행정동이 한꺼번에 나온다
+
+미확인인 채로 두면 수집이 **실패**한다 (조용히 일부만 수집하지 않는다).
+9개 중 3개만 들어와도 그 3개로 그럴듯한 전략이 나오기 때문이다.
+
+### 엔드포인트 경로
 
 포털 REST API의 요청 URL은 보통 **3단**이다.
 
@@ -55,9 +75,22 @@ https://apis.data.go.kr/<기관코드>/<서비스명>/<오퍼레이션명>
   "returnReasonCode": "12"}}}
 ```
 
-**찾는 법**: 데이터셋 페이지 → **상세기능** 탭 → 각 기능의 **요청 URL** 을 통째로 복사.
-그 화면의 **미리보기/확인** 버튼을 누르면 동작하는 URL이 그대로 만들어진다.
-파라미터 이름(`pageNo`/`numOfRows` vs `pIndex`/`pSize`)도 거기서 확인된다.
+**확인됨 (2026-09-01)** — 오퍼레이션은 `selectAdmmSexdAgePpltn` 이다:
+
+```
+https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn
+  ?serviceKey=<키>
+  &admmCd=1111054000     # 행정동코드 10자리
+  &srchFrYm=202210       # 조회 시작 연월 (기준월에서 자동 생성)
+  &srchToYm=202210       # 조회 종료 연월
+  &lv=4                  # 행정구역 레벨 (4 = 행정동)
+  &regSeCd=1             # 등록구분 (1 = 거주자)
+  &type=JSON             # 기본은 XML
+  &numOfRows=10&pageNo=1
+```
+
+`meta.yaml` 에 반영되어 있다. `srchFrYm`/`srchToYm` 은 `config.reference_month`
+하나에서 만들어지므로 기준월을 바꿀 때 고칠 곳은 한 군데다.
 
 ### 응답이 예상과 다르면
 `meta.yaml` 의 `config` 만 고친다. 파이썬은 건드리지 않는다.

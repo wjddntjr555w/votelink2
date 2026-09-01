@@ -10,8 +10,8 @@ def test_geo_import_autodetects_korean_headers(tmp_path, monkeypatch, capsys):
     src = tmp_path / "official.csv"
     src.write_text(
         "행정기관코드,행정기관명\n"
-        "3230040,서울특별시 송파구 풍납1동\n"
-        "3230041,서울특별시 송파구 풍납2동\n",
+        "1111054000,서울특별시 시험구 가나동\n"
+        "1111055000,서울특별시 시험구 다라동\n",
         encoding="utf-8",
     )
     target = tmp_path / "geo_mapping.csv"
@@ -20,15 +20,15 @@ def test_geo_import_autodetects_korean_headers(tmp_path, monkeypatch, capsys):
 
     assert cli.main(["geo", "import", str(src)]) == 0
     assert "2건" in capsys.readouterr().out
-    assert geo.to_emd_code("풍납1동") == "3230040"
+    assert geo.to_emd_code("가나동") == "1111054000"
     geo.reset_table()
 
 
 def test_geo_import_rejects_non_emd_file(tmp_path, monkeypatch):
     src = tmp_path / "sigungu.csv"
-    src.write_text("행정기관코드,행정기관명\n323,송파구\n", encoding="utf-8")
+    src.write_text("행정기관코드,행정기관명\n11710,시험구\n", encoding="utf-8")
     monkeypatch.setattr(geo, "REFERENCE_CSV", tmp_path / "out.csv")
-    with pytest.raises(SystemExit, match="7자리"):
+    with pytest.raises(SystemExit, match="10자리"):
         cli.main(["geo", "import", str(src)])
 
 

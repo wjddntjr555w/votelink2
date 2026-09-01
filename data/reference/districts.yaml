@@ -1,9 +1,10 @@
 # 선거구 ↔ 행정동 매핑.
 #
 # 선거구 획정은 매 선거마다 바뀐다. 코드에 박지 않고 여기 데이터로 둔다.
-# 분석기와 수집기가 모두 이 파일을 본다.
+# 수집기(어디를 수집할지)와 분석기(어디를 분석할지)가 이 파일 하나를 본다.
 #
-# 코드 체계: 행정안전부 행정표준코드의 행정기관코드 7자리.
+# code      : 내부 표준 = 행정표준코드 행정동코드 10자리. 확인 전에는 null.
+# org_code  : 행정기관코드 7자리 (code.go.kr). 참고용이며 geo_code 로 쓰지 않는다.
 
 version: "2026-09 기준"
 
@@ -17,12 +18,12 @@ districts:
     # 옆 지역구 데이터가 섞여 들어와도 아무 에러가 나지 않는다.
     source: user_provided
     emd:
-      - { code: "3230040", name: 풍납1동 }
-      - { code: "3230041", name: 풍납2동 }
-      - { code: "3230046", name: 방이1동 }
-      - { code: "3230047", name: 방이2동 }
-      - { code: "3230048", name: 오륜동 }
-      - { code: "3230050", name: 송파1동 }
-      - { code: "3230051", name: 송파2동 }
-      - { code: "3230063", name: 잠실4동 }
-      - { code: "3230065", name: 잠실6동 }
+      - { name: 풍납1동, org_code: "3230040", code: null }
+      - { name: 풍납2동, org_code: "3230041", code: null }
+      - { name: 방이1동, org_code: "3230046", code: null }
+      - { name: 방이2동, org_code: "3230047", code: null }
+      - { name: 오륜동,  org_code: "3230048", code: null }
+      - { name: 송파1동, org_code: "3230050", code: null }
+      - { name: 송파2동, org_code: "3230051", code: null }
+      - { name: 잠실4동, org_code: "3230063", code: null }
+      - { name: 잠실6동, org_code: "3230065", code: null }

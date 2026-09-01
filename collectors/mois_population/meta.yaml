@@ -20,23 +20,22 @@ proposal: docs/proposals/C-001-mois-population.md
 verified: false
 
 config:
-  # 공공데이터포털 데이터셋의 요청 URL (인증키 제외).
-  #
-  # 포털 REST API는 보통 <기관>/<서비스>/<오퍼레이션> 3단이다.
-  # 서비스까지만 넣으면 returnReasonCode=12 (NO_OPENAPI_SERVICE_ERROR)가 온다.
-  # 데이터셋 페이지 '상세기능'의 요청 URL을 통째로 복사할 것.
-  #
-  # 2026-09-01 확인: 아래 2단 경로는 12번 오류를 반환한다. 오퍼레이션 이름 필요.
-  endpoint: "https://apis.data.go.kr/1741000/admmSexdAgePpltn"
+  # 포털 '상세기능'의 요청 URL. <기관>/<서비스>/<오퍼레이션> 3단이다.
+  endpoint: "https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn"
 
-  # 이 스냅샷의 기준월. 데이터셋을 갱신하면 함께 바꾼다.
+  # 이 스냅샷의 기준월. srchFrYm/srchToYm 은 여기서 자동 생성된다.
   reference_month: "2026-07"
 
-  # --- 아래는 실제 API 명세로 아직 확인되지 않았다. 응답이 이상하면 여기부터 고친다 ---
-
-  # 매 요청에 붙는 고정 파라미터 (응답 포맷 지정 등)
+  # 매 요청에 붙는 고정 파라미터
   params:
-    type: JSON
+    type: JSON      # 기본은 XML이다. JSON을 안 주면 수집기가 앞부분을 보여주며 실패한다
+    lv: "4"         # 행정구역 레벨 (4 = 행정동)
+    regSeCd: "1"    # 등록구분 (1 = 거주자)
+
+  # 기준월에서 만들어 붙일 기간 파라미터 이름
+  month_params:
+    from: srchFrYm
+    to: srchToYm
 
   paging:
     page_param: pageNo
@@ -44,7 +43,7 @@ config:
     size: 1000
     max_pages: 100
 
-  # 조회 범위. 선거구 id를 주면 data/reference/districts.yaml 의 행정동을 쓴다.
+  # 조회 범위. 선거구 id를 주면 data/reference/districts.yaml 의 행정동코드를 쓴다.
   # 행정동 목록을 여기 복사해두지 않는다 — 획정이 바뀌면 두 곳이 어긋난다.
   admm_code_param: admmCd
   district: seoul_songpa_gap

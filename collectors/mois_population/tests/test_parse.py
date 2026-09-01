@@ -48,7 +48,7 @@ def test_records_satisfy_the_contract(results):
     assert records, "fixture 에서 레코드가 하나도 안 나왔다"
     for r in records:
         Record.model_validate(r.model_dump())
-        assert r.geo_code and len(r.geo_code) == 7
+        assert r.geo_code and len(r.geo_code) == 10
         assert r.payload["total"] == sum(c["count"] for c in r.payload["breakdown"])
 
 

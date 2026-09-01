@@ -63,10 +63,15 @@ class Collector(BaseCollector):
         size = int(paging.get("size", 1000))
         max_pages = int(paging.get("max_pages", 100))
 
-        base_params: dict[str, Any] = {"serviceKey": service_key, **(self.cfg("params", {}) or {})}
+        base_params: dict[str, Any] = {
+            "serviceKey": service_key,
+            **(self.cfg("params", {}) or {}),
+            **self.month_params(),
+        }
 
         code_param = self.cfg("admm_code_param", "")
         codes = self.target_codes()
+        self._require_resolved_codes(codes)
         targets: list[dict[str, Any]] = (
             [{code_param: code} for code in codes] if (code_param and codes) else [{}]
         )
@@ -155,6 +160,34 @@ class Collector(BaseCollector):
 
     def cfg(self, key: str, default: Any = None) -> Any:
         return self.meta.config.get(key, default)
+
+    def month_params(self) -> dict[str, str]:
+        """기준월 하나에서 조회 기간 파라미터를 만든다 (2026-07 -> 202607).
+
+        기준월을 바꿀 때 고칠 곳이 한 군데뿐이어야 한다.
+        """
+        names = self.cfg("month_params", {}) or {}
+        compact = self.reference_month.replace("-", "")
+        return {name: compact for key in ("from", "to") if (name := names.get(key))}
+
+    def _require_resolved_codes(self, codes: list[str]) -> None:
+        """미확인 행정동을 조용히 건너뛰지 않는다.
+
+        9개 중 3개만 수집되면 그 3개만으로 그럴듯한 전략이 나온다.
+        """
+        if codes:
+            return
+        key = self.cfg("district")
+        if not key:
+            return
+        district = resolve_district(key)
+        if district.pending:
+            missing = ", ".join(e.name for e in district.pending)
+            raise FetchError(
+                f"{district.name} 의 행정동코드 {len(district.pending)}개가 아직 미확인이다: "
+                f"{missing}\n  → data/reference/districts.yaml 의 code 를 채워라 "
+                "(확인: uv run votelink district list --emd)"
+            )
 
     def target_codes(self) -> list[str]:
         """조회할 행정동 기관코드. config.admm_codes 가 비면 선거구 정의를 따른다."""

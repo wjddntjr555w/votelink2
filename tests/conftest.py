@@ -23,15 +23,15 @@ def data_root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def geo_table(tmp_path, monkeypatch):
-    """송파구 일부를 가정한 시험용 매핑표. 실제 코드값이 아니다."""
+    """시험용 매핑표. 형식만 유효하며 실제 지역-코드 대응이 아니다."""
     csv_path = tmp_path / "geo_mapping.csv"
     csv_path.write_text(
         "source_system,source_code,source_name,emd_code,emd_name\n"
-        "mois,3230040,서울특별시 송파구 풍납1동,3230040,풍납1동\n"
-        "mois,3230041,서울특별시 송파구 풍납2동,3230041,풍납2동\n"
-        "nec,SP-01,풍납1동,3230040,풍납1동\n"
-        "mois,3780031,성남시 수정구 신흥동,3780031,신흥동\n"
-        "mois,2820053,인천시 어딘가 신흥동,2820053,신흥동\n",
+        "mois,3230040,서울특별시 시험구 가나동,1111054000,가나동\n"
+        "mois,3230041,서울특별시 시험구 다라동,1111055000,다라동\n"
+        "nec,SP-01,가나동,1111054000,가나동\n"
+        "mois,3780031,성남시 수정구 신흥동,4113154000,신흥동\n"
+        "mois,2820053,인천시 미추홀구 신흥동,2817753000,신흥동\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(geo, "REFERENCE_CSV", csv_path)
@@ -66,8 +66,8 @@ def make_record(n: int = 0, **over) -> Record:
         observed_precision="minute",
         ingested_at=NOW,
         geo_level="emd",
-        geo_code="3230040",
-        geo_name="풍납1동",
+        geo_code="1111054000",
+        geo_name="가나동",
         confidence=1.0,
         natural_key=f"https://example.test/{n}",
         payload={

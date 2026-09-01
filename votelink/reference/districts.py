@@ -28,17 +28,29 @@ class DistrictNotFound(LookupError):
 
 
 class Emd(BaseModel):
+    """선거구에 속한 행정동 하나.
+
+    code 는 내부 표준(행정동코드 10자리)이며 **아직 모를 수 있다.**
+    org_code(행정기관코드 7자리)만 아는 상태를 정직하게 표현하기 위해 null 을 허용한다.
+    모르는 것을 아는 척하는 것보다 비어 있는 편이 낫다.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    code: str
     name: str
+    code: str | None = None
+    org_code: str | None = None
 
     @field_validator("code")
     @classmethod
-    def _check_code(cls, v: str) -> str:
-        if not (v.isdigit() and len(v) == GEO_CODE_DIGITS):
-            raise ValueError(f"행정기관코드는 숫자 {GEO_CODE_DIGITS}자리여야 한다: {v!r}")
+    def _check_code(cls, v: str | None) -> str | None:
+        if v is not None and not (v.isdigit() and len(v) == GEO_CODE_DIGITS):
+            raise ValueError(f"행정동코드는 숫자 {GEO_CODE_DIGITS}자리여야 한다: {v!r}")
         return v
+
+    @property
+    def resolved(self) -> bool:
+        return self.code is not None
 
 
 class District(BaseModel):
@@ -54,14 +66,28 @@ class District(BaseModel):
     @field_validator("emd")
     @classmethod
     def _no_duplicates(cls, v: list[Emd]) -> list[Emd]:
-        codes = [e.code for e in v]
-        if len(codes) != len(set(codes)):
-            raise ValueError("같은 행정동코드가 두 번 들어 있다")
+        for label, values in (
+            ("행정동코드", [e.code for e in v if e.code]),
+            ("행정기관코드", [e.org_code for e in v if e.org_code]),
+            ("행정동명", [e.name for e in v]),
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError(f"같은 {label} 가 두 번 들어 있다")
         return v
 
     @property
     def emd_codes(self) -> list[str]:
-        return [e.code for e in self.emd]
+        """확인된 행정동코드만. 미확인 동은 조용히 빠지지 않도록 pending 으로 드러난다."""
+        return [e.code for e in self.emd if e.code]
+
+    @property
+    def pending(self) -> list[Emd]:
+        """내부 표준 코드를 아직 모르는 행정동."""
+        return [e for e in self.emd if not e.resolved]
+
+    @property
+    def fully_resolved(self) -> bool:
+        return not self.pending
 
     def name_of(self, code: str) -> str | None:
         return next((e.name for e in self.emd if e.code == code), None)

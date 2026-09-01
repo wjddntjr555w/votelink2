@@ -101,16 +101,16 @@ def test_aggregation_is_order_independent():
 
 def test_admm_code_is_taken_from_the_row():
     """출처가 코드를 주면 이름으로 되돌려 찾지 않는다."""
-    aggs = aggregate_rows([dict(row(), admmCd="3230040")])
-    assert aggs[0].admm_code == "3230040"
+    aggs = aggregate_rows([dict(row(), admmCd="1111054000")])
+    assert aggs[0].admm_code == "1111054000"
 
 
 def test_rows_group_by_code_even_if_name_spelling_differs():
     """표기가 흔들려도 코드가 같으면 같은 행정동이다."""
     aggs = aggregate_rows(
         [
-            dict(row(emd="풍납1동", **{"만20~29세남자": 10}), admmCd="3230040"),
-            dict(row(emd="풍납제1동", **{"만20~29세남자": 5}), admmCd="3230040"),
+            dict(row(emd="풍납1동", **{"만20~29세남자": 10}), admmCd="1111054000"),
+            dict(row(emd="풍납제1동", **{"만20~29세남자": 5}), admmCd="1111054000"),
         ]
     )
     assert len(aggs) == 1

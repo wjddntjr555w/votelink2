@@ -6,20 +6,20 @@ from votelink.collect import geo
 
 
 def test_lookup_by_source_code(geo_table):
-    assert geo.to_emd_code("3230040", system="mois") == "3230040"
+    assert geo.to_emd_code("3230040", system="mois") == "1111054000"
 
 
 def test_lookup_across_systems(geo_table):
     """선관위 코드도 같은 행정동으로 수렴해야 한다."""
-    assert geo.to_emd_code("SP-01", system="nec") == "3230040"
+    assert geo.to_emd_code("SP-01", system="nec") == "1111054000"
 
 
 def test_lookup_by_name(geo_table):
-    assert geo.to_emd_code("서울특별시 송파구 풍납1동") == "3230040"
+    assert geo.to_emd_code("서울특별시 시험구 가나동") == "1111054000"
 
 
 def test_name_whitespace_is_normalized(geo_table):
-    assert geo.to_emd_code(" 서울특별시  송파구 풍납1동 ") == "3230040"
+    assert geo.to_emd_code(" 서울특별시  시험구 가나동 ") == "1111054000"
 
 
 def test_ambiguous_name_is_refused(geo_table):
@@ -42,10 +42,10 @@ def test_empty_table_gives_actionable_error(tmp_path, monkeypatch):
     monkeypatch.setattr(geo, "REFERENCE_CSV", tmp_path / "missing.csv")
     geo.reset_table()
     with pytest.raises(geo.GeoMappingError, match="votelink geo import"):
-        geo.to_emd_code("풍납1동")
+        geo.to_emd_code("가나동")
     geo.reset_table()
 
 
 def test_never_returns_none(geo_table):
     """계약상 to_emd_code 는 None 을 돌려줄 수 없다."""
-    assert geo.to_emd_code("풍납2동") is not None
+    assert geo.to_emd_code("다라동") is not None

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
-from votelink.contract.models import KST
+from votelink.contract.models import GEO_CODE_DIGITS, KST
 from votelink.reference import districts
 
 # 행안부/통계청 파일마다 헤더 이름이 다르다. 흔한 이름을 먼저 시도한다.
@@ -133,17 +133,17 @@ def cmd_geo_import(args: argparse.Namespace) -> int:
                     "source_system": args.system,
                     "source_code": code,
                     "source_name": full_name,
-                    "emd_code": code[:7],
+                    "emd_code": code[:GEO_CODE_DIGITS],
                     # 공식 파일의 행정기관명은 '서울특별시 송파구 풍납1동' 형태다.
                     # 마지막 토큰이 동명이며, 짧은 이름으로도 조회할 수 있어야 한다.
                     "emd_name": full_name.split()[-1] if full_name else "",
                 }
             )
 
-    rows = [r for r in rows if len(r["emd_code"]) == 7 and r["emd_code"].isdigit()]
+    rows = [r for r in rows if len(r["emd_code"]) == GEO_CODE_DIGITS and r["emd_code"].isdigit()]
     if not rows:
         raise SystemExit(
-            "7자리 행정기관코드가 한 건도 없다. --code-col 이 맞는지, "
+            f"{GEO_CODE_DIGITS}자리 행정동코드가 한 건도 없다. --code-col 이 맞는지, "
             "시도/시군구 단위 파일을 넣은 건 아닌지 확인하라"
         )
 
@@ -178,10 +178,15 @@ def cmd_district_list(args: argparse.Namespace) -> int:
         print(f"실패: {exc}", file=sys.stderr)
         return 1
     for d in found.values():
-        print(f"{d.id:<22} {d.name:<16} 행정동 {len(d.emd)}개  (출처: {d.source})")
+        state = "확인 완료" if d.fully_resolved else f"미확인 {len(d.pending)}개"
+        print(f"{d.id:<22} {d.name:<16} 행정동 {len(d.emd)}개 · {state}  (출처: {d.source})")
         if args.verbose_emd:
             for e in d.emd:
-                print(f"    {e.code}  {e.name}")
+                code = e.code or "(미확인)"
+                org = f"org={e.org_code}" if e.org_code else ""
+                print(f"    {code:<12} {e.name:<8} {org}")
+    if any(not d.fully_resolved for d in found.values()):
+        print("\n미확인 행정동은 수집에서 제외된다. districts.yaml 의 code 를 채워라.")
     return 0
 
 
