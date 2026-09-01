@@ -13,6 +13,7 @@ from pathlib import Path
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
 from votelink.contract.models import KST
+from votelink.reference import districts
 
 # 행안부/통계청 파일마다 헤더 이름이 다르다. 흔한 이름을 먼저 시도한다.
 CODE_COL_CANDIDATES = ("행정기관코드", "행정동코드", "adm_cd", "emd_code", "코드")
@@ -170,6 +171,20 @@ def cmd_geo_lookup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_district_list(args: argparse.Namespace) -> int:
+    try:
+        found = districts.load_districts()
+    except FileNotFoundError as exc:
+        print(f"실패: {exc}", file=sys.stderr)
+        return 1
+    for d in found.values():
+        print(f"{d.id:<22} {d.name:<16} 행정동 {len(d.emd)}개  (출처: {d.source})")
+        if args.verbose_emd:
+            for e in d.emd:
+                print(f"    {e.code}  {e.name}")
+    return 0
+
+
 def cmd_not_yet(args: argparse.Namespace) -> int:
     print(f"'{args.command}' 는 아직 구현되지 않았다. 다음 단위에서 만든다.")
     return 2
@@ -216,6 +231,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_lookup.add_argument("value")
     p_lookup.add_argument("--system")
     p_lookup.set_defaults(func=cmd_geo_lookup)
+
+    p_district = sub.add_parser("district", help="선거구 정의")
+    d_sub = p_district.add_subparsers(dest="district_command", required=True)
+    p_dlist = d_sub.add_parser("list", help="정의된 선거구와 행정동")
+    p_dlist.add_argument("--emd", dest="verbose_emd", action="store_true", help="행정동까지 출력")
+    p_dlist.set_defaults(func=cmd_district_list)
 
     for name, help_text in (("analyze", "분석기 실행 (L2)"), ("serve", "로컬 웹앱 (L3)")):
         sub.add_parser(name, help=f"{help_text} — 미구현").set_defaults(func=cmd_not_yet)

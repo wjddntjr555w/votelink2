@@ -11,7 +11,7 @@ def test_geo_import_autodetects_korean_headers(tmp_path, monkeypatch, capsys):
     src.write_text(
         "행정기관코드,행정기관명\n"
         "3230040,서울특별시 송파구 풍납1동\n"
-        "3230050,서울특별시 송파구 풍납2동\n",
+        "3230041,서울특별시 송파구 풍납2동\n",
         encoding="utf-8",
     )
     target = tmp_path / "geo_mapping.csv"

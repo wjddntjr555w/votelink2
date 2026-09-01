@@ -28,7 +28,7 @@ def geo_table(tmp_path, monkeypatch):
     csv_path.write_text(
         "source_system,source_code,source_name,emd_code,emd_name\n"
         "mois,3230040,서울특별시 송파구 풍납1동,3230040,풍납1동\n"
-        "mois,3230050,서울특별시 송파구 풍납2동,3230050,풍납2동\n"
+        "mois,3230041,서울특별시 송파구 풍납2동,3230041,풍납2동\n"
         "nec,SP-01,풍납1동,3230040,풍납1동\n"
         "mois,3780031,성남시 수정구 신흥동,3780031,신흥동\n"
         "mois,2820053,인천시 어딘가 신흥동,2820053,신흥동\n",

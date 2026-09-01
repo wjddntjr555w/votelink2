@@ -38,10 +38,11 @@ config:
     size: 1000
     max_pages: 100
 
-  # 조회할 행정동 기관코드. 비우면 코드 지정 없이 전체를 페이징한다.
+  # 조회 범위. 선거구 id를 주면 data/reference/districts.yaml 의 행정동을 쓴다.
+  # 행정동 목록을 여기 복사해두지 않는다 — 획정이 바뀌면 두 곳이 어긋난다.
   admm_code_param: admmCd
-  admm_codes:
-    - "3230040"   # 서울 송파구 풍납1동
+  district: seoul_songpa_gap
+  admm_codes: []   # 비워두면 district 를 따른다. 채우면 이쪽이 우선한다
 
   # 응답에서 목록을 꺼낼 경로 (예: "response.body.items.item").
   # 비워두면 알려진 형태를 자동 탐색하고, 찾으면 경로를 로그로 알려준다.

@@ -21,6 +21,7 @@ import httpx
 from votelink.collect import BaseCollector, ParseResult, RawBatch, polite_client, to_emd_code
 from votelink.collect.http import FetchError
 from votelink.contract.models import KST, Record
+from votelink.reference import resolve_district
 
 from .aggregate import EmdAggregate, aggregate_rows
 from .response import ApiError, ResponseShapeError, extract_rows
@@ -64,9 +65,8 @@ class Collector(BaseCollector):
 
         base_params: dict[str, Any] = {"serviceKey": service_key, **(self.cfg("params", {}) or {})}
 
-        # 조회할 행정동 기관코드 목록. 비어 있으면 코드 지정 없이 전체를 페이징한다.
         code_param = self.cfg("admm_code_param", "")
-        codes = [str(c) for c in (self.cfg("admm_codes", []) or [])]
+        codes = self.target_codes()
         targets: list[dict[str, Any]] = (
             [{code_param: code} for code in codes] if (code_param and codes) else [{}]
         )
@@ -155,6 +155,14 @@ class Collector(BaseCollector):
 
     def cfg(self, key: str, default: Any = None) -> Any:
         return self.meta.config.get(key, default)
+
+    def target_codes(self) -> list[str]:
+        """조회할 행정동 기관코드. config.admm_codes 가 비면 선거구 정의를 따른다."""
+        explicit = [str(c) for c in (self.cfg("admm_codes") or [])]
+        if explicit:
+            return explicit
+        district_key = self.cfg("district")
+        return resolve_district(district_key).emd_codes if district_key else []
 
     @property
     def reference_month(self) -> str:

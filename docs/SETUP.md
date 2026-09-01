@@ -34,8 +34,8 @@ uv run votelink geo lookup 풍납1동          # 확인
 4. 엔드포인트는 `collectors/mois_population/meta.yaml` 의 `config.endpoint` 에 있다
    (현재 `https://apis.data.go.kr/1741000/admmSexdAgePpltn`)
 5. `config.reference_month` 를 받으려는 기준월로 맞춘다 (예: `2026-07`)
-6. `config.admm_codes` 에 조회할 행정동 기관코드를 넣는다
-   (현재 풍납1동 `3230040` 하나만 들어 있다 — 송파갑 전체를 넣어야 한다)
+6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
+   `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
 ### 응답이 예상과 다르면
 `meta.yaml` 의 `config` 만 고친다. 파이썬은 건드리지 않는다.
@@ -59,7 +59,17 @@ uv run votelink collect mois_population                     # 실제 수집
 `meta.verified: false` 인 수집기는 실제 응답으로 검증되지 않은 상태다.
 테스트가 통과하면 `true` 로 올린다.
 
-## 3. 앞으로 필요해질 것 (아직 아님)
+## 3. 선거구 획정 확인 (권장)
+
+`data/reference/districts.yaml` 의 송파갑 행정동 9개는 **사용자 제공 목록**이다.
+선관위 선거구 획정 자료로 대조해두는 편이 좋다 — 목록이 틀리면 옆 지역구 데이터가
+섞여 들어와도 **아무 에러가 나지 않는다.** 인구도 득표도 그럴듯한 숫자가 나온다.
+
+```bash
+uv run votelink district list --emd
+```
+
+## 4. 앞으로 필요해질 것 (아직 아님)
 
 | 무엇 | 언제 | 비고 |
 |---|---|---|
