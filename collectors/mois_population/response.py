@@ -24,14 +24,26 @@ KNOWN_PATHS: tuple[tuple[str, ...], ...] = (
     ("row",),
 )
 
-# 포털이 오류를 200 응답 본문에 담아 보내는 자리들
-ERROR_PATHS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
-    (("response", "header", "resultCode"), ("response", "header", "resultMsg")),
-    (("resultCode",), ("resultMsg",)),
-    (("cmmMsgHeader", "returnReasonCode"), ("cmmMsgHeader", "errMsg")),
-)
+# 포털은 오류를 HTTP 200 본문에 담아 보낸다. 봉투 위치가 데이터셋마다 달라서
+# 고정 경로로 찾지 않고 구조를 훑어 코드 키를 가진 dict 를 찾는다.
+CODE_KEYS = ("resultCode", "returnReasonCode", "errorCode")
+MSG_KEYS = ("resultMsg", "returnAuthMsg", "errMsg", "errorMsg")
 
 OK_CODES = {"00", "0", "INFO-000", "NORMAL SERVICE."}
+
+# 자주 나오는 코드에 대한 조치 안내. 원문 메시지는 항상 함께 보여준다.
+ERROR_HINTS: dict[str, str] = {
+    "12": (
+        "엔드포인트 경로가 틀렸다. 포털 데이터셋의 '상세기능'에 있는 요청 URL은 보통 "
+        "https://apis.data.go.kr/<기관>/<서비스>/<오퍼레이션> 형태다 — "
+        "오퍼레이션 이름이 빠졌는지 확인하라 (meta.yaml 의 config.endpoint)"
+    ),
+    "20": "서비스 접근이 거부됐다. 해당 데이터셋에 활용신청이 승인됐는지 확인하라",
+    "22": "일일 호출 한도를 초과했다. paging.size 를 키우고 호출 수를 줄여라",
+    "30": "인증키가 등록되지 않았다. 키를 다시 확인하라 (Encoding/Decoding 둘 다 지원한다)",
+    "31": "활용기간이 만료됐다. 포털에서 연장 신청하라",
+    "32": "등록되지 않은 IP다. 포털 개발계정에 호출 IP를 등록하라",
+}
 
 
 class ResponseShapeError(ValueError):
@@ -51,18 +63,43 @@ def dig(body: Any, path: tuple[str, ...]) -> Any:
     return cur
 
 
+def _find_status(node: Any, depth: int = 0) -> dict[str, Any] | None:
+    """코드 키를 가진 dict 를 찾는다. 봉투가 어떻게 감싸여 있든 걸린다."""
+    if depth > 6:
+        return None
+    if isinstance(node, dict):
+        if any(k in node for k in CODE_KEYS):
+            return node
+        for value in node.values():
+            found = _find_status(value, depth + 1)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for value in node[:20]:
+            found = _find_status(value, depth + 1)
+            if found:
+                return found
+    return None
+
+
 def check_api_error(body: Any) -> None:
-    """정상 코드가 아니면 즉시 알려준다. 빈 목록으로 조용히 넘어가지 않는다."""
-    if not isinstance(body, dict):
+    """정상 코드가 아니면 즉시 알려준다. 빈 목록으로 조용히 넘어가지 않는다.
+
+    키 미등록·한도 초과·경로 오류를 '0건 수집 성공'으로 넘기면
+    아무 경고 없이 빈 전략이 나온다.
+    """
+    status = _find_status(body)
+    if status is None:
         return
-    for code_path, msg_path in ERROR_PATHS:
-        code = dig(body, code_path)
-        if code is None:
-            continue
-        if str(code).strip() not in OK_CODES:
-            msg = dig(body, msg_path) or "(사유 없음)"
-            raise ApiError(f"[{code}] {msg}")
+
+    code = str(next(status[k] for k in CODE_KEYS if k in status)).strip()
+    if code in OK_CODES:
         return
+
+    parts = [str(status[k]).strip() for k in MSG_KEYS if status.get(k)]
+    message = " / ".join(dict.fromkeys(parts)) or "(사유 없음)"
+    hint = ERROR_HINTS.get(code.lstrip("0") or code) or ERROR_HINTS.get(code)
+    raise ApiError(f"[{code}] {message}" + (f"\n  → {hint}" if hint else ""))
 
 
 # 데이터 목록이 들어 있는 흔한 키 이름. 껍데기 리스트를 벗길 때 쓴다.

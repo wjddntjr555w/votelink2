@@ -37,6 +37,28 @@ uv run votelink geo lookup 풍납1동          # 확인
 6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
    `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
+### 엔드포인트 경로 (현재 막혀 있는 지점)
+
+포털 REST API의 요청 URL은 보통 **3단**이다.
+
+```
+https://apis.data.go.kr/<기관코드>/<서비스명>/<오퍼레이션명>
+                        1741000    admmSexdAgePpltn   ← 여기가 빠져 있다
+```
+
+서비스까지만 호출하면 이 응답이 온다:
+
+```json
+{"OpenAPI_ServiceResponse": {"cmmMsgHeader": {
+  "errMsg": "NO_OPENAPI_SERVICE_ERROR",
+  "returnAuthMsg": "해당 오픈API 서비스가 없거나 폐기됨",
+  "returnReasonCode": "12"}}}
+```
+
+**찾는 법**: 데이터셋 페이지 → **상세기능** 탭 → 각 기능의 **요청 URL** 을 통째로 복사.
+그 화면의 **미리보기/확인** 버튼을 누르면 동작하는 URL이 그대로 만들어진다.
+파라미터 이름(`pageNo`/`numOfRows` vs `pIndex`/`pSize`)도 거기서 확인된다.
+
 ### 응답이 예상과 다르면
 `meta.yaml` 의 `config` 만 고친다. 파이썬은 건드리지 않는다.
 

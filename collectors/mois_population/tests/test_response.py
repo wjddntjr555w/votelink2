@@ -71,3 +71,46 @@ def test_normal_result_code_passes():
 def test_no_list_at_all_reports_top_level_keys():
     with pytest.raises(ResponseShapeError, match="이상함"):
         extract_rows({"이상함": 1})
+
+
+# --- 실제로 받은 오류 응답 ------------------------------------------------------
+# 2026-09-01, 오퍼레이션 이름 없이 서비스 경로만 호출했을 때 포털이 돌려준 실제 본문.
+REAL_NO_SERVICE_ERROR = {
+    "OpenAPI_ServiceResponse": {
+        "cmmMsgHeader": {
+            "errMsg": "NO_OPENAPI_SERVICE_ERROR",
+            "returnAuthMsg": "해당 오픈API 서비스가 없거나 폐기됨",
+            "returnReasonCode": "12",
+        }
+    }
+}
+
+
+def test_real_error_envelope_is_detected():
+    """봉투가 OpenAPI_ServiceResponse 로 한 겹 더 감싸여 있어도 잡아야 한다."""
+    with pytest.raises(ApiError) as exc:
+        extract_rows(REAL_NO_SERVICE_ERROR)
+    assert "NO_OPENAPI_SERVICE_ERROR" in str(exc.value)
+    assert "폐기" in str(exc.value)
+
+
+def test_error_carries_actionable_hint():
+    """코드만 보여주면 사용자가 뭘 해야 할지 모른다."""
+    with pytest.raises(ApiError, match="오퍼레이션"):
+        extract_rows(REAL_NO_SERVICE_ERROR)
+
+
+@pytest.mark.parametrize(
+    ("code", "keyword"),
+    [("30", "인증키"), ("22", "한도"), ("20", "활용신청"), ("32", "IP")],
+)
+def test_known_codes_get_hints(code, keyword):
+    body = {"cmmMsgHeader": {"returnReasonCode": code, "errMsg": "X"}}
+    with pytest.raises(ApiError, match=keyword):
+        extract_rows(body)
+
+
+def test_unknown_error_code_still_shows_message():
+    body = {"resultCode": "99", "resultMsg": "UNKNOWN_ERROR"}
+    with pytest.raises(ApiError, match="UNKNOWN_ERROR"):
+        extract_rows(body)

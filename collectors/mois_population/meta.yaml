@@ -20,7 +20,13 @@ proposal: docs/proposals/C-001-mois-population.md
 verified: false
 
 config:
-  # 공공데이터포털 데이터셋의 요청 URL (인증키 제외)
+  # 공공데이터포털 데이터셋의 요청 URL (인증키 제외).
+  #
+  # 포털 REST API는 보통 <기관>/<서비스>/<오퍼레이션> 3단이다.
+  # 서비스까지만 넣으면 returnReasonCode=12 (NO_OPENAPI_SERVICE_ERROR)가 온다.
+  # 데이터셋 페이지 '상세기능'의 요청 URL을 통째로 복사할 것.
+  #
+  # 2026-09-01 확인: 아래 2단 경로는 12번 오류를 반환한다. 오퍼레이션 이름 필요.
   endpoint: "https://apis.data.go.kr/1741000/admmSexdAgePpltn"
 
   # 이 스냅샷의 기준월. 데이터셋을 갱신하면 함께 바꾼다.
