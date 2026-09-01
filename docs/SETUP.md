@@ -37,49 +37,39 @@ uv run votelink geo lookup 풍납1동          # 확인
 6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
    `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
-### ✅ 검증 완료 (2026-09-01) — 응답 형식·봉투·에러 처리
+### ✅ 검증 완료 (2026-09-01)
 
-키가 정상 동작하고, 실제 응답(`admmCd=1111054000`, 종로구 삼청동)으로
-필드명·봉투 구조·에러 코드 처리를 전부 확인했다. `meta.verified: true`.
+키가 정상 동작하고, 실제 응답으로 필드명·봉투 구조·에러 코드 처리·조회 전략까지
+전부 확인했다. `meta.verified: true`.
+
+핵심 발견: **행안부 게시판의 법정동코드는 이 API의 `admmCd`가 아니다.**
+자릿수·구조가 비슷해 헷갈렸지만 값이 다르다 (풍납동 법정동코드 `1171010300` ≠
+풍납1동 실제 admmCd `1171051000`). 그래서 조회 전략을 바꿨다:
+
+**동별 코드를 미리 몰라도 된다.** 시군구 코드 하나(`admmCd=1171000000`, 송파구)로
+`lv=3` 조회하면 산하 행정동이 **이미 동 단위로 집계된 채**, 각자의 고유 `admmCd`와
+함께 한 번에 온다. 수집기가 그 응답을 `districts.yaml`의 동 **이름**으로 걸러낸다.
+그래서 동별 코드가 비어 있어도(`code: null`) 수집이 된다 — `sigungu_admm_code`
+하나만 맞으면 된다.
 
 ```
-$ .../selectAdmmSexdAgePpltn?admmCd=1111054000&srchFrYm=202210&srchToYm=202210&lv=4&regSeCd=1&type=JSON
-resultCode: 0 (NORMAL_SERVICE), totalCount: 42
+$ .../selectAdmmSexdAgePpltn?admmCd=1171000000&srchFrYm=202412&srchToYm=202412&lv=3&regSeCd=1&type=JSON
+resultCode: 0 (NORMAL_SERVICE), totalCount: 27  ← 송파구 전체 행정동
 → dongNm/sggNm/ctpvNm/admmCd, male{N}AgeNmprCnt·feml{N}AgeNmprCnt (N=0,10,...,100), totNmprCnt
+   (tong/ban 이 빈 문자열 — 이미 동 단위로 집계돼 있다는 뜻)
 ```
 
-### ⚠️ 지금 막혀 있는 지점 — 송파갑 9개 동의 실제 코드 검증
-
-`admmCd`는 10자리이고 계층이 접두사로 인코딩된다(시도2+시군구3+동3+리2).
-받아둔 행정기관코드 7자리(`3230040` 등)와는 다른 체계라 그대로 못 쓴다.
-
-행정안전부 게시판에서 받은 **법정동코드**(예: 풍납동 `1171010300`)를
-`districts.yaml`에 넣어뒀지만 **미확인 상태**다:
+풍납1동(`1171051000`), 풍납2동(`1171052000`)은 이 응답으로 확인해
+`districts.yaml`에 채웠다. 나머지 7개는 응답에 있었을 텐데 전체를 못 받아서
+**아직 미확인**이다 — 다만 위 이유로 수집이 막히지는 않는다.
 
 ```bash
-uv run votelink district list --emd    # 9개 모두 (미확인)으로 나온다
+uv run votelink district list --emd    # 2개 확인, 7개 미확인으로 나온다
 ```
 
-**다음 확인이 필요하다**: 아래 요청을 과거 기간(예: `202412`)으로 시도해서
-데이터가 나오는지 봐야 한다. `admmCd=1111054000`(도큐먼트 예제)이 성공했던
-바로 그 요청 형식이고, 다른 점은 코드값뿐이라 이 테스트가 코드 자체의
-유효성을 가른다.
-
-```
-.../selectAdmmSexdAgePpltn
-  ?serviceKey=<키>&admmCd=1171010300&srchFrYm=202412&srchToYm=202412
-  &lv=4&regSeCd=1&type=JSON&numOfRows=100&pageNo=1
-```
-
-- **데이터가 나오면**: 이전 `NODATA_ERROR`는 미래 월(`202607`) 때문이었을
-  뿐이고 코드는 맞았다는 뜻. `districts.yaml`의 `code:` 필드를 채우고
-  (풍납1동/2동 둘 다 `1171010300`), `reference_month`를 실제 데이터가 있는
-  월로 맞추면 수집이 된다.
-- **여전히 NODATA면**: 이 코드 체계 자체가 `admmCd`로 안 맞는 것이고
-  다른 코드 출처를 찾아야 한다.
-
-미확인인 채로 두면 수집이 **실패**한다 (조용히 일부만 수집하지 않는다).
-9개 중 3개만 들어와도 그 3개로 그럴듯한 전략이 나오기 때문이다.
+미확인 동이 응답에서 하나라도 안 잡히면(예: 이름이 바뀌었으면) **수집이 실패한다**
+(조용히 일부만 수집하지 않는다). 9개 중 3개만 들어와도 그 3개로 그럴듯한 전략이
+나오기 때문이다.
 
 ### 엔드포인트 경로
 
@@ -104,17 +94,21 @@ https://apis.data.go.kr/<기관코드>/<서비스명>/<오퍼레이션명>
 ```
 https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn
   ?serviceKey=<키>
-  &admmCd=1111054000     # 행정동코드 10자리
-  &srchFrYm=202210       # 조회 시작 연월 (기준월에서 자동 생성)
-  &srchToYm=202210       # 조회 종료 연월
-  &lv=4                  # 행정구역 레벨 (4 = 행정동)
+  &admmCd=1171000000     # 조회 기준 코드. lv 와 짝을 이룬다
+  &srchFrYm=202412       # 조회 시작 연월 (기준월에서 자동 생성)
+  &srchToYm=202412       # 조회 종료 연월
+  &lv=3                  # 행정구역 레벨. 3=시군구(산하 동이 집계돼 나옴), 4=행정동 단위
   &regSeCd=1             # 등록구분 (1 = 거주자)
   &type=JSON             # 기본은 XML
-  &numOfRows=10&pageNo=1
+  &numOfRows=100&pageNo=1
 ```
 
 `meta.yaml` 에 반영되어 있다. `srchFrYm`/`srchToYm` 은 `config.reference_month`
 하나에서 만들어지므로 기준월을 바꿀 때 고칠 곳은 한 군데다.
+
+**과거 월에도 데이터가 없을 수 있다** — 발행 지연이 있다. `2026-07`처럼 아직
+발행 안 된 미래월을 넣으면 `NODATA_ERROR`(resultCode 3)가 난다. 처음 시도할
+땐 몇 달 전으로 넉넉히 잡는 편이 안전하다.
 
 ### 응답이 예상과 다르면
 `meta.yaml` 의 `config` 만 고친다. 파이썬은 건드리지 않는다.

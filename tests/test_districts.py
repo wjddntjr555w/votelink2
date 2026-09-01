@@ -44,15 +44,16 @@ def test_org_codes_are_recorded():
     assert {e.org_code for e in d.emd} >= {"3230048", "3230065"}
 
 
-def test_internal_codes_are_still_pending():
-    """행정동코드 10자리를 아직 모른다는 사실이 드러나야 한다.
+def test_internal_codes_are_partially_confirmed():
+    """행정동코드 10자리는 mois_population 실제 응답으로 확인된 것만 채운다.
 
     모르는 것을 그럴듯한 값으로 채우면 조용히 엉뚱한 동네를 수집한다.
+    풍납1동/2동은 2026-09-01 실제 API 응답으로 확인됐고, 나머지 7개는 아직이다.
     """
     d = resolve_district(TARGET)
     assert not d.fully_resolved
-    assert len(d.pending) == 9
-    assert d.emd_codes == []
+    assert len(d.pending) == 7
+    assert set(d.emd_codes) == {"1171051000", "1171052000"}
 
 
 def test_unknown_district_lists_known_ones():
@@ -111,10 +112,14 @@ def test_duplicates_are_rejected(tmp_path, emd_yaml, label):
 
 
 def test_collector_has_no_district_list_of_its_own():
+    """수집기는 동 목록을 따로 들고 있지 않다 — 시군구 코드 하나로 조회하고,
+    대상 동 이름은 district 정의에서 가져와 응답을 걸러낸다."""
     from pathlib import Path
 
     from collectors.mois_population.collector import Collector
     from votelink.collect.meta import CollectorMeta
 
     meta = CollectorMeta.load(Path("collectors/mois_population/meta.yaml"))
-    assert Collector(meta=meta).target_codes() == resolve_district(TARGET).emd_codes
+    collector = Collector(meta=meta)
+    assert collector.query_codes() == [meta.config["sigungu_admm_code"]]
+    assert collector._target_names() == {e.name for e in resolve_district(TARGET).emd}

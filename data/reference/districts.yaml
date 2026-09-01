@@ -3,7 +3,10 @@
 # 선거구 획정은 매 선거마다 바뀐다. 코드에 박지 않고 여기 데이터로 둔다.
 # 수집기(어디를 수집할지)와 분석기(어디를 분석할지)가 이 파일 하나를 본다.
 #
-# code      : 내부 표준 = 행정표준코드 행정동코드 10자리. 확인 전에는 null.
+# code      : 내부 표준 = 행정동코드 10자리. mois_population 수집기가 실제 API
+#             응답(admmCd)에서 확인한 값만 채운다. 확인 전에는 null.
+#             (행안부 게시판의 법정동코드와는 다른 체계다 — 값이 다르다.
+#             예: 풍납동 법정동코드 1171010300 ≠ 풍납1동 admmCd 1171051000)
 # org_code  : 행정기관코드 7자리 (code.go.kr). 참고용이며 geo_code 로 쓰지 않는다.
 
 version: "2026-09 기준"
@@ -18,8 +21,12 @@ districts:
     # 옆 지역구 데이터가 섞여 들어와도 아무 에러가 나지 않는다.
     source: user_provided
     emd:
-      - { name: 풍납1동, org_code: "3230040", code: null }
-      - { name: 풍납2동, org_code: "3230041", code: null }
+      # code: mois_population 실제 응답(admmCd, lv=3 송파구 조회, 2026-09-01)으로 확인.
+      - { name: 풍납1동, org_code: "3230040", code: "1171051000" }
+      - { name: 풍납2동, org_code: "3230041", code: "1171052000" }
+      # 아래는 아직 실제 응답에서 확인 못 했다 — 미확인. mois_population 은
+      # code 없이도 수집기 자체 필터링(이름 기준)으로 동작하므로 수집이
+      # 막히진 않지만, 여기 채워두면 다른 용도(회귀 검증 등)에 쓸 수 있다.
       - { name: 방이1동, org_code: "3230046", code: null }
       - { name: 방이2동, org_code: "3230047", code: null }
       - { name: 오륜동,  org_code: "3230048", code: null }

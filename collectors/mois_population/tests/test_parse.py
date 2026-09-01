@@ -29,7 +29,12 @@ pytestmark = pytest.mark.skipif(
 
 
 def _collector():
-    return Collector(meta=CollectorMeta.load(META_PATH))
+    """이 fixture(종로구 삼청동)는 필드 형식 검증용이다 — 송파구 대상이 아니므로
+    district 필터를 끄고 쓴다. 필터링 자체는 test_district_filter.py 가 검증한다.
+    """
+    meta = CollectorMeta.load(META_PATH)
+    meta = meta.model_copy(update={"config": {**meta.config, "district": None}})
+    return Collector(meta=meta)
 
 
 @pytest.fixture

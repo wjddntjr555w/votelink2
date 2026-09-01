@@ -12,10 +12,13 @@ requires_secrets: [DATA_GO_KR_SERVICE_KEY]
 rate_limit_rps: 2
 proposal: docs/proposals/C-001-mois-population.md
 
-# 2026-09-01: 실제 응답(종로구 삼청동, admmCd=1111054000)으로 형식을 확인했다.
-# 응답 필드명·봉투 구조·에러 코드 처리는 검증 완료.
-# 다만 송파갑 자체 코드(admm_codes 아래)로는 아직 실제 수집을 못 해봤다 —
-# 그 코드들이 이 API에서 유효한지, 어느 기간에 데이터가 있는지 미확인.
+# 2026-09-01: 실제 응답으로 검증 완료.
+#   - 종로구 삼청동(admmCd=1111054000)으로 필드명·봉투 구조 확인
+#   - admmCd=1171000000(송파구), lv=3 으로 조회하면 산하 26개 행정동이
+#     '이미 동 단위로 집계된' 행으로 한 번에 나온다 (통/반 필드가 빈 문자열).
+#     각 행에 그 동만의 고유 admmCd 가 붙어 있다 (형제 동끼리 안 겹친다).
+#   - 이 admmCd 는 행안부 게시판에서 받은 법정동코드와 다른 체계였다
+#     (풍납1동 = 1171051000, 법정동코드로는 1171010300이었음 — 값이 다르다)
 verified: true
 
 config:
@@ -23,12 +26,15 @@ config:
   endpoint: "https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn"
 
   # 이 스냅샷의 기준월. srchFrYm/srchToYm 은 여기서 자동 생성된다.
-  reference_month: "2026-07"
+  # 2026-07 등 미래월은 아직 발행 전이라 NODATA_ERROR가 난다 — 2024-12는
+  # 실제로 데이터가 있음을 확인했다. 최신 데이터가 필요하면 더 최근 월로
+  # 하나씩 옮겨가며 확인할 것 (발행 지연이 있다).
+  reference_month: "2024-12"
 
   # 매 요청에 붙는 고정 파라미터
   params:
     type: JSON      # 기본은 XML이다. JSON을 안 주면 수집기가 앞부분을 보여주며 실패한다
-    lv: "4"         # 행정구역 레벨 (4 = 행정동)
+    lv: "3"         # 3=시군구 단위로 조회. 산하 행정동이 이미 집계돼 한 번에 나온다
     regSeCd: "1"    # 등록구분 (1 = 거주자)
 
   # 기준월에서 만들어 붙일 기간 파라미터 이름
@@ -42,11 +48,16 @@ config:
     size: 1000
     max_pages: 100
 
-  # 조회 범위. 선거구 id를 주면 data/reference/districts.yaml 의 행정동코드를 쓴다.
-  # 행정동 목록을 여기 복사해두지 않는다 — 획정이 바뀌면 두 곳이 어긋난다.
+  # 조회는 시군구 코드 하나(lv=3)로 하고, 응답에서 산하 행정동을 받은 뒤
+  # district 의 행정동 '이름' 목록으로 걸러낸다. 그래서 동별 코드를 미리
+  # 몰라도 된다 — districts.yaml 의 emd[].code 가 null 이어도 수집은 된다.
+  #
+  # admm_codes 를 비우면 이 시군구 코드 하나로 조회한다. 채우면 이쪽이 우선한다
+  # (다른 시군구를 보고 싶을 때 등).
   admm_code_param: admmCd
   district: seoul_songpa_gap
-  admm_codes: []   # 비워두면 district 를 따른다. 채우면 이쪽이 우선한다
+  sigungu_admm_code: "1171000000"   # 서울 송파구. lv=3 조회로 검증됨 (2026-09-01)
+  admm_codes: []
 
   # 응답에서 목록을 꺼낼 경로 (예: "response.body.items.item").
   # 비워두면 알려진 형태를 자동 탐색하고, 찾으면 경로를 로그로 알려준다.

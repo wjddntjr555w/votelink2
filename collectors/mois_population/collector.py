@@ -1,7 +1,12 @@
 """행정안전부 주민등록 인구 수집기 (성별·연령별, 행정동 단위).
 
 fetch: 공공데이터포털 API를 페이지 단위로 호출해 응답을 그대로 저장한다
-parse: 순수 함수. 통·반 행을 행정동으로 접고 공통 레코드로 만든다
+parse: 순수 함수. 행을 행정동으로 접고, 대상 지역구의 동 이름으로 걸러 공통 레코드로 만든다
+
+전략: 동별 코드를 미리 알 필요가 없다. 시군구 코드 하나(lv=3)로 조회하면
+산하 행정동이 이미 동 단위로 집계된 채로, 각 동 고유의 admmCd 와 함께 온다.
+그 응답을 지역구의 동 '이름' 목록으로 걸러내면 끝난다 — districts.yaml 의
+emd[].code 가 비어 있어도(미확인이어도) 수집이 된다.
 
 응답 형식을 코드에 박지 않는다. 요청 파라미터 이름, 목록 경로, 필드명은 전부
 meta.yaml 의 config 와 aggregate.py 상단 상수로 뺐다 — 형식이 다르면 파이썬이 아니라
@@ -18,7 +23,7 @@ from urllib.parse import unquote
 
 import httpx
 
-from votelink.collect import BaseCollector, ParseResult, RawBatch, polite_client, to_emd_code
+from votelink.collect import BaseCollector, ParseResult, RawBatch, polite_client
 from votelink.collect.http import FetchError
 from votelink.contract.models import KST, Record
 from votelink.reference import resolve_district
@@ -70,8 +75,7 @@ class Collector(BaseCollector):
         }
 
         code_param = self.cfg("admm_code_param", "")
-        codes = self.target_codes()
-        self._require_resolved_codes(codes)
+        codes = self.query_codes()
         targets: list[dict[str, Any]] = (
             [{code_param: code} for code in codes] if (code_param and codes) else [{}]
         )
@@ -118,7 +122,28 @@ class Collector(BaseCollector):
 
     def parse(self, raw: RawBatch) -> Iterator[ParseResult]:
         rows = extract_rows(raw.body, self.cfg("data_path", ""))
-        yield from self.map_items(aggregate_rows(rows), self._to_record)
+        aggs = aggregate_rows(rows)
+
+        target = self._target_names()
+        if target:
+            aggs, missing = self._filter_to_target(aggs, target)
+            if missing:
+                # 페이지 하나에 시군구 전체가 다 들어온다는 전제(§ query_codes)가
+                # 깨지면(대상이 아주 큰 시군구라 여러 페이지로 나뉘면) 오탐할 수 있다.
+                # 지금 규모(9개 동, 응답 27건)에서는 안전하다.
+                raise ValueError(
+                    f"응답에서 다음 행정동을 찾지 못했다: {', '.join(sorted(missing))}. "
+                    "동 이름이 바뀌었거나 여러 페이지에 걸쳐 나뉘어 왔을 수 있다"
+                )
+
+        yield from self.map_items(aggs, self._to_record)
+
+    @staticmethod
+    def _filter_to_target(
+        aggs: list[EmdAggregate], target: set[str]
+    ) -> tuple[list[EmdAggregate], set[str]]:
+        found = {a.emd for a in aggs}
+        return [a for a in aggs if a.emd in target], target - found
 
     def _to_record(self, agg: EmdAggregate) -> Record:
         agg.check_total()  # 연령별 합 != 총인구수 이면 이 레코드만 격리된다
@@ -147,14 +172,16 @@ class Collector(BaseCollector):
 
     @staticmethod
     def _geo_code(agg: EmdAggregate) -> str:
-        """응답에 행정기관코드가 있으면 그대로 쓴다.
+        """이 API는 항상 admmCd 를 준다. 없으면 응답 형식이 바뀐 것이므로 즉시 알린다.
 
-        출처가 코드를 주는데 이름으로 되돌려 찾는 것은 사고를 부른다.
-        코드가 없을 때만 '시도 시군구 행정동' 표기로 매핑표를 조회한다.
+        출처가 코드를 주는데 이름으로 되돌려 찾는 것은 사고를 부른다 —
+        조용한 대체 경로를 두지 않는다.
         """
-        if agg.admm_code:
-            return agg.admm_code
-        return to_emd_code(agg.full_name, system="mois")
+        if not agg.admm_code:
+            raise ValueError(
+                f"{agg.full_name}: 응답에 admmCd 가 없다. 응답 형식이 바뀌었을 수 있다"
+            )
+        return agg.admm_code
 
     # --- 설정 -----------------------------------------------------------------
 
@@ -170,32 +197,33 @@ class Collector(BaseCollector):
         compact = self.reference_month.replace("-", "")
         return {name: compact for key in ("from", "to") if (name := names.get(key))}
 
-    def _require_resolved_codes(self, codes: list[str]) -> None:
-        """미확인 행정동을 조용히 건너뛰지 않는다.
+    def query_codes(self) -> list[str]:
+        """요청에 쓸 admmCd 목록.
 
-        9개 중 3개만 수집되면 그 3개만으로 그럴듯한 전략이 나온다.
+        우선순위: 명시적 admm_codes > 시군구 코드(sigungu_admm_code) > 없음(필터 없이 전체 조회).
+        명시적 admm_codes 를 쓰면 이름 필터링을 하지 않는다 — 사용자가 범위를
+        직접 통제하겠다는 뜻으로 본다.
         """
-        if codes:
-            return
-        key = self.cfg("district")
-        if not key:
-            return
-        district = resolve_district(key)
-        if district.pending:
-            missing = ", ".join(e.name for e in district.pending)
-            raise FetchError(
-                f"{district.name} 의 행정동코드 {len(district.pending)}개가 아직 미확인이다: "
-                f"{missing}\n  → data/reference/districts.yaml 의 code 를 채워라 "
-                "(확인: uv run votelink district list --emd)"
-            )
-
-    def target_codes(self) -> list[str]:
-        """조회할 행정동 기관코드. config.admm_codes 가 비면 선거구 정의를 따른다."""
         explicit = [str(c) for c in (self.cfg("admm_codes") or [])]
         if explicit:
             return explicit
+        sigungu_code = self.cfg("sigungu_admm_code")
+        if sigungu_code:
+            return [str(sigungu_code)]
+        return []
+
+    def _target_names(self) -> set[str]:
+        """응답을 걸러낼 행정동 이름 집합.
+
+        explicit admm_codes 를 쓰는 경우엔 필터링하지 않는다 (호출자가 이미
+        범위를 좁혔다고 본다). district 로 조회하는 기본 경로에서만 걸러낸다.
+        """
+        if self.cfg("admm_codes"):
+            return set()
         district_key = self.cfg("district")
-        return resolve_district(district_key).emd_codes if district_key else []
+        if not district_key:
+            return set()
+        return {e.name for e in resolve_district(district_key).emd}
 
     @property
     def reference_month(self) -> str:
