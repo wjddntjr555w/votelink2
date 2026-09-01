@@ -53,8 +53,17 @@ collectors/<id>/tests/test_parse.py   # templates/test_parse.py.tmpl
   **코드에 키를 쓰지 않는다**
 
 ### 4. 실제 응답 1건을 fixture로 저장
-fetch를 한 번 돌려 실제 응답을 `tests/fixtures/sample_raw.json` 에 저장한다.
+```bash
+uv run votelink collect <id> --capture-fixture
+```
 손으로 만든 가짜 데이터를 쓰지 않는다.
+
+**API 키가 없거나 출처에 접근할 수 없으면 여기서 멈춘다.** 응답 형식을 추측해
+fixture를 지어내지 않는다. 대신:
+- `meta.verified: false` 로 두고
+- parse 테스트는 fixture 부재 시 skip 되게 하고
+- 응답 필드명을 한 곳(모듈 상단 상수)에 모아 고치기 쉽게 만들고
+- 사용자에게 **무엇을 발급받아야 하는지** 알리고 `docs/SETUP.md` 에 적는다
 
 ### 5. parse 구현
 - 순수 함수. 네트워크 금지
@@ -69,6 +78,10 @@ uv run votelink collect <id> --dry-run     # 저장 없이 계약 검증만
 uv run ruff check . && uv run ruff format .
 ```
 `--dry-run` 에서 격리율이 0이 아니면 원인을 찾고, 5% 넘으면 넘어가지 않는다.
+
+### 6-1. 검증 완료 표시
+fixture로 테스트가 통과하면 `meta.yaml` 의 `verified` 를 `true` 로 올린다.
+통과하지 않았다면 올리지 않는다.
 
 ### 7. 등록
 ```bash
@@ -88,3 +101,4 @@ uv run votelink registry sync    # meta.yaml 들에서 registry.yaml 재생성
 - 개인 식별 정보를 빼면 데이터가 쓸모없어진다
 - 제안서의 "왜 필요한가"가 최종 산출물과 연결되지 않는다
 - 기존 `kind` 에 안 맞아 새 `kind` 가 필요하다 (데이터 계약 변경이므로 사용자 승인 필요)
+- API 키·계정 발급이 필요하다 (사용자만 할 수 있다 → `docs/SETUP.md` 에 적고 알린다)

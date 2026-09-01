@@ -1,0 +1,15 @@
+# 자동 생성물. 손으로 고치지 말 것. `uv run votelink registry sync`
+generated_by: votelink registry sync
+count: 1
+collectors:
+- id: mois_population
+  name: 행정안전부 주민등록 인구 (행정동 × 연령 × 성별)
+  kinds:
+  - population
+  source_name: 행정안전부
+  access: api
+  schedule: 0 5 5 * *
+  geo_level: emd
+  verified: false
+  requires_secrets:
+  - DATA_GO_KR_SERVICE_KEY

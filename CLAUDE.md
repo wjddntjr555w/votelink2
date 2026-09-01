@@ -18,6 +18,7 @@
 | 웹앱 화면 작업 | `votelink/web/` + `docs/40-webapp-spec.md` |
 | 산출물이 선거법에 걸리는지 | `docs/90-compliance.md` |
 | 프로젝트 전체 파악 | `docs/00-overview.md` (이것만) |
+| API 키·계정이 필요한지 | `docs/SETUP.md` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.
@@ -40,6 +41,7 @@ uv run votelink collect <id> --reparse   # 재수집 없이 저장된 raw만 재
 uv run votelink collect <id> --dry-run   # 저장 없이 계약 검증만
 uv run votelink registry sync            # registry.yaml 재생성
 uv run votelink geo import <csv>         # 행정동코드 매핑표 적재 (최초 1회 필수)
+uv run votelink collect <id> --capture-fixture  # 실제 응답을 fixture로 저장
 uv run votelink analyze <id>     # 분석기 실행
 uv run votelink serve            # 로컬 웹앱 (기본 8420)
 uv run pytest                    # 테스트

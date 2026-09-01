@@ -47,6 +47,7 @@ def sync(root: Path = COLLECTORS_DIR, out: Path | None = None) -> Path:
                 "access": str(m.access),
                 "schedule": m.schedule,
                 "geo_level": str(m.geo_level),
+                "verified": m.verified,
                 "requires_secrets": m.requires_secrets,
             }
             for m in metas.values()

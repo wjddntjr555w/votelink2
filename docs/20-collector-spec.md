@@ -70,7 +70,16 @@ geo_level: emd
 requires_secrets: [NEC_API_KEY]  # 없으면 []
 rate_limit_rps: 1
 proposal: docs/proposals/C-001-nec-election-result.md
+verified: false                  # 실제 응답 fixture로 검증됐는가
+config:                          # 수집기별 설정. 비밀값은 넣지 않는다
+  endpoint: "https://..."
+  per_page: 1000
 ```
+
+`proposal` 경로가 실제로 없으면 등록이 거부된다. 제안서 없이 만든 수집기를 막는 장치다.
+
+`verified: false` 인 수집기는 실행할 때마다 경고가 뜬다. 실제 응답 fixture로
+테스트를 통과시킨 뒤에만 `true` 로 올린다.
 
 `registry.yaml`은 이 파일들을 모아 자동 생성한다. 손으로 쓰지 않는다.
 
@@ -112,8 +121,19 @@ def test_parse_produces_valid_records():
         assert r.observed_at <= r.ingested_at
 ```
 
-fixture는 실제 응답 1건을 그대로 저장한다. 손으로 만든 가짜 데이터는 쓰지 않는다
-(실제 출처의 지저분함이 테스트에 반영되지 않는다).
+fixture는 실제 응답 1건을 그대로 저장한다. 손으로 만든 가짜 데이터는 쓰지 않는다 —
+빈 문자열, 콤마 섞인 숫자, 예상 못 한 필드명 같은 실제 출처의 지저분함이
+테스트에 반영되지 않기 때문이다.
+
+```bash
+uv run votelink collect <id> --capture-fixture
+```
+
+**fixture가 없으면 parse 테스트는 skip 되어야 한다.** 합성 데이터로 대신하지 않는다.
+skip 은 "이 수집기는 아직 미검증"이라는 정직한 신호다.
+
+산수(재집계·환산)처럼 응답 형식과 무관한 로직은 별도 순수 함수로 빼서
+합성 데이터로 검증해도 된다 (예: `collectors/mois_population/aggregate.py`).
 
 ## 7-1. 실행
 
@@ -122,6 +142,7 @@ uv run votelink collect <id>              # 수집 + 저장
 uv run votelink collect <id> --dry-run    # 저장 없이 계약 검증만
 uv run votelink collect <id> --reparse    # 네트워크 없이 저장된 raw 재파싱
 uv run votelink collect <id> --since 2026-08-01
+uv run votelink collect <id> --capture-fixture   # 실제 응답을 fixture로 저장
 uv run votelink registry sync             # registry.yaml 재생성
 ```
 

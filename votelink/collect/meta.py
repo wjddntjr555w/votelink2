@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -37,6 +38,14 @@ class CollectorMeta(BaseModel):
     requires_secrets: list[str] = Field(default_factory=list)
     rate_limit_rps: float = Field(default=1.0, gt=0, le=10)
     proposal: str | None = None
+    verified: bool = Field(
+        default=False,
+        description="실제 응답 fixture로 parse 가 검증됐는가. False면 신뢰하지 않는다",
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="수집기별 설정(엔드포인트, 기준월 등). 비밀값은 여기 넣지 않는다",
+    )
 
     @field_validator("proposal")
     @classmethod

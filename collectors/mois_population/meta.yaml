@@ -1,0 +1,29 @@
+id: mois_population
+name: 행정안전부 주민등록 인구 (행정동 × 연령 × 성별)
+kinds: [population]
+source_name: 행정안전부
+source_url: https://www.data.go.kr/data/15108072/openapi.do
+source_license: public_open
+access: api
+schedule: "0 5 5 * *"      # 매월 5일 05:00. 원 데이터는 매월 말일 기준으로 갱신된다
+incremental: false          # 월 단위 스냅샷. 증분 개념이 없다
+geo_level: emd
+requires_secrets: [DATA_GO_KR_SERVICE_KEY]
+rate_limit_rps: 2
+proposal: docs/proposals/C-001-mois-population.md
+
+# 실제 응답으로 아직 검증되지 않았다. 첫 실행 전에 아래 절차를 따를 것:
+#   1) config.endpoint 를 포털에서 복사한 실제 URL로 교체
+#   2) uv run votelink collect mois_population --capture-fixture
+#   3) uv run pytest collectors/mois_population/
+#   4) 통과하면 verified: true 로 바꾼다
+verified: false
+
+config:
+  # 공공데이터포털 데이터셋 페이지의 '요청 URL'을 그대로 붙여넣는다.
+  # 자동변환 API는 데이터셋마다 uddi UUID가 다르므로 추측할 수 없다.
+  endpoint: "https://api.odcloud.kr/api/15108072/v1/uddi:REPLACE-ME"
+  # 이 스냅샷의 기준월. 데이터셋을 갱신하면 이 값도 바꾼다.
+  reference_month: "2026-07"
+  per_page: 1000
+  max_pages: 200

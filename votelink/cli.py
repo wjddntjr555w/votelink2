@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import logging
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from votelink.collect import geo, registry, runner
+from votelink.collect.http import FetchError
 from votelink.contract.models import KST
 
 # 행안부/통계청 파일마다 헤더 이름이 다르다. 흔한 이름을 먼저 시도한다.
@@ -43,16 +45,53 @@ def _pick_column(header: list[str], explicit: str | None, candidates: tuple[str,
 
 def cmd_collect(args: argparse.Namespace) -> int:
     collector = registry.load(args.collector_id)
-    report = runner.run(
-        collector,
-        since=_parse_since(args.since),
-        dry_run=args.dry_run,
-        reparse=args.reparse,
-    )
+
+    if args.capture_fixture:
+        return _capture_fixture(collector)
+
+    if not collector.meta.verified:
+        print(
+            f"[주의] {collector.id} 는 실제 응답으로 검증되지 않았다 (meta.verified=false). "
+            "--capture-fixture 로 fixture 를 받고 테스트를 통과시킨 뒤 verified 를 올려라"
+        )
+    try:
+        report = runner.run(
+            collector,
+            since=_parse_since(args.since),
+            dry_run=args.dry_run,
+            reparse=args.reparse,
+        )
+    except FetchError as exc:
+        # 설정 누락·네트워크 실패는 사용자가 고칠 일이다. 트레이스백을 보여줄 이유가 없다.
+        print(f"수집 실패: {exc}", file=sys.stderr)
+        return 1
     print(report.summary())
     if args.dry_run:
         print("(dry-run: 아무것도 저장하지 않았다)")
     return 1 if report.failed else 0
+
+
+def _capture_fixture(collector) -> int:
+    """첫 배치의 원본을 tests/fixtures/sample_raw.json 에 저장한다.
+
+    손으로 만든 가짜 데이터 대신 실제 응답으로 테스트하기 위한 통로다.
+    """
+    try:
+        batch = next(iter(collector.fetch(None)), None)
+    except FetchError as exc:
+        print(f"수집 실패: {exc}", file=sys.stderr)
+        return 1
+    if batch is None:
+        print("fetch 가 배치를 하나도 내놓지 않았다", file=sys.stderr)
+        return 1
+
+    target = collector.package_dir / "tests" / "fixtures" / "sample_raw.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(batch.body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    size = target.stat().st_size
+    print(f"{target} 저장 ({size:,} bytes)")
+    print(f"다음: uv run pytest {collector.package_dir}/")
+    return 0
 
 
 def cmd_registry_sync(args: argparse.Namespace) -> int:
@@ -150,6 +189,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_collect.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_collect.add_argument(
         "--reparse", action="store_true", help="네트워크 없이 저장된 raw 만 재파싱"
+    )
+    p_collect.add_argument(
+        "--capture-fixture",
+        action="store_true",
+        help="첫 배치의 실제 응답을 tests/fixtures/sample_raw.json 에 저장하고 끝낸다",
     )
     p_collect.set_defaults(func=cmd_collect)
 

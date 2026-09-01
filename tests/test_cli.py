@@ -56,3 +56,13 @@ def test_registry_list_on_empty_project(monkeypatch, tmp_path, capsys):
 def test_unimplemented_commands_say_so(capsys):
     assert cli.main(["serve"]) == 2
     assert "아직 구현되지 않았다" in capsys.readouterr().out
+
+
+def test_collect_reports_missing_config_without_traceback(monkeypatch, capsys):
+    """설정 누락은 사용자가 고칠 일이다. 트레이스백 대신 안내를 보여준다."""
+    monkeypatch.delenv("DATA_GO_KR_SERVICE_KEY", raising=False)
+    assert cli.main(["collect", "mois_population"]) == 1
+    captured = capsys.readouterr()
+    assert "DATA_GO_KR_SERVICE_KEY" in captured.err
+    assert "Traceback" not in captured.err
+    assert "검증되지 않았다" in captured.out
