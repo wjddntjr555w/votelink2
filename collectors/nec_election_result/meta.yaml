@@ -1,0 +1,65 @@
+id: nec_election_result
+name: 중앙선관위 과거 선거 개표결과 (행정동 단위)
+kinds: [election_result]
+source_name: 중앙선거관리위원회
+source_url: https://www.data.go.kr/data/15025527/fileData.do
+source_license: public_open
+access: file                # 오픈API가 아니라 포털 파일데이터(CSV). docs/SETUP.md §4
+schedule: null              # 선거는 비정기. 새 선거가 치러졌을 때만 수동 실행
+incremental: false          # 확정 개표결과는 바뀌지 않는다. since 를 무시한다
+geo_level: emd
+requires_secrets: []        # 파일 다운로드라 인증키가 필요 없다
+rate_limit_rps: 1           # 네트워크를 타지 않는다. 형식상 값
+proposal: docs/proposals/C-002-nec-election-result.md
+
+# 2026-09-01: 실제 CSV 2건으로 검증 완료.
+#   - '법정읍면동명' 은 이름과 달리 값이 행정동이다 (풍납1동/풍납2동이 따로 온다).
+#     그래서 투표구명을 파싱할 필요가 없다.
+#   - 선거인수/투표수/무효 투표수/기권자수가 '후보자' 컬럼에 세로로 들어 있다.
+#     별도 데이터셋 없이 계약의 득표 합계 검증을 통과한다.
+#   - 행은 투표구 단위이며 동 소계 행이 없다. 그대로 합산해도 이중계상이 없다.
+#   - 파일마다 인코딩과 컬럼명이 다르다 (아래 columns/encodings 참조).
+verified: true
+
+config:
+  # 사람이 포털에서 내려받아 넣는 자리. fetch 는 여기서 읽기만 한다.
+  incoming_dir: data/incoming/nec_election_result
+
+  # 위에서부터 시도한다. 총선은 cp949, 대선은 utf-8 로 확인됐다.
+  encodings: [utf-8-sig, cp949]
+
+  # 어느 선거구의 어느 행정동을 남길지. 동 목록은 districts.yaml 이 갖는다.
+  district: seoul_songpa_gap
+
+  # 컬럼명이 파일마다 다르다. 있는 것 중 첫 번째를 쓴다.
+  columns:
+    sgg: [선거구명, 구시군명]        # 총선=선거구명(송파구갑), 대선=구시군명(송파구)
+    emd: [법정읍면동명, 읍면동명]    # 이름과 달리 값은 행정동이다
+    item: [후보자]                   # 후보명이거나 집계항목명이다
+    count: [득표수]
+
+  # '후보자' 컬럼에 섞여 오는 집계 항목. 이 넷을 뺀 나머지가 실제 후보다.
+  # 기권자수는 계약 payload 에 자리가 없어 버린다 (선거인수-투표수로 복원 가능).
+  aggregate_items:
+    eligible_voters: 선거인수
+    total_votes: 투표수
+    invalid_votes: 무효 투표수
+    abstained: 기권자수
+
+  # 수집 대상 선거. 파일을 못 찾으면 그 선거만 건너뛰고 경고한다.
+  #   file_match : 파일명에 이 문자열이 들어 있으면 그 선거의 파일로 본다
+  #   sgg_match  : sgg 컬럼이 이 값과 정확히 일치하는 행만 남긴다 (부분일치 아님 —
+  #                '송파구'로 부분일치를 걸면 송파구을·병까지 딸려 온다)
+  elections:
+    - election_id: "2024-04-10-national-assembly"
+      election_type: national_assembly
+      district_name: 서울 송파구 갑
+      date: "2024-04-10"
+      file_match: "국회의원선거 개표결과_20240410"
+      sgg_match: 송파구갑
+    - election_id: "2025-06-03-presidential"
+      election_type: presidential
+      district_name: 서울 송파구 갑     # 대선은 전국 단일 선거구다. 분석 대상 선거구를 적는다
+      date: "2025-06-03"
+      file_match: "대통령선거 개표결과_20250603"
+      sgg_match: 송파구

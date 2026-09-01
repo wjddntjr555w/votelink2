@@ -1,6 +1,6 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink registry sync`
 generated_by: votelink registry sync
-count: 1
+count: 2
 collectors:
 - id: mois_population
   name: 행정안전부 주민등록 인구 (행정동 × 연령 × 성별)
@@ -10,6 +10,16 @@ collectors:
   access: api
   schedule: 0 5 5 * *
   geo_level: emd
-  verified: false
+  verified: true
   requires_secrets:
   - DATA_GO_KR_SERVICE_KEY
+- id: nec_election_result
+  name: 중앙선관위 과거 선거 개표결과 (행정동 단위)
+  kinds:
+  - election_result
+  source_name: 중앙선거관리위원회
+  access: file
+  schedule: null
+  geo_level: emd
+  verified: true
+  requires_secrets: []

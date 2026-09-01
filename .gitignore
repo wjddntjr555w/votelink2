@@ -11,5 +11,8 @@ data/records/
 data/rejected/
 data/*.db
 
+# 사람이 손으로 내려받아 넣는 원본 (access: file 수집기의 입력)
+data/incoming/
+
 # 비밀값
 .env
