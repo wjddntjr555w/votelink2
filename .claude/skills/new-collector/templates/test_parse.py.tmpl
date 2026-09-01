@@ -1,0 +1,30 @@
+"""parse()는 순수 함수이므로 네트워크 없이 fixture로 검증한다."""
+
+import json
+from pathlib import Path
+
+from votelink.contract.models import Record
+
+from ..collector import Collector
+from votelink.collect.base import RawBatch
+
+FIXTURE = Path(__file__).parent / "fixtures" / "sample_raw.json"
+
+
+def test_parse_produces_valid_records():
+    raw = RawBatch(collector_id=Collector.id, body=json.loads(FIXTURE.read_text()))
+    records = list(Collector().parse(raw))
+
+    assert records, "fixture에서 레코드가 하나도 안 나왔다"
+    for r in records:
+        Record.model_validate(r.model_dump())
+        assert r.geo_code is not None, "geo_code는 null일 수 없다"
+        assert r.observed_at <= r.ingested_at, "데이터 시점이 수집 시점보다 미래다"
+        assert r.derived_from == [], "원천 수집기는 파생 레코드를 만들지 않는다"
+
+
+def test_parse_is_deterministic():
+    raw = RawBatch(collector_id=Collector.id, body=json.loads(FIXTURE.read_text()))
+    ids_a = [r.record_id for r in Collector().parse(raw)]
+    ids_b = [r.record_id for r in Collector().parse(raw)]
+    assert ids_a == ids_b, "같은 입력에 record_id가 달라지면 멱등성이 깨진다"
