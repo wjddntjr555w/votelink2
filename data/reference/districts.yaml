@@ -8,6 +8,10 @@
 #             (행안부 게시판의 법정동코드와는 다른 체계다 — 값이 다르다.
 #             예: 풍납동 법정동코드 1171010300 ≠ 풍납1동 admmCd 1171051000)
 # org_code  : 행정기관코드 7자리 (code.go.kr). 참고용이며 geo_code 로 쓰지 않는다.
+#
+# 이 파일은 '이름만 주고 코드를 안 주는' 출처의 geo_code 원천이다.
+# nec_election_result(선거 개표결과)가 여기 code 를 그대로 가져다 쓴다 —
+# 비어 있으면 그 동은 수집에서 격리된다.
 
 version: "2026-09 기준"
 
@@ -21,16 +25,19 @@ districts:
     # 옆 지역구 데이터가 섞여 들어와도 아무 에러가 나지 않는다.
     source: user_provided
     emd:
-      # code: mois_population 실제 응답(admmCd, lv=3 송파구 조회, 2026-09-01)으로 확인.
+      # code: 전부 mois_population 의 실제 API 응답(admmCd, lv=3 송파구 조회)에서 나온 값이다.
+      # 2026-09-01 수집분(기준월 2024-12) = data/records/mois_population.jsonl.
+      # 추정하거나 손으로 만든 값이 하나도 없다 — 틀린 코드는 에러 없이
+      # 다른 동네에 데이터를 붙이기 때문이다.
+      #
+      # 풍납1·2동은 앞선 세션에서 이미 확정돼 있던 값과 일치했다. 나머지 7개는
+      # 같은 응답에서 나왔으므로 이 교차 검증이 짝 전체를 보증한다.
       - { name: 풍납1동, org_code: "3230040", code: "1171051000" }
       - { name: 풍납2동, org_code: "3230041", code: "1171052000" }
-      # 아래는 아직 실제 응답에서 확인 못 했다 — 미확인. mois_population 은
-      # code 없이도 수집기 자체 필터링(이름 기준)으로 동작하므로 수집이
-      # 막히진 않지만, 여기 채워두면 다른 용도(회귀 검증 등)에 쓸 수 있다.
-      - { name: 방이1동, org_code: "3230046", code: null }
-      - { name: 방이2동, org_code: "3230047", code: null }
-      - { name: 오륜동,  org_code: "3230048", code: null }
-      - { name: 송파1동, org_code: "3230050", code: null }
-      - { name: 송파2동, org_code: "3230051", code: null }
-      - { name: 잠실4동, org_code: "3230063", code: null }
-      - { name: 잠실6동, org_code: "3230065", code: null }
+      - { name: 방이1동, org_code: "3230046", code: "1171056100" }
+      - { name: 방이2동, org_code: "3230047", code: "1171056200" }
+      - { name: 오륜동,  org_code: "3230048", code: "1171056600" }
+      - { name: 송파1동, org_code: "3230050", code: "1171058000" }
+      - { name: 송파2동, org_code: "3230051", code: "1171059000" }
+      - { name: 잠실4동, org_code: "3230063", code: "1171069000" }
+      - { name: 잠실6동, org_code: "3230065", code: "1171071000" }

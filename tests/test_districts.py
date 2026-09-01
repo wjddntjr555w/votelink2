@@ -1,5 +1,8 @@
 """선거구 정의 — 획정이 바뀌면 코드가 아니라 데이터를 고친다."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from votelink.reference import districts as mod
@@ -44,16 +47,41 @@ def test_org_codes_are_recorded():
     assert {e.org_code for e in d.emd} >= {"3230048", "3230065"}
 
 
-def test_internal_codes_are_partially_confirmed():
-    """행정동코드 10자리는 mois_population 실제 응답으로 확인된 것만 채운다.
+def test_internal_codes_are_all_confirmed():
+    """송파갑 9개 행정동코드가 전부 채워져 있다 (2026-09-01 백필).
 
-    모르는 것을 그럴듯한 값으로 채우면 조용히 엉뚱한 동네를 수집한다.
-    풍납1동/2동은 2026-09-01 실제 API 응답으로 확인됐고, 나머지 7개는 아직이다.
+    값은 전부 mois_population 실제 응답에서 왔다. 모르는 것을 그럴듯한 값으로
+    채우면 조용히 엉뚱한 동네를 수집하므로, 추정값은 하나도 넣지 않는다.
+    미확인 상태를 표현하는 모델 쪽 동작은 test_resolved_codes_are_exposed 가 지킨다.
     """
     d = resolve_district(TARGET)
-    assert not d.fully_resolved
-    assert len(d.pending) == 7
-    assert set(d.emd_codes) == {"1171051000", "1171052000"}
+    assert d.fully_resolved
+    assert d.pending == []
+    codes = d.emd_codes
+    assert len(codes) == 9
+    assert len(set(codes)) == 9, "같은 코드가 두 동에 붙었다"
+    for code in codes:
+        assert code.isdigit() and len(code) == 10, f"행정동코드가 아니다: {code}"
+        # 1171 = 서울 송파구. 옆 시군구 코드를 붙여넣는 사고를 잡는다.
+        assert code.startswith("1171"), f"송파구 코드가 아니다: {code}"
+
+
+def test_internal_codes_match_what_mois_actually_collected():
+    """선거구 정의의 코드가 인구 레코드의 geo_code 와 정확히 일치해야 한다.
+
+    이게 어긋나면 L2에서 선거결과와 인구를 조인할 수 없다 — 두 수집기를
+    만든 이유가 통째로 사라진다. 레코드가 아직 없으면 검증할 게 없으므로 skip.
+    """
+    records = Path("data/records/mois_population.jsonl")
+    if not records.exists():
+        pytest.skip("mois_population 레코드가 아직 없다")
+
+    lines = [line for line in records.read_text("utf-8").splitlines() if line.strip()]
+    collected = {json.loads(line)["geo_code"] for line in lines}
+    defined = set(resolve_district(TARGET).emd_codes)
+    assert defined == collected, (
+        f"선거구 정의에만: {defined - collected} / 수집분에만: {collected - defined}"
+    )
 
 
 def test_unknown_district_lists_known_ones():
