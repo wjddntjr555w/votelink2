@@ -5,6 +5,8 @@ description = "선거 전략 지원 시스템 — 데이터 수집(L1) / 분석(
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9",
+    "httpx>=0.27",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]

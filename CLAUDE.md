@@ -37,6 +37,9 @@
 uv sync                          # 의존성
 uv run votelink collect <id>     # 수집기 실행
 uv run votelink collect <id> --reparse   # 재수집 없이 저장된 raw만 재파싱
+uv run votelink collect <id> --dry-run   # 저장 없이 계약 검증만
+uv run votelink registry sync            # registry.yaml 재생성
+uv run votelink geo import <csv>         # 행정동코드 매핑표 적재 (최초 1회 필수)
 uv run votelink analyze <id>     # 분석기 실행
 uv run votelink serve            # 로컬 웹앱 (기본 8420)
 uv run pytest                    # 테스트

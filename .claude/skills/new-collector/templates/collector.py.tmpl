@@ -6,10 +6,9 @@ parse: 원본 -> 공통 레코드 (네트워크 금지, 순수 함수)
 
 from collections.abc import Iterator
 from datetime import datetime
+from typing import Any
 
-from votelink.collect.base import BaseCollector, RawBatch
-from votelink.collect.geo import to_emd_code
-from votelink.collect.http import polite_client
+from votelink.collect import BaseCollector, ParseResult, RawBatch, polite_client, to_emd_code
 from votelink.contract.models import Record
 
 
@@ -19,22 +18,33 @@ class Collector(BaseCollector):
     def fetch(self, since: datetime | None) -> Iterator[RawBatch]:
         with polite_client(self.meta) as client:
             resp = client.get("{{url}}", params={})
-            yield RawBatch(collector_id=self.id, body=resp.json())
-
-    def parse(self, raw: RawBatch) -> Iterator[Record]:
-        for item in raw.body["{{목록 키}}"]:
-            yield Record(
-                kind="{{kind}}",
+            yield RawBatch(
                 collector_id=self.id,
-                source_name=self.meta.source_name,
-                source_url=item.get("url"),
-                source_license=self.meta.source_license,
-                observed_at=...,          # 데이터가 가리키는 시점
-                observed_precision="day",
-                geo_level="emd",
-                geo_code=to_emd_code(item["{{지역 필드}}"]),   # 실패 시 예외
-                geo_name=item["{{지역명 필드}}"],
-                confidence=1.0,
-                derived_from=[],
-                payload={},               # docs/10-data-contract.md 의 kind별 스키마
+                body=resp.json(),
+                batch_key="{{배치 구분자 - 날짜나 페이지}}",
+                source_url=str(resp.url),
             )
+
+    def parse(self, raw: RawBatch) -> Iterator[ParseResult]:
+        # map_items 로 감싸야 항목 하나가 깨져도 나머지가 살아남는다
+        yield from self.map_items(raw.body["{{목록 키}}"], self._to_record)
+
+    def _to_record(self, item: Any) -> Record:
+        return Record(
+            kind="{{kind}}",
+            collector_id=self.id,
+            source_name=self.meta.source_name,
+            source_url=item.get("url"),
+            source_license=self.meta.source_license,
+            observed_at=...,          # 데이터가 가리키는 시점 (수집 시각이 아니다)
+            observed_precision="day",
+            geo_level="emd",
+            geo_code=to_emd_code(item["{{지역 필드}}"], system="{{mois|kosis|nec}}"),
+            geo_name=item["{{지역명 필드}}"],
+            confidence=1.0,
+            derived_from=[],
+            # 출처 안에서 이 데이터를 유일하게 가리키는 값.
+            # 수집 시각을 섞으면 재수집마다 중복이 쌓인다.
+            natural_key=f"{item['{{키 필드}}']}",
+            payload={},               # docs/10-data-contract.md 의 kind별 스키마
+        )

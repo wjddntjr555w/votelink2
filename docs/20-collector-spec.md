@@ -90,7 +90,7 @@ proposal: docs/proposals/C-001-nec-election-result.md
 |---|---|
 | fetch 실패 (네트워크·인증) | 실행 중단. raw 미저장. 종료코드 1 |
 | fetch 성공, 일부 응답 깨짐 | raw는 **그대로 저장**. parse 단계에서 판정 |
-| parse 중 개별 레코드 계약 위반 | `data/rejected/<collector>/` 로 사유와 함께 격리 |
+| parse 중 개별 레코드 계약 위반 | `data/rejected/<collector>/` 로 사유와 함께 격리 (`map_items` 가 처리) |
 | 격리 비율 > 5% | 실행을 실패로 처리. 유효분도 커밋하지 않는다 |
 | `geo_code` 매핑 실패 | 계약 위반으로 간주 → 격리 |
 
@@ -114,6 +114,18 @@ def test_parse_produces_valid_records():
 
 fixture는 실제 응답 1건을 그대로 저장한다. 손으로 만든 가짜 데이터는 쓰지 않는다
 (실제 출처의 지저분함이 테스트에 반영되지 않는다).
+
+## 7-1. 실행
+
+```bash
+uv run votelink collect <id>              # 수집 + 저장
+uv run votelink collect <id> --dry-run    # 저장 없이 계약 검증만
+uv run votelink collect <id> --reparse    # 네트워크 없이 저장된 raw 재파싱
+uv run votelink collect <id> --since 2026-08-01
+uv run votelink registry sync             # registry.yaml 재생성
+```
+
+실행 후 요약에 **격리 건수와 상위 사유 5개**가 나온다. 격리가 0이 아니면 원인을 본다.
 
 ## 8. 새 수집기를 추가하는 절차
 

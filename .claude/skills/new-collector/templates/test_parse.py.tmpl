@@ -5,16 +5,20 @@ from pathlib import Path
 
 from votelink.contract.models import Record
 
+from votelink.collect import RawBatch, Rejected
+
 from ..collector import Collector
-from votelink.collect.base import RawBatch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_raw.json"
 
 
 def test_parse_produces_valid_records():
     raw = RawBatch(collector_id=Collector.id, body=json.loads(FIXTURE.read_text()))
-    records = list(Collector().parse(raw))
+    results = list(Collector().parse(raw))
+    rejected = [r for r in results if isinstance(r, Rejected)]
+    records = [r for r in results if not isinstance(r, Rejected)]
 
+    assert not rejected, f"격리된 항목이 있다: {[r.short_reason for r in rejected]}"
     assert records, "fixture에서 레코드가 하나도 안 나왔다"
     for r in records:
         Record.model_validate(r.model_dump())
@@ -25,6 +29,6 @@ def test_parse_produces_valid_records():
 
 def test_parse_is_deterministic():
     raw = RawBatch(collector_id=Collector.id, body=json.loads(FIXTURE.read_text()))
-    ids_a = [r.record_id for r in Collector().parse(raw)]
-    ids_b = [r.record_id for r in Collector().parse(raw)]
+    ids_a = [r.record_id for r in Collector().parse(raw) if not isinstance(r, Rejected)]
+    ids_b = [r.record_id for r in Collector().parse(raw) if not isinstance(r, Rejected)]
     assert ids_a == ids_b, "같은 입력에 record_id가 달라지면 멱등성이 깨진다"
