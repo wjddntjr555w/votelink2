@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# 수집 데이터 — 저장소에 커밋하지 않는다
+data/raw/
+data/records/
+data/rejected/
+data/*.db
+
+# 비밀값
+.env

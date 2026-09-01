@@ -42,6 +42,7 @@ collectors/<collector_id>/
 from votelink.collect.base import BaseCollector, RawBatch
 from votelink.contract.models import Record
 
+
 class Collector(BaseCollector):
     def fetch(self, since: datetime | None) -> Iterator[RawBatch]:
         """네트워크에서 원본을 가져온다. 가공하지 않는다."""
@@ -105,7 +106,7 @@ def test_parse_produces_valid_records():
     raw = load_fixture("sample_raw.json")
     records = list(Collector().parse(raw))
     assert records
-    for r in records:                      # Pydantic 검증
+    for r in records:  # Pydantic 검증
         Record.model_validate(r.model_dump())
         assert r.geo_code is not None
         assert r.observed_at <= r.ingested_at
