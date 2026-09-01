@@ -20,10 +20,29 @@ proposal: docs/proposals/C-001-mois-population.md
 verified: false
 
 config:
-  # 공공데이터포털 데이터셋 페이지의 '요청 URL'을 그대로 붙여넣는다.
-  # 자동변환 API는 데이터셋마다 uddi UUID가 다르므로 추측할 수 없다.
-  endpoint: "https://api.odcloud.kr/api/15108072/v1/uddi:REPLACE-ME"
-  # 이 스냅샷의 기준월. 데이터셋을 갱신하면 이 값도 바꾼다.
+  # 공공데이터포털 데이터셋의 요청 URL (인증키 제외)
+  endpoint: "https://apis.data.go.kr/1741000/admmSexdAgePpltn"
+
+  # 이 스냅샷의 기준월. 데이터셋을 갱신하면 함께 바꾼다.
   reference_month: "2026-07"
-  per_page: 1000
-  max_pages: 200
+
+  # --- 아래는 실제 API 명세로 아직 확인되지 않았다. 응답이 이상하면 여기부터 고친다 ---
+
+  # 매 요청에 붙는 고정 파라미터 (응답 포맷 지정 등)
+  params:
+    type: JSON
+
+  paging:
+    page_param: pageNo
+    size_param: numOfRows
+    size: 1000
+    max_pages: 100
+
+  # 조회할 행정동 기관코드. 비우면 코드 지정 없이 전체를 페이징한다.
+  admm_code_param: admmCd
+  admm_codes:
+    - "3230040"   # 서울 송파구 풍납1동
+
+  # 응답에서 목록을 꺼낼 경로 (예: "response.body.items.item").
+  # 비워두면 알려진 형태를 자동 탐색하고, 찾으면 경로를 로그로 알려준다.
+  data_path: ""

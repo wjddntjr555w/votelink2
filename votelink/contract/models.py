@@ -33,13 +33,16 @@ KST = timezone(timedelta(hours=9), "KST")
 
 RECORD_ID_LEN = 16
 
-# 행정구역 코드 자릿수. 시도 2 / 시군구 5 / 읍면동 8 (행정안전부 행정동코드 체계).
-GEO_CODE_DIGITS: dict[GeoLevel, int] = {
-    GeoLevel.SIDO: 2,
-    GeoLevel.SIGUNGU: 5,
-    GeoLevel.EMD: 8,
-    GeoLevel.POINT: 8,  # 지점이라도 '포함하는 행정동' 코드를 넣는다 (조인 가능해야 하므로)
-}
+# 내부 표준 코드 체계: 행정안전부 **행정표준코드의 행정기관코드 7자리**.
+# (예: 서울 송파구 풍납1동 = 3230040)
+#
+# 계층에 따라 자릿수가 달라지지 않는다 — 시도·시군구·행정동 모두 7자리다.
+# 그래서 자릿수는 약한 검증이고, 진짜 검증은 "매핑표/출처에 존재하는 코드인가"이다.
+#
+# 다른 체계(법정동코드 10자리, 통계청 행정구역코드 8자리)는 내부 표준이 아니며
+# 매핑표의 source_code 로만 존재한다.
+GEO_CODE_DIGITS = 7
+GEO_CODE_LEVELS = {GeoLevel.SIDO, GeoLevel.SIGUNGU, GeoLevel.EMD, GeoLevel.POINT}
 GEO_CODE_FORBIDDEN = {GeoLevel.NATION, GeoLevel.NONE}
 
 _RECORD_ID_RE = re.compile(rf"^[0-9a-f]{{{RECORD_ID_LEN}}}$")
@@ -157,10 +160,10 @@ class Record(BaseModel):
                 f"geo_level={level} 인데 geo_code 가 없다. "
                 "행정동코드 매핑 실패를 null 로 넘기지 않는다 (계약 위반 → 격리 대상)"
             )
-        expected = GEO_CODE_DIGITS[level]
-        if not (code.isdigit() and len(code) == expected):
+        if not (code.isdigit() and len(code) == GEO_CODE_DIGITS):
             raise ValueError(
-                f"geo_level={level} 의 geo_code 는 숫자 {expected}자리여야 한다: {code!r}"
+                f"geo_code 는 행정기관코드 숫자 {GEO_CODE_DIGITS}자리여야 한다: {code!r}. "
+                "법정동코드(10자리)나 통계청 행정구역코드(8자리)를 그대로 넣지 않는다"
             )
         if not self.geo_name:
             raise ValueError("geo_code 가 있으면 geo_name 도 있어야 한다")

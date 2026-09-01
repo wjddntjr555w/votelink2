@@ -48,7 +48,7 @@ def test_records_satisfy_the_contract(results):
     assert records, "fixture 에서 레코드가 하나도 안 나왔다"
     for r in records:
         Record.model_validate(r.model_dump())
-        assert r.geo_code and len(r.geo_code) == 8
+        assert r.geo_code and len(r.geo_code) == 7
         assert r.payload["total"] == sum(c["count"] for c in r.payload["breakdown"])
 
 
@@ -62,3 +62,18 @@ def test_parse_is_deterministic(results):
     raw = RawBatch(collector_id=Collector.id, body=json.loads(FIXTURE.read_text("utf-8")))
     again = [r.record_id for r in _collector().parse(raw) if isinstance(r, Record)]
     assert [r.record_id for r in results if isinstance(r, Record)] == again
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        ("abc%2Fdef%3D%3D", "abc/def=="),  # Encoding 키
+        ("abc/def==", "abc/def=="),  # Decoding 키는 그대로
+        ("  spaced  ", "spaced"),
+    ],
+)
+def test_service_key_is_normalized(given, expected):
+    """Encoding 키를 그대로 넣으면 이중 인코딩되어 인증이 실패한다."""
+    from collectors.mois_population.collector import normalize_service_key
+
+    assert normalize_service_key(given) == expected

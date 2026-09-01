@@ -25,7 +25,7 @@ def news(**over):
         observed_precision="minute",
         ingested_at=NOW,
         geo_level="emd",
-        geo_code="11710530",
+        geo_code="3230040",
         geo_name="풍납1동",
         confidence=1.0,
         natural_key="https://n.news.naver.com/article/1",
@@ -100,14 +100,14 @@ def test_geo_code_cannot_be_null_when_level_requires_it():
 
 
 def test_geo_code_digit_count_is_enforced():
-    with pytest.raises(ValidationError, match="8자리"):
-        Record(**news(geo_code="117105"))
+    with pytest.raises(ValidationError, match="7자리"):
+        Record(**news(geo_code="32300"))
 
 
 def test_point_level_uses_containing_emd_code():
     """지점 데이터도 조인 가능해야 하므로 포함 행정동 코드를 갖는다."""
     r = Record(**news(geo_level="point"))
-    assert len(r.geo_code) == 8
+    assert len(r.geo_code) == 7
 
 
 def test_nation_level_must_not_have_geo_code():
@@ -142,7 +142,7 @@ def test_election_result_vote_accounting():
             observed_precision="day",
             ingested_at=NOW,
             geo_level="emd",
-            geo_code="11710530",
+            geo_code="3230040",
             geo_name="풍납1동",
             confidence=1.0,
             natural_key="2024-04-10|11710530",
@@ -181,7 +181,7 @@ def test_population_breakdown_must_sum_to_total():
             observed_precision="month",
             ingested_at=NOW,
             geo_level="emd",
-            geo_code="11710530",
+            geo_code="3230040",
             geo_name="풍납1동",
             confidence=1.0,
             natural_key="2026-08|11710530",

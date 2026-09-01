@@ -132,17 +132,17 @@ def cmd_geo_import(args: argparse.Namespace) -> int:
                     "source_system": args.system,
                     "source_code": code,
                     "source_name": full_name,
-                    "emd_code": code[:8],
+                    "emd_code": code[:7],
                     # 공식 파일의 행정기관명은 '서울특별시 송파구 풍납1동' 형태다.
                     # 마지막 토큰이 동명이며, 짧은 이름으로도 조회할 수 있어야 한다.
                     "emd_name": full_name.split()[-1] if full_name else "",
                 }
             )
 
-    rows = [r for r in rows if len(r["emd_code"]) == 8 and r["emd_code"].isdigit()]
+    rows = [r for r in rows if len(r["emd_code"]) == 7 and r["emd_code"].isdigit()]
     if not rows:
         raise SystemExit(
-            "8자리 행정동코드가 한 건도 없다. --code-col 이 맞는지, "
+            "7자리 행정기관코드가 한 건도 없다. --code-col 이 맞는지, "
             "시도/시군구 단위 파일을 넣은 건 아닌지 확인하라"
         )
 

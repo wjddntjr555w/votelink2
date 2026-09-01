@@ -21,6 +21,10 @@ FIELD_SIGUNGU = "시군구명"
 FIELD_EMD = "행정동명"
 FIELD_TOTAL = "총인구수"
 
+# 응답이 행정기관코드를 주면 그것을 geo_code 로 쓴다 (이름으로 되돌려 찾지 않는다).
+# 후보를 여럿 두는 이유: 데이터셋마다 이 필드 이름이 다르다.
+FIELD_ADMM_CODE_CANDIDATES = ("admmCd", "행정기관코드", "행정구역코드", "adm_cd", "admCd")
+
 SEX_SUFFIX: dict[Sex, str] = {Sex.MALE: "남자", Sex.FEMALE: "여자"}
 
 # 계약의 10년 구간 -> 출처의 연령 구간 라벨(들).
@@ -51,6 +55,15 @@ def _to_int(value: Any) -> int:
     return int(str(value).replace(",", "").strip())
 
 
+def find_admm_code(row: dict[str, Any]) -> str:
+    """행에서 행정기관코드를 찾는다. 없으면 빈 문자열 (이름 매핑으로 넘어간다)."""
+    for field in FIELD_ADMM_CODE_CANDIDATES:
+        value = str(row.get(field, "")).strip()
+        if value:
+            return value
+    return ""
+
+
 def _require(row: dict[str, Any], field: str) -> Any:
     if field not in row:
         raise SourceFieldMissing(
@@ -62,10 +75,11 @@ def _require(row: dict[str, Any], field: str) -> Any:
 class EmdAggregate:
     """행정동 하나의 집계 결과."""
 
-    def __init__(self, sido: str, sigungu: str, emd: str) -> None:
+    def __init__(self, sido: str, sigungu: str, emd: str, admm_code: str = "") -> None:
         self.sido = sido
         self.sigungu = sigungu
         self.emd = emd
+        self.admm_code = admm_code
         self.cells: dict[tuple[AgeBand, Sex], int] = defaultdict(int)
         self.reported_total = 0
         self.rows = 0
@@ -81,6 +95,8 @@ class EmdAggregate:
 
     def add_row(self, row: dict[str, Any]) -> None:
         self.rows += 1
+        if not self.admm_code:
+            self.admm_code = find_admm_code(row)
         self.reported_total += _to_int(row.get(FIELD_TOTAL))
         for band, labels in AGE_BAND_SOURCE.items():
             for sex, suffix in SEX_SUFFIX.items():
@@ -106,15 +122,20 @@ class EmdAggregate:
 
 
 def aggregate_rows(rows: list[dict[str, Any]]) -> list[EmdAggregate]:
-    """통·반 행들을 행정동 단위로 접는다. 입력 순서와 무관하게 같은 결과를 낸다."""
-    groups: dict[tuple[str, str, str], EmdAggregate] = {}
+    """통·반 행들을 행정동 단위로 접는다. 입력 순서와 무관하게 같은 결과를 낸다.
+
+    행정기관코드가 있으면 그것으로 묶는다 — 이름은 표기가 흔들리지만 코드는 안 흔들린다.
+    """
+    groups: dict[str, EmdAggregate] = {}
     for row in rows:
-        key = (
+        names = (
             str(_require(row, FIELD_SIDO)).strip(),
             str(_require(row, FIELD_SIGUNGU)).strip(),
             str(_require(row, FIELD_EMD)).strip(),
         )
+        code = find_admm_code(row)
+        key = code or "|".join(names)
         if key not in groups:
-            groups[key] = EmdAggregate(*key)
+            groups[key] = EmdAggregate(*names, admm_code=code)
         groups[key].add_row(row)
-    return [groups[k] for k in sorted(groups)]
+    return [groups[k] for k in sorted(groups, key=lambda k: groups[k].full_name)]

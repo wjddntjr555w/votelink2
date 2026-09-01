@@ -27,11 +27,11 @@ def geo_table(tmp_path, monkeypatch):
     csv_path = tmp_path / "geo_mapping.csv"
     csv_path.write_text(
         "source_system,source_code,source_name,emd_code,emd_name\n"
-        "mois,11710530,서울특별시 송파구 풍납1동,11710530,풍납1동\n"
-        "mois,11710540,서울특별시 송파구 풍납2동,11710540,풍납2동\n"
-        "nec,SP-01,풍납1동,11710530,풍납1동\n"
-        "mois,11220110,성남시 수정구 신흥동,11220110,신흥동\n"
-        "mois,11330110,인천시 어딘가 신흥동,11330110,신흥동\n",
+        "mois,3230040,서울특별시 송파구 풍납1동,3230040,풍납1동\n"
+        "mois,3230050,서울특별시 송파구 풍납2동,3230050,풍납2동\n"
+        "nec,SP-01,풍납1동,3230040,풍납1동\n"
+        "mois,3780031,성남시 수정구 신흥동,3780031,신흥동\n"
+        "mois,2820053,인천시 어딘가 신흥동,2820053,신흥동\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(geo, "REFERENCE_CSV", csv_path)
@@ -66,7 +66,7 @@ def make_record(n: int = 0, **over) -> Record:
         observed_precision="minute",
         ingested_at=NOW,
         geo_level="emd",
-        geo_code="11710530",
+        geo_code="3230040",
         geo_name="풍납1동",
         confidence=1.0,
         natural_key=f"https://example.test/{n}",

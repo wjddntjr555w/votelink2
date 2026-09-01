@@ -6,20 +6,20 @@ from votelink.collect import geo
 
 
 def test_lookup_by_source_code(geo_table):
-    assert geo.to_emd_code("11710530", system="mois") == "11710530"
+    assert geo.to_emd_code("3230040", system="mois") == "3230040"
 
 
 def test_lookup_across_systems(geo_table):
     """선관위 코드도 같은 행정동으로 수렴해야 한다."""
-    assert geo.to_emd_code("SP-01", system="nec") == "11710530"
+    assert geo.to_emd_code("SP-01", system="nec") == "3230040"
 
 
 def test_lookup_by_name(geo_table):
-    assert geo.to_emd_code("서울특별시 송파구 풍납1동") == "11710530"
+    assert geo.to_emd_code("서울특별시 송파구 풍납1동") == "3230040"
 
 
 def test_name_whitespace_is_normalized(geo_table):
-    assert geo.to_emd_code(" 서울특별시  송파구 풍납1동 ") == "11710530"
+    assert geo.to_emd_code(" 서울특별시  송파구 풍납1동 ") == "3230040"
 
 
 def test_ambiguous_name_is_refused(geo_table):
