@@ -123,7 +123,7 @@ def reset_table() -> None:
 
 
 def to_emd_code(value: str, *, system: str | None = None) -> str:
-    """출처의 지역 코드 또는 지역명 -> 행안부 행정동코드 8자리.
+    """출처의 지역 코드 또는 지역명 -> 행안부 행정동코드 10자리 (GEO_CODE_DIGITS).
 
     변환 실패 시 GeoMappingError. 절대 None 을 돌려주지 않는다.
     """
