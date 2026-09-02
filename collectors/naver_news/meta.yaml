@@ -1,0 +1,71 @@
+id: naver_news
+name: 네이버 뉴스 검색 (송파구 지역 기사 메타)
+kinds: [news_article]
+source_name: 네이버
+source_url: https://developers.naver.com/docs/serviceapi/search/news/news.md
+source_license: api_tos      # public_open 이 아니다 — 계약이 원문 전문 저장을 거부한다
+access: api
+schedule: "0 6 * * *"        # 매일 06:00 KST
+incremental: true            # 단, 서버 필터가 아니라 sort=date + 클라이언트 컷오프다
+geo_level: sigungu
+requires_secrets: [NAVER_CLIENT_ID, NAVER_CLIENT_SECRET]
+rate_limit_rps: 2
+proposal: docs/proposals/C-003-naver-news.md
+
+# 아직 실제 응답으로 검증하지 않았다. API 키가 없어 fixture 를 받지 못했고,
+# 응답 형식을 추측해 fixture 를 지어내지 않았다.
+# 키 발급 후: uv run votelink collect naver_news --capture-fixture
+verified: false
+
+config:
+  endpoint: "https://openapi.naver.com/v1/search/news.json"
+  sort: date                 # sim(정확도) 이 기본값이다. 증분 컷오프에는 date 여야 한다
+
+  paging:
+    display: 100             # 한 페이지 최대
+    max_start: 1000          # API 상한. 검색어당 1,000건까지만 페이징된다 (백필 불가)
+
+  # 지리 앵커. 기사는 행정동에 귀속시키지 않는다 (제안서 "공통 레코드로의 매핑" 참조).
+  # 이 코드는 mois_population 이 lv=3 조회에 실제로 써서 산하 27개 동을 받아온 값이다.
+  district: seoul_songpa_gap
+  sigungu_code: "1171000000"
+  geo_name: 서울 송파구
+
+  # 검색어. id 는 raw 파일명이 되므로 ascii 여야 한다 (한글은 slugify 에서 사라진다).
+  queries:
+    - { id: songpa-gu,     q: "송파구" }
+    - { id: songpa-gap,    q: "송파갑" }
+    - { id: jamsil,        q: "잠실" }
+    - { id: olympic-park,  q: "올림픽공원" }
+    - { id: garak-market,  q: "가락시장" }
+    - { id: pungnap,       q: "풍납동" }
+    - { id: bangi,         q: "방이동" }
+    - { id: oryun,         q: "오륜동" }
+    - { id: seokchon-lake, q: "석촌호수" }
+
+  # 지역구를 특정하는 표현 → confidence 0.9.
+  # districts.yaml 의 행정동명(풍납1동 등)은 코드가 자동으로 합친다.
+  # 뉴스는 보통 법정동·통칭으로 쓰므로 여기에 그 표기를 둔다.
+  district_terms:
+    - 풍납동
+    - 방이동
+    - 오륜동
+    - 몽촌토성
+    - 올림픽공원
+    - 한성백제박물관
+
+  # 구 단위 표현 → confidence 0.7. 이 중 하나도 안 걸리면 기사를 버린다.
+  sigungu_terms:
+    - 송파구
+    - 송파
+    - 잠실
+    - 가락시장
+    - 석촌호수
+    - 송파구청
+
+  # 공인 화이트리스트(현역 의원·출마 예정자 등)만 문자열 매칭한다.
+  # 일반인 이름은 넣지 않는다 — 절대규칙 3(개인 식별 정보 수집 금지).
+  person_terms: []
+
+  # 도메인 -> 언론사명. 비어 있으면 호스트를 그대로 publisher 로 쓴다.
+  publisher_names: {}

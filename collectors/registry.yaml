@@ -1,6 +1,6 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink registry sync`
 generated_by: votelink registry sync
-count: 2
+count: 3
 collectors:
 - id: mois_population
   name: 행정안전부 주민등록 인구 (행정동 × 연령 × 성별)
@@ -13,6 +13,18 @@ collectors:
   verified: true
   requires_secrets:
   - DATA_GO_KR_SERVICE_KEY
+- id: naver_news
+  name: 네이버 뉴스 검색 (송파구 지역 기사 메타)
+  kinds:
+  - news_article
+  source_name: 네이버
+  access: api
+  schedule: 0 6 * * *
+  geo_level: sigungu
+  verified: false
+  requires_secrets:
+  - NAVER_CLIENT_ID
+  - NAVER_CLIENT_SECRET
 - id: nec_election_result
   name: 중앙선관위 과거 선거 개표결과 (행정동 단위)
   kinds:
