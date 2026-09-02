@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime
@@ -69,6 +70,17 @@ class BaseCollector(ABC):
     """
 
     id: str
+    _package_dir: Path | None = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # 수집기 폴더 경로를 **클래스가 만들어지는 시점에** 붙잡아 둔다.
+        # 나중에 sys.modules 를 뒤져 찾으면, 그 사이 모듈이 지워졌을 때
+        # (테스트가 정리하다 지우는 일이 있다) KeyError 로 죽는다.
+        module = sys.modules.get(cls.__module__)
+        file = getattr(module, "__file__", None)
+        if file:
+            cls._package_dir = Path(file).resolve().parent
 
     def __init__(self, meta: CollectorMeta | None = None) -> None:
         self._meta = meta or CollectorMeta.load(self.package_dir / "meta.yaml")
@@ -79,10 +91,12 @@ class BaseCollector(ABC):
 
     @property
     def package_dir(self) -> Path:
-        import sys
-
-        module = sys.modules[type(self).__module__]
-        return Path(module.__file__).resolve().parent
+        if self._package_dir is None:
+            raise RuntimeError(
+                f"{type(self).__name__} 의 폴더 경로를 알 수 없다 "
+                "(파일에서 정의된 클래스가 아니다). meta 를 직접 넘겨 만들면 필요 없다"
+            )
+        return self._package_dir
 
     # --- 하위 클래스 구현 ------------------------------------------------------
 

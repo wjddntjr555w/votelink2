@@ -45,10 +45,23 @@ def fake_collectors(tmp_path, monkeypatch):
         """).strip(),
         encoding="utf-8",
     )
+    # 가짜 collectors 패키지가 진짜를 **가리려면** 이미 import 된 진짜를 잠시 치워야
+    # 한다. 다만 치운 채로 끝내면 다른 테스트가 쓰던 진짜 수집기가 사라진다
+    # (그러면 BaseCollector.package_dir 같은 곳이 엉뚱한 데서 죽는다).
+    # 그래서 치우고 -> 가짜로 시험하고 -> 원래대로 되돌린다.
+    def _collector_modules() -> list[str]:
+        return [m for m in sys.modules if m == "collectors" or m.startswith("collectors.")]
+
+    saved = {name: sys.modules[name] for name in _collector_modules()}
+    for name in saved:
+        del sys.modules[name]
+
     monkeypatch.syspath_prepend(str(tmp_path))
     yield root
-    for name in [m for m in sys.modules if m.startswith("collectors")]:
+
+    for name in _collector_modules():
         del sys.modules[name]
+    sys.modules.update(saved)
 
 
 def test_discover_finds_collectors(fake_collectors):
