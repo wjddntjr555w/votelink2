@@ -268,6 +268,37 @@ def iter_baseline_rows(
         )
 
 
+def merge_baseline_rows(rows: list[BaselineRow], *, level: str) -> BaselineRow:
+    """여러 `BaselineRow` 를 하나로 합산한다.
+
+    17대(2007)는 시도별 16개 파일로 쪼개져 있어 전국 총계 행 자체가 없다.
+    각 파일의 자체 총계(구 합계의 합)를 구한 뒤 16개를 더해야 전국이 나온다.
+    같은 선거의 같은 후보 순서를 전제한다 — 파일마다 후보 열 순서가 다르면
+    득표가 엉뚱한 후보에게 더해지는데 겉으로는 드러나지 않는다.
+    """
+    if not rows:
+        raise ValueError(f"합산할 행이 없다: level={level}")
+
+    width = len(rows[0].votes)
+    for row in rows:
+        if len(row.votes) != width:
+            raise ValueError(
+                f"'{level}' 합산 중 후보 수가 다른 행을 만났다: "
+                f"{width} vs {len(row.votes)}. 시도 파일마다 레이아웃이 다를 수 없다"
+            )
+
+    return BaselineRow(
+        level=level,
+        eligible_voters=sum(r.eligible_voters for r in rows),
+        total_votes=sum(r.total_votes for r in rows),
+        counted_votes=sum(r.counted_votes for r in rows),
+        invalid_votes=sum(r.invalid_votes for r in rows),
+        results=rows[0].results,
+        votes=[sum(r.votes[i] for r in rows) for i in range(width)],
+        matched_rows=sum(r.matched_rows for r in rows),
+    )
+
+
 def check_baseline_arithmetic(row: BaselineRow) -> None:
     """동 단위와 같은 산술 불변식을 기준선에도 건다.
 
