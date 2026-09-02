@@ -44,7 +44,10 @@ uv run votelink registry sync            # registry.yaml 재생성
 uv run votelink geo import <csv>         # 행정동코드 매핑표 적재 (출처가 코드를 안 줄 때만)
 uv run votelink district list --emd      # 선거구 정의 확인
 uv run votelink collect <id> --capture-fixture  # 실제 응답을 fixture로 저장
+uv run votelink analyze          # 등록된 분석기 목록
 uv run votelink analyze <id>     # 분석기 실행
+uv run votelink analyze <id> --dry-run   # 저장 없이 계약 검증만
+uv run votelink analyze --sync           # analyzers/registry.yaml 재생성
 uv run votelink serve            # 로컬 웹앱 (기본 8420)
 uv run pytest                    # 테스트
 uv run ruff check . && uv run ruff format .

@@ -10,6 +10,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from votelink.analyze import registry as analyze_registry
+from votelink.analyze import runner as analyze_runner
+from votelink.analyze.base import AnalyzeError
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
 from votelink.contract.models import GEO_CODE_DIGITS, KST
@@ -190,6 +193,42 @@ def cmd_district_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyze(args: argparse.Namespace) -> int:
+    if args.sync:
+        path = analyze_registry.sync()
+        metas = analyze_registry.discover()
+        print(f"{path} 갱신 · 분석기 {len(metas)}개")
+        return 0
+
+    if not args.analyzer_id:
+        metas = analyze_registry.discover()
+        if not metas:
+            print("등록된 분석기가 없다. analyzers/<id>/meta.yaml 을 만들어라")
+            return 2
+        for meta in metas.values():
+            mark = "✓" if meta.verified else " "
+            inputs = ", ".join(str(k) for k in meta.inputs)
+            print(f"{mark} {meta.id:<20} {meta.name}\n    입력: {inputs}")
+        return 0
+
+    analyzer = analyze_registry.load(args.analyzer_id)
+    if not analyzer.meta.verified:
+        print(
+            f"[주의] {analyzer.id} 는 실제 입력으로 검증되지 않았다 (meta.verified=false). "
+            "산출물을 신뢰하기 전에 테스트를 통과시키고 verified 를 올려라"
+        )
+    try:
+        report = analyze_runner.run(analyzer, dry_run=args.dry_run)
+    except AnalyzeError as exc:
+        # 참조 데이터 결손 같은 것은 사용자가 고칠 일이다. 트레이스백을 보여줄 이유가 없다.
+        print(f"분석 실패: {exc}", file=sys.stderr)
+        return 1
+    print(report.summary())
+    if args.dry_run:
+        print("(dry-run: 아무것도 저장하지 않았다)")
+    return 1 if report.failed else 0
+
+
 def cmd_not_yet(args: argparse.Namespace) -> int:
     print(f"'{args.command}' 는 아직 구현되지 않았다. 다음 단위에서 만든다.")
     return 2
@@ -243,8 +282,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_dlist.add_argument("--emd", dest="verbose_emd", action="store_true", help="행정동까지 출력")
     p_dlist.set_defaults(func=cmd_district_list)
 
-    for name, help_text in (("analyze", "분석기 실행 (L2)"), ("serve", "로컬 웹앱 (L3)")):
-        sub.add_parser(name, help=f"{help_text} — 미구현").set_defaults(func=cmd_not_yet)
+    p_analyze = sub.add_parser("analyze", help="분석기 실행 (L2)")
+    p_analyze.add_argument("analyzer_id", nargs="?", help="생략하면 등록된 분석기 목록")
+    p_analyze.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
+    p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
+    p_analyze.set_defaults(func=cmd_analyze)
+
+    sub.add_parser("serve", help="로컬 웹앱 (L3) — 미구현").set_defaults(func=cmd_not_yet)
 
     return parser
 

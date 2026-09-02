@@ -1,0 +1,13 @@
+# 자동 생성물. 손으로 고치지 말 것. `uv run votelink analyze --sync`
+generated_by: votelink analyze registry sync
+count: 1
+analyzers:
+- id: voter_profile
+  name: 읍면동 유권자 프로파일 — 진영 성향 시계열 × 인구 구조
+  inputs:
+  - election_result
+  - population
+  outputs:
+  - segment_profile
+  geo_level: emd
+  verified: true

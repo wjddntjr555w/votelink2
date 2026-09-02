@@ -5,11 +5,20 @@ outputs: [segment_profile]
 geo_level: emd
 proposal: docs/proposals/A-001-voter-profile.md
 
-# 실제 입력(대선 8회 × 9동 + 인구 9건)으로 검증하기 전까지 false.
-verified: false
+# 2026-09-03: 실제 입력으로 검증 완료.
+# 입력 81건(개표 72 + 인구 9) → 산출 9건, 격리 0, 재실행 시 교체 9·신규 0(멱등).
+# geo_code 집합이 mois_population · nec_archive 와 정확히 일치한다.
+# trend 분포(보수이동 3 / 안정 2 / 진보이동 4)가 독립 민감도 검사 결과와 일치했다.
+verified: true
 
 config:
   district: seoul_songpa_gap
+
+  # 한 시계열에 섞을 선거 유형. **대선만 쓴다.**
+  # 대선은 전국이 같은 선택지를 놓고 투표하므로 동별 편차가 곧 그 동네의 진영 성향이다.
+  # 총선은 현역 프리미엄과 후보 개인기가 섞이고 선거구 획정도 바뀌어, 같은 축에
+  # 올리면 편차의 의미가 달라진다. C-005(총선)가 들어오면 별도 시계열로 다룬다.
+  election_types: [presidential]
 
   # trend 판정 임계 (%p/회). **편차 기울기**에 적용된다 — 절대 득표율 기울기가 아니다.
   #
