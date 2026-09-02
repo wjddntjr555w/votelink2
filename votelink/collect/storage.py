@@ -1,25 +1,42 @@
-"""저장 레이아웃.
+"""수집 원본(raw)의 저장 레이아웃.
 
 data/raw/       fetch 원본. **불변.** 어떤 경우에도 수정·삭제하지 않는다
-data/records/   계약을 통과한 공통 레코드 (JSONL)
-data/rejected/  계약을 위반해 격리된 항목 (사유 포함)
+
+레코드·격리 입출력(`data/records/`, `data/rejected/`)은 L1·L2 공용이라
+`votelink/store.py` 로 옮겼다. 기존 import 경로가 깨지지 않도록 여기서 재수출한다.
 """
 
 from __future__ import annotations
 
 import gzip
-import json
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
-from votelink.collect.base import RawBatch, Rejected
-from votelink.contract.models import KST, Record
+from votelink.collect.base import RawBatch
+from votelink.contract.models import KST
+from votelink.store import (
+    DATA_DIR,
+    RECORDS_DIR,
+    REJECTED_DIR,
+    append_records,
+    append_rejected,
+    existing_record_ids,
+)
 
-DATA_DIR = Path("data")
 RAW_DIR = DATA_DIR / "raw"
-RECORDS_DIR = DATA_DIR / "records"
-REJECTED_DIR = DATA_DIR / "rejected"
+
+__all__ = [
+    "DATA_DIR",
+    "RAW_DIR",
+    "RECORDS_DIR",
+    "REJECTED_DIR",
+    "append_records",
+    "append_rejected",
+    "existing_record_ids",
+    "iter_raw",
+    "write_raw",
+]
 
 
 def _day(dt: datetime) -> str:
@@ -56,40 +73,4 @@ def iter_raw(
             yield batch
 
 
-# --- records -------------------------------------------------------------------
-
-
-def append_records(collector_id: str, records: list[Record], root: Path | None = None) -> Path:
-    target = (root or RECORDS_DIR) / f"{collector_id}.jsonl"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as fh:
-        for record in records:
-            fh.write(record.model_dump_json() + "\n")
-    return target
-
-
-def existing_record_ids(collector_id: str, root: Path | None = None) -> set[str]:
-    """이미 저장된 record_id. 재수집 시 중복 저장을 막는다."""
-    target = (root or RECORDS_DIR) / f"{collector_id}.jsonl"
-    if not target.exists():
-        return set()
-    ids: set[str] = set()
-    with target.open(encoding="utf-8") as fh:
-        for line in fh:
-            if line.strip():
-                ids.add(json.loads(line)["record_id"])
-    return ids
-
-
-# --- rejected ------------------------------------------------------------------
-
-
-def append_rejected(
-    collector_id: str, items: list[Rejected], when: datetime, root: Path | None = None
-) -> Path:
-    target = (root or REJECTED_DIR) / collector_id / f"{_day(when)}.jsonl"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as fh:
-        for item in items:
-            fh.write(item.model_dump_json() + "\n")
-    return target
+# records / rejected 는 votelink.store 에 있다 (위 재수출 참조).

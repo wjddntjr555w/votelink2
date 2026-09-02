@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytest
 
+from votelink import store
 from votelink.collect import geo, storage
 from votelink.collect.base import BaseCollector, RawBatch
 from votelink.collect.meta import CollectorMeta
@@ -14,10 +15,15 @@ NOW = datetime(2026, 9, 1, 12, 0, tzinfo=KST)
 
 @pytest.fixture
 def data_root(tmp_path, monkeypatch):
-    """data/ 하위 경로를 임시 디렉터리로 돌린다."""
+    """data/ 하위 경로를 임시 디렉터리로 돌린다.
+
+    raw 는 storage 가, records/rejected 는 store 가 진실이다 (L1·L2 공용이라
+    votelink/store.py 로 옮겼다). storage 쪽 재수출 이름을 패치해도 함수는
+    store 모듈의 전역을 보므로 효과가 없다 — 여기를 고쳐야 한다.
+    """
     monkeypatch.setattr(storage, "RAW_DIR", tmp_path / "raw")
-    monkeypatch.setattr(storage, "RECORDS_DIR", tmp_path / "records")
-    monkeypatch.setattr(storage, "REJECTED_DIR", tmp_path / "rejected")
+    monkeypatch.setattr(store, "RECORDS_DIR", tmp_path / "records")
+    monkeypatch.setattr(store, "REJECTED_DIR", tmp_path / "rejected")
     return tmp_path
 
 

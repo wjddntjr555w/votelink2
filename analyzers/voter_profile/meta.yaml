@@ -1,0 +1,24 @@
+id: voter_profile
+name: 읍면동 유권자 프로파일 — 진영 성향 시계열 × 인구 구조
+inputs: [election_result, population]
+outputs: [segment_profile]
+geo_level: emd
+proposal: docs/proposals/A-001-voter-profile.md
+
+# 실제 입력(대선 8회 × 9동 + 인구 9건)으로 검증하기 전까지 false.
+verified: false
+
+config:
+  district: seoul_songpa_gap
+
+  # trend 판정 임계 (%p/회). **편차 기울기**에 적용된다 — 절대 득표율 기울기가 아니다.
+  #
+  # 왜 0.3 인가: 최근 3회가 2017(탄핵 직후 보수 저점) → 2022 → 2025 라
+  # 절대 기울기로는 9개 동이 전부 conservative_shift 로 나온다(변별력 0).
+  # 지역구 평균을 빼면 전국 공통 흐름이 상쇄되는 대신 스케일이 작아지므로
+  # 임계도 함께 내려야 한다. ±1.0 을 쓰면 전부 stable 이 된다.
+  # 이 값에서 3(보수이동) / 2(안정) / 4(진보이동) 로 갈린다.
+  trend_threshold: 0.3
+
+  # trend 를 계산할 최근 회차 수. 8회 전부를 쓰면 33년 전 구도가 섞인다.
+  trend_window: 3

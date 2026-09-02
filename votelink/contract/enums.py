@@ -73,3 +73,33 @@ class ElectionType(StrEnum):
     PRESIDENTIAL = "presidential"
     LOCAL = "local"
     BY_ELECTION = "by_election"
+
+
+class Camp(StrEnum):
+    """정치 진영. 회차마다 정당명이 달라 시계열 비교를 하려면 공통 축이 필요하다.
+
+    **분류 기준은 '당의 이념'이 아니라 '그 후보 득표층의 이념 위치'다.**
+    매핑은 코드가 아니라 data/reference/party_lineage.yaml 에 있다 — 정치적 판단이라
+    눈에 보여야 하고, 이견이 있으면 그 파일만 고쳐 재분석할 수 있어야 한다.
+
+    3분류로 뭉개지 않는 이유: 2017년 안철수 22.2% + 유승민 8.8%, 2025년 이준석 9.8%
+    같은 중도표를 OTHER 로 넣으면 그 해 보수 지지가 실제보다 붕괴한 것처럼 보인다.
+    """
+
+    CONSERVATIVE = "conservative"
+    PROGRESSIVE = "progressive"
+    CENTRIST = "centrist"
+    OTHER = "other"
+
+
+class Trend(StrEnum):
+    """성향 이동 방향. **지역구 평균 대비 편차**의 기울기로 판정한다.
+
+    절대 득표율의 기울기가 아니다. 최근 3회(2017 탄핵 저점 → 2022 → 2025)로 절대
+    기울기를 재면 송파갑 9개 동이 전부 CONSERVATIVE_SHIFT 로 나와 변별력이 0이 된다.
+    편차를 쓰면 전국 공통 흐름이 상쇄되고 동별 상대 이동만 남는다.
+    """
+
+    CONSERVATIVE_SHIFT = "conservative_shift"
+    STABLE = "stable"
+    PROGRESSIVE_SHIFT = "progressive_shift"

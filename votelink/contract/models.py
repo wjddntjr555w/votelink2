@@ -199,6 +199,23 @@ class Record(BaseModel):
         return self
 
 
+class Rejected(BaseModel):
+    """계약을 위반해 격리되는 항목. data/rejected/ 로 간다.
+
+    L1(수집)과 L2(분석)가 같이 쓴다. '계약을 통과하지 못한 것'은 계약의 개념이라
+    어느 한쪽 계층에 두지 않는다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str
+    raw_item: Any = None
+
+    @property
+    def short_reason(self) -> str:
+        return self.reason.splitlines()[0][:200]
+
+
 class UnsupportedRecord(Exception):
     """이 버전이 처리할 수 없는 저장 레코드."""
 
@@ -234,6 +251,7 @@ __all__ = [
     "CONTRACT_VERSION",
     "KST",
     "Record",
+    "Rejected",
     "UnsupportedRecord",
     "load_record",
     "make_record_id",

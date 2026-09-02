@@ -45,6 +45,7 @@ def fake_collectors(tmp_path, monkeypatch):
         """).strip(),
         encoding="utf-8",
     )
+
     # 가짜 collectors 패키지가 진짜를 **가리려면** 이미 import 된 진짜를 잠시 치워야
     # 한다. 다만 치운 채로 끝내면 다른 테스트가 쓰던 진짜 수집기가 사라진다
     # (그러면 BaseCollector.package_dir 같은 곳이 엉뚱한 데서 죽는다).

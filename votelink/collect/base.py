@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from votelink.collect.meta import CollectorMeta
-from votelink.contract.models import KST, Record
+from votelink.contract.models import KST, Record, Rejected
 
 _SLUG_RE = re.compile(r"[^a-z0-9._-]+")
 
@@ -47,19 +47,8 @@ class RawBatch(BaseModel):
         return f"{slugify(self.batch_key)}.json.gz"
 
 
-class Rejected(BaseModel):
-    """계약을 위반해 격리되는 항목. data/rejected/ 로 간다."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    reason: str
-    raw_item: Any = None
-
-    @property
-    def short_reason(self) -> str:
-        return self.reason.splitlines()[0][:200]
-
-
+# Rejected 는 votelink.contract.models 로 옮겼다 — L2 도 격리를 쓰기 때문이다.
+# 기존 import 경로(`from votelink.collect.base import Rejected`)는 그대로 동작한다.
 ParseResult = Record | Rejected
 
 

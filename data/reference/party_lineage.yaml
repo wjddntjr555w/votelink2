@@ -1,0 +1,162 @@
+# 대선 후보 → 진영(camp) 매핑.
+#
+# 1992년 민자당부터 2025년 국민의힘까지 정당명이 회차마다 다르다. 동별 성향을
+# 시계열로 비교하려면 공통 축으로 정규화해야 하는데, **이건 정치적 판단이다.**
+# 코드에 숨기지 않고 여기 데이터로 둔다 (districts.yaml 과 같은 원칙).
+# 이견이 있으면 이 파일만 고치고 `votelink analyze voter_profile` 을 다시 돌린다.
+#
+# 키는 election + candidate 다. **정당이 아니다.**
+#   - 2002년(16대) 개표자료에는 정당 열 자체가 없다. 원본 헤더가 후보명만 준다.
+#   - 같은 사람이 회차마다 다른 위치에 있다 (이회창: 1997·2002 한나라당 → 2007 무소속).
+# party 필드는 참고용이며 매칭에 쓰이지 않는다.
+#
+# camp 값 4가지:
+#   conservative  보수
+#   progressive   진보
+#   centrist      중도 — **3분류로 뭉개지 않는 이유가 여기 있다.** 2017년 안철수
+#                 22.2% + 유승민 8.8% 를 other 로 넣으면 그 해 보수 지지가 실제보다
+#                 붕괴한 것처럼 보인다. 중도표 이동은 송파갑 같은 접전지에서
+#                 가장 중요한 신호라 별도 축으로 둔다.
+#   other         위 셋으로 분류하기 어려운 군소·단일이슈 후보
+#
+# **분류 기준은 '당의 이념'이 아니라 '그 후보 득표층의 이념 위치'다.**
+# 우리가 하려는 일은 득표를 진영 축으로 환산하는 것이지 정당을 분류하는 게 아니다.
+# 그래서 강령·계보보다 출구조사·투표행태 연구를 우선한다. 둘이 갈릴 때는 표를 따른다.
+#
+# **매핑에 없는 후보는 격리된다.** 조용히 other 로 떨어뜨리면 '매핑 누락'과
+# '실제 군소후보'를 구분할 수 없기 때문이다. 새 선거를 붙이면 여기도 채운다.
+#
+# --- 어떻게 확정했나 (2026-09-03) -------------------------------------------
+#
+# 논쟁적인 5건을 놓고 **먼저 민감도를 쟀다.** 각 항목을 대안값으로 바꿔 돌렸을 때
+# 동별 순위·추세·스윙이 실제로 바뀌는지 계산했다. 결과:
+#
+#   1992 정주영 (20.1%)  →  순위 0 · 추세 0 · 스윙 0.0%p   결과 불변
+#   1997 이인제 (10.8%)  →  순위 0 · 추세 0 · 스윙 0.0%p   결과 불변
+#   2007 이인제 ( 0.3%)  →  순위 0 · 추세 0 · 스윙 0.5%p   결과 불변
+#   2017 유승민 ( 8.8%)  →  순위 0 · 추세 0 · 스윙 11.0%p  스윙만 흔듦
+#   2025 이준석 ( 9.8%)  →  순위 5/9개 동 뒤집힘           결정적
+#
+# 앞의 3건은 어느 쪽으로 분류하든 산출물이 같다. 득표 20.1%인 정주영조차 그렇다 —
+# 1992년 값이 시계열의 최대·최소 어느 쪽도 아니고, 순위·추세는 최근 3회만 보기 때문.
+# **논쟁이 결과를 바꾸지 않으면 논쟁이 아니다.** 초안값으로 확정했다.
+#
+# 뒤의 2건만 근거를 찾았고, 둘 다 초안값을 뒷받침했다 (각 항목 주석 참조).
+
+version: "2026-09-03 확정"
+source: 실제 개표자료(nec_archive)에 등장한 후보 전원. 누락 없음
+
+candidates:
+  # --- 제14대 (1992-12-18) ---------------------------------------------------
+  - { election: 1992-12-18-presidential, candidate: 김영삼, party: 민자당,    camp: conservative }
+  - { election: 1992-12-18-presidential, candidate: 김대중, party: 민주당,    camp: progressive }
+  # 정주영: 현대 창업주가 세운 국민당. 통상 보수로 분류하나 기성 보수 이탈표 성격도 있다.
+  # 20.1% 로 비중이 크지만 **민감도 검사 결과 산출물이 전혀 바뀌지 않았다** —
+  # 1992년 값이 시계열의 최대·최소 어느 쪽도 아니고 순위·추세는 최근 3회만 본다.
+  # 통상 분류를 따른다.
+  - { election: 1992-12-18-presidential, candidate: 정주영, party: 국민당,    camp: conservative }
+  - { election: 1992-12-18-presidential, candidate: 박찬종, party: 신정당,    camp: centrist }
+  - { election: 1992-12-18-presidential, candidate: 백기완, party: 무소속,    camp: progressive }
+  - { election: 1992-12-18-presidential, candidate: 이종찬, party: 새한국당,  camp: conservative }
+  - { election: 1992-12-18-presidential, candidate: 김옥선, party: 무소속,    camp: other }
+  - { election: 1992-12-18-presidential, candidate: 이병호, party: 정의당,    camp: other }  # 현 정의당과 무관한 동명 정당
+
+  # --- 제15대 (1997-12-18) ---------------------------------------------------
+  - { election: 1997-12-18-presidential, candidate: 이회창, party: 한나라당,     camp: conservative }
+  - { election: 1997-12-18-presidential, candidate: 김대중, party: 국민회의,     camp: progressive }
+  # 이인제: 신한국당 경선 불복 탈당. 계보는 보수지만 중도 표방으로 완주했다.
+  # 민감도 검사 결과 산출물 불변 (순위·추세·스윙 전부). 계보를 따른다.
+  - { election: 1997-12-18-presidential, candidate: 이인제, party: 국민신당,     camp: conservative }
+  - { election: 1997-12-18-presidential, candidate: 권영길, party: 국민승리21,   camp: progressive }
+  - { election: 1997-12-18-presidential, candidate: 김한식, party: 바른정치聯,   camp: other }
+  - { election: 1997-12-18-presidential, candidate: 신정일, party: 한국당,       camp: other }
+  - { election: 1997-12-18-presidential, candidate: 허경영, party: 공화당,       camp: other }
+
+  # --- 제16대 (2002-12-19) — 원본에 정당 열 없음 -----------------------------
+  - { election: 2002-12-19-presidential, candidate: 이회창, party: null, camp: conservative }
+  - { election: 2002-12-19-presidential, candidate: 노무현, party: null, camp: progressive }
+  - { election: 2002-12-19-presidential, candidate: 권영길, party: null, camp: progressive }
+  - { election: 2002-12-19-presidential, candidate: 이한동, party: null, camp: conservative }
+  - { election: 2002-12-19-presidential, candidate: 김영규, party: null, camp: other }
+  - { election: 2002-12-19-presidential, candidate: 김길수, party: null, camp: other }
+
+  # --- 제17대 (2007-12-19) ---------------------------------------------------
+  - { election: 2007-12-19-presidential, candidate: 이명박, party: 한나라당,         camp: conservative }
+  - { election: 2007-12-19-presidential, candidate: 정동영, party: 대통합민주신당,   camp: progressive }
+  - { election: 2007-12-19-presidential, candidate: 이회창, party: 무소속,           camp: conservative }
+  - { election: 2007-12-19-presidential, candidate: 문국현, party: 창조한국당,       camp: centrist }
+  - { election: 2007-12-19-presidential, candidate: 권영길, party: 민주노동당,       camp: progressive }
+  # 이인제: 이 회차는 (구)민주당 소속. 계보는 보수 이탈이나 위치는 중도에 가깝다.
+  # 득표 0.3% 이고 민감도 검사에서 스윙 0.5%p 외 변화 없음.
+  - { election: 2007-12-19-presidential, candidate: 이인제, party: 민주당,           camp: centrist }
+  - { election: 2007-12-19-presidential, candidate: 금민,   party: 한국사회당,       camp: progressive }
+  - { election: 2007-12-19-presidential, candidate: 허경영, party: 경제공화당,       camp: other }
+  - { election: 2007-12-19-presidential, candidate: 정근모, party: 참주인연합,       camp: other }
+  - { election: 2007-12-19-presidential, candidate: 전관,   party: 새시대참사람연합, camp: other }
+
+  # --- 제18대 (2012-12-19) ---------------------------------------------------
+  - { election: 2012-12-19-presidential, candidate: 박근혜, party: 새누리당,   camp: conservative }
+  - { election: 2012-12-19-presidential, candidate: 문재인, party: 민주통합당, camp: progressive }
+  - { election: 2012-12-19-presidential, candidate: 강지원, party: 무소속,     camp: centrist }
+  - { election: 2012-12-19-presidential, candidate: 김순자, party: 무소속,     camp: progressive }
+  - { election: 2012-12-19-presidential, candidate: 김소연, party: 무소속,     camp: progressive }
+  - { election: 2012-12-19-presidential, candidate: 박종선, party: 무소속,     camp: other }
+
+  # --- 제19대 (2017-05-09) ---------------------------------------------------
+  - { election: 2017-05-09-presidential, candidate: 문재인, party: 더불어민주당,   camp: progressive }
+  - { election: 2017-05-09-presidential, candidate: 홍준표, party: 자유한국당,     camp: conservative }
+  - { election: 2017-05-09-presidential, candidate: 안철수, party: 국민의당,       camp: centrist }
+  # 유승민: 바른정당은 보수 분당. 탄핵 국면의 '개혁보수' 포지션이라 centrist 로 보는
+  # 시각도 있어 근거를 찾았다 — 19대 대선 투표행태 연구에서 **홍준표·유승민 투표자를
+  # 함께 '보수당 후보 지지'로 분류**하는 것이 통용된다. 득표층 기준으로도 보수다.
+  # 민감도: 순위·추세 불변, 스윙만 11.0%p 움직인다 (2017년이 시계열 최저점이라).
+  # 근거: 박유성·이선미, 「제19대 대선 출구조사 결과 분석과 의미」, 아세아연구 2017
+  #       https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART002292064
+  - { election: 2017-05-09-presidential, candidate: 유승민, party: 바른정당,       camp: conservative }
+  - { election: 2017-05-09-presidential, candidate: 심상정, party: 정의당,         camp: progressive }
+  - { election: 2017-05-09-presidential, candidate: 조원진, party: 새누리당,       camp: conservative }
+  - { election: 2017-05-09-presidential, candidate: 이재오, party: 늘푸른한국당,   camp: conservative }
+  - { election: 2017-05-09-presidential, candidate: 김선동, party: 민중연합당,     camp: progressive }
+  - { election: 2017-05-09-presidential, candidate: 장성민, party: 국민대통합당,   camp: other }
+  - { election: 2017-05-09-presidential, candidate: 윤홍식, party: 홍익당,         camp: other }
+  - { election: 2017-05-09-presidential, candidate: 김민찬, party: 무소속,         camp: other }
+  - { election: 2017-05-09-presidential, candidate: 이경희, party: 한국국민당,     camp: other }
+  - { election: 2017-05-09-presidential, candidate: 오영국, party: 경제애국당,     camp: other }
+
+  # --- 제20대 (2022-03-09) ---------------------------------------------------
+  - { election: 2022-03-09-presidential, candidate: 윤석열, party: 국민의힘,       camp: conservative }
+  - { election: 2022-03-09-presidential, candidate: 이재명, party: 더불어민주당,   camp: progressive }
+  - { election: 2022-03-09-presidential, candidate: 심상정, party: 정의당,         camp: progressive }
+  - { election: 2022-03-09-presidential, candidate: 김재연, party: 진보당,         camp: progressive }
+  - { election: 2022-03-09-presidential, candidate: 오준호, party: 기본소득당,     camp: progressive }
+  - { election: 2022-03-09-presidential, candidate: 이백윤, party: 노동당,         camp: progressive }
+  - { election: 2022-03-09-presidential, candidate: 조원진, party: 우리공화당,     camp: conservative }
+  - { election: 2022-03-09-presidential, candidate: 김경재, party: 신자유민주연합, camp: conservative }
+  - { election: 2022-03-09-presidential, candidate: 옥은호, party: 새누리당,       camp: conservative }
+  - { election: 2022-03-09-presidential, candidate: 허경영, party: 국가혁명당,     camp: other }
+  - { election: 2022-03-09-presidential, candidate: 이경희, party: 통일한국당,     camp: other }
+  - { election: 2022-03-09-presidential, candidate: 김민찬, party: 한류연합당,     camp: other }
+
+  # --- 제21대 (2025-06-03) ---------------------------------------------------
+  - { election: 2025-06-03-presidential, candidate: 김문수, party: 국민의힘,     camp: conservative }
+  - { election: 2025-06-03-presidential, candidate: 이재명, party: 더불어민주당, camp: progressive }
+  # 이준석: **이 파일에서 가장 중요한 한 줄이다.** 민감도 검사에서 이 항목 하나만으로
+  # 동별 순위가 9개 중 5개 뒤집힌다 (최근값 최대 12.0%p 변화). 가장 최근 회차라
+  # v0.1 전략에 직접 들어간다.
+  #
+  # 개혁신당은 국민의힘 이탈로 만들어져 계보상으로는 보수다. 그러나 **득표층 기준**
+  # (이 파일의 분류 기준)으로 보면 다르다:
+  #   - 출구조사 20대 남성 37.2%, 30대 남성 25.8% — 지지층이 2030 남성에 집중
+  #   - 투표층 이념 중위값 5점(중도). 39세 이하 전체(6점, 중도보수)보다 더 중도적
+  #   - 전통 보수 지지층과 **연령 구성이 정반대**다
+  #
+  # conservative 로 묶으면 고령 비중이 높은 동과 청년 비중이 높은 동이 같은 '보수'
+  # 라벨을 받는다. voter_profile 은 동별 인구 구조와 성향을 나란히 놓는 것이 목적이라
+  # 그 순간 변별력이 사라진다. centrist 로 둔다.
+  #
+  # 근거: 2025 대선 출구조사 세대별 결과
+  #       https://namu.wiki/w/제21대 대통령 선거/개표 결과/세대별
+  #       https://newneek.co/@newneek/article/32903
+  - { election: 2025-06-03-presidential, candidate: 이준석, party: 개혁신당,     camp: centrist }
+  - { election: 2025-06-03-presidential, candidate: 권영국, party: 민주노동당,   camp: progressive }
+  - { election: 2025-06-03-presidential, candidate: 송진호, party: 무소속,       camp: other }
