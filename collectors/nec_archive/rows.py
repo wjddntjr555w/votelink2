@@ -58,6 +58,7 @@ class Layout:
     data_from: int  # 데이터가 시작하는 행
     party_row: int | None = None  # 정당명 행. candidate_row 와 같으면 '정당\n후보' 한 칸
     precinct: int | None = None  # 투표구명 열. None 이면 그 파일에 투표구 개념이 없다
+    sido: int | None = None  # 시도명 열. 16·17대는 이 열이 없다
 
 
 @dataclass(frozen=True)
@@ -145,6 +146,149 @@ def iter_emd_rows(
             invalid_votes=to_int(cell(row, layout.invalid)),
             results=candidates,
             votes=[to_int(cell(row, c)) for c in range(layout.candidate_from, layout.total)],
+        )
+
+
+# --- 기준선(상위 행정단위) 합계 ------------------------------------------------
+#
+# 동별 득표율은 그 자체로 의미가 없다. "송파갑 평균 대비", "서울 평균 대비" 처럼
+# 비교 대상이 있어야 지표가 된다. 원본 격자에는 전국이 이미 들어 있고 현재 파서가
+# 송파구만 걸러낼 뿐이므로, **재수집 없이** 총계 행만 더 읽으면 된다.
+#
+# 33년치의 총계 표기가 제각각이라 조건을 코드에 박지 않고 meta.yaml 의
+# `elections[].baselines` 규칙으로 둔다. 규칙 하나가 여러 행에 맞으면 **합산**한다
+# (1992년 송파구는 '송파구갑'+'송파구을' 로만 존재한다).
+
+
+@dataclass(frozen=True)
+class BaselineRule:
+    """어느 행들을 모아 한 단위의 합계로 삼을지."""
+
+    level: str  # nation / sido / sigungu
+    sido: str | None = None  # 시도열 완전일치
+    sido_prefix: str | None = None  # 시도열 접두사 ('서울' 이 '서울특별시'를 잡는다)
+    sgg: str | None = None  # 시군구열 완전일치
+    sgg_prefix: str | None = None  # 시군구열 접두사 ('송파구' 가 '송파구갑'을 잡는다)
+    emd: tuple[str, ...] = ()  # 읍면동열이 이 중 하나 (빈 튜플이면 조건 없음)
+
+    # 잡힐 것으로 기대하는 행 수. **이 안전장치가 없으면 결함이 조용히 지나간다.**
+    # 18대는 송파구에 '소계' 행이 둘이다 — 구 전체(545,369)와 재외·부재자를 뺀
+    # 관내분(527,457). 둘 다 산술이 맞아서 합쳐도 불변식에 걸리지 않고,
+    # 투표율도 그럴듯하게 나온다. 오직 행 수로만 드러난다.
+    expect: int | None = None
+
+    # 여러 행이 잡혔을 때 첫 행만 쓴다. 선관위 파일은 블록 첫 행이 그 단위의
+    # 전체 합계이고 뒤따르는 소계는 부분집합이다.
+    take_first: bool = False
+
+    def matches(self, sido: str, sgg: str, emd: str) -> bool:
+        if self.sido is not None and sido != self.sido:
+            return False
+        if self.sido_prefix is not None and not sido.startswith(self.sido_prefix):
+            return False
+        if self.sgg is not None and sgg != self.sgg:
+            return False
+        if self.sgg_prefix is not None and not sgg.startswith(self.sgg_prefix):
+            return False
+        return not (self.emd and emd not in self.emd)
+
+
+@dataclass(frozen=True)
+class BaselineRow:
+    """상위 행정단위 하나의 개표 합계. EmdRow 와 같은 모양이지만 이름이 없다."""
+
+    level: str
+    eligible_voters: int
+    total_votes: int
+    counted_votes: int
+    invalid_votes: int
+    results: list[tuple[str, str]] = field(default_factory=list)
+    votes: list[int] = field(default_factory=list)
+    matched_rows: int = 0
+
+
+def iter_baseline_rows(
+    grid: Grid, layout: Layout, rules: list[BaselineRule]
+) -> Iterator[BaselineRow]:
+    """규칙마다 맞는 행을 모아 합산한 결과를 돌려준다.
+
+    맞는 행이 하나도 없으면 그 규칙은 **조용히 건너뛰지 않고** 예외를 던진다.
+    기준선이 소리 없이 빠지면 분석기의 gap 이 None 이 되는데, 그게 '아직 없어서'인지
+    '규칙이 틀려서'인지 구분할 수 없기 때문이다.
+    """
+    candidates = candidate_columns(grid, layout)
+    span = range(layout.candidate_from, layout.total)
+
+    for rule in rules:
+        hits: list[list[str]] = []
+        sido = sgg = ""
+
+        for row in grid[layout.data_from :]:
+            # 병합셀은 블록 첫 행에만 값이 있다. 앞의 값을 이어 쓴다.
+            if layout.sido is not None and cell(row, layout.sido):
+                sido = cell(row, layout.sido)
+            if cell(row, layout.sgg):
+                sgg = cell(row, layout.sgg).strip("[]")
+            if rule.matches(sido, sgg, cell(row, layout.emd)):
+                hits.append(row)
+
+        if not hits:
+            raise ValueError(
+                f"기준선 규칙 '{rule.level}' 에 맞는 행이 없다: {rule}. "
+                "meta.yaml 의 baselines 조건이 이 선거 파일의 표기와 맞지 않는다"
+            )
+        if rule.expect is not None and len(hits) != rule.expect:
+            raise ValueError(
+                f"기준선 규칙 '{rule.level}' 이 {len(hits)}개 행을 잡았는데 "
+                f"{rule.expect}개를 기대했다: {rule}. 파일 구조가 달라졌거나 조건이 "
+                "상위/하위 단위를 함께 잡고 있다 — 합산하면 득표가 부풀지만 "
+                "산술 불변식으로는 드러나지 않는다"
+            )
+
+        used = hits[:1] if rule.take_first else hits
+        acc = [0] * len(span)
+        eligible = votes = counted = invalid = 0
+        for row in used:
+            eligible += to_int(cell(row, layout.eligible))
+            votes += to_int(cell(row, layout.votes))
+            counted += to_int(cell(row, layout.total))
+            invalid += to_int(cell(row, layout.invalid))
+            for i, column in enumerate(span):
+                acc[i] += to_int(cell(row, column))
+
+        yield BaselineRow(
+            level=rule.level,
+            eligible_voters=eligible,
+            total_votes=votes,
+            counted_votes=counted,
+            invalid_votes=invalid,
+            results=candidates,
+            votes=acc,
+            matched_rows=len(used),
+        )
+
+
+def check_baseline_arithmetic(row: BaselineRow) -> None:
+    """동 단위와 같은 산술 불변식을 기준선에도 건다.
+
+    합산은 조용히 틀리기 쉽다 — 투표구 행이 섞여 들어오면 득표가 배로 뛰는데
+    숫자는 그럴듯하다. 출처가 준 '계'와 대조하면 그게 드러난다.
+    """
+    summed = sum(row.votes)
+    if summed != row.counted_votes:
+        raise ValueError(
+            f"{row.level}: 득표 합({summed})이 출처의 '계'({row.counted_votes})와 다르다. "
+            f"baselines 규칙이 {row.matched_rows}개 행을 잡았는데 그중 상위/하위 단위가 "
+            "섞였을 가능성이 높다"
+        )
+    if row.counted_votes + row.invalid_votes != row.total_votes:
+        raise ValueError(
+            f"{row.level}: 계({row.counted_votes}) + 무효({row.invalid_votes}) 가 "
+            f"투표수({row.total_votes})와 맞지 않는다"
+        )
+    if row.total_votes > row.eligible_voters:
+        raise ValueError(
+            f"{row.level}: 투표수({row.total_votes})가 선거인수({row.eligible_voters})보다 많다"
         )
 
 

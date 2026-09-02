@@ -14,6 +14,12 @@ proposal: docs/proposals/C-004-nec-archive-presidential.md
 
 # 2026-09-02: 대선 8회 전부 실측 검증. 송파갑 9동 × 8선거 = 72레코드,
 # 중복 0, 격리 0, 산술 불변식(득표합=계, 계+무효=투표, 투표<=선거인) 전부 통과.
+#
+# 2026-09-03: 기준선(전국·서울시·송파구) 22레코드 추가 → 총 94. 재수집 없이
+# --reparse 로 만들었다(원본 격자에 전국이 이미 들어 있었고 파서가 버리고 있었다).
+# 투표율이 실제 공식 집계와 일치한다: 2002 70.8% · 2012 75.8% · 2017 77.2% ·
+# 2022 77.1% · 2025 79.4%. 결측 2건은 정직하게 비워 둔다 —
+# 2002년은 시도 열이 없어 서울시를, 2007년은 서울 파일만 읽어 전국을 만들 수 없다.
 verified: true
 
 config:
@@ -25,6 +31,15 @@ config:
   # 16·17대 '소계', 19대 '합계', 18·20·21대 빈칸. 14·15대는 투표구 열 자체가 없다.
   precinct_total_markers: ["", "소계", "합계"]
 
+  # 기준선(상위 행정단위) 레코드의 지리 정보.
+  # 동별 득표율은 그 자체로 의미가 없다 — "무엇 대비"가 있어야 지표가 된다.
+  # nation 은 계약상 geo_code 를 가질 수 없다(§3). sido/sigungu 코드는 검증된
+  # admmCd(1171051000 등)의 접두사 규칙에서 나온 값이다.
+  baseline_geo:
+    nation:  { code: null,         name: "전국" }
+    sido:    { code: "1100000000", name: "서울특별시" }
+    sigungu: { code: "1171000000", name: "송파구" }
+
   # 선거별 레이아웃. 33년치가 서로 다르므로 코드가 아니라 여기 데이터로 둔다.
   #   sgg/emd/eligible/votes/candidate_from/total/invalid : 열 인덱스 (0부터)
   #   total 은 출처의 '계'(후보 득표 합계) 열이며 후보 열의 끝 경계다
@@ -34,17 +49,28 @@ config:
       name: 제14대 대통령선거
       date: "1992-12-18"
       file: "제14대 대통령선거 개표자료.xls"
-      layout: {sgg: 1, emd: 2, precinct: null, eligible: 3, votes: 5,
+      layout: {sido: 0, sgg: 1, emd: 2, precinct: null, eligible: 3, votes: 5,
                candidate_from: 7, total: 15, invalid: 16,
                party_row: 2, candidate_row: 3, data_from: 4}
+      # 송파구가 '송파구' 로 존재하지 않는다. 선거구 단위('송파구갑'·'송파구을')로만
+      # 나오므로 접두사로 잡아 **합산**한다.
+      baselines:
+        - {level: nation,  sido: "전국", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
+        - {level: sigungu, sgg_prefix: "송파구", emd: ["소계"], expect: 2}
 
     - id: 1997-12-18-presidential
       name: 제15대 대통령선거
       date: "1997-12-18"
       file: "제15대 대통령선거 개표자료.xls"
-      layout: {sgg: 1, emd: 2, precinct: null, eligible: 3, votes: 5,
+      layout: {sido: 0, sgg: 1, emd: 2, precinct: null, eligible: 3, votes: 5,
                candidate_from: 7, total: 14, invalid: 15,
                party_row: 2, candidate_row: 3, data_from: 4}
+      # 1997년 송파구는 갑·을·병 3개 선거구다.
+      baselines:
+        - {level: nation,  sido: "전국", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
+        - {level: sigungu, sgg_prefix: "송파구", emd: ["소계"], expect: 3}
 
     # 위원회명이 '[송파구]' 형태다. 대괄호는 파서가 벗긴다.
     - id: 2002-12-19-presidential
@@ -54,6 +80,14 @@ config:
       layout: {sgg: 0, emd: 1, precinct: 2, eligible: 3, votes: 4,
                candidate_from: 5, total: 11, invalid: 12,
                party_row: null, candidate_row: 0, data_from: 1}
+      # **시도 열이 없다.** 그래서 서울시 기준선을 만들 수 없다 — 어느 구가 서울인지
+      # 파일만 봐서는 알 수 없고, 구 이름 목록을 코드에 박는 것은 이 프로젝트의
+      # 규칙에 어긋난다. 전국은 모든 구의 합계 행을 더해서 만든다.
+      baselines:
+        # 244 = 이 파일에 든 시군구 위원회 수. 합산 결과가 실제 전국 집계와
+        # 일치하는 것으로 확인했다 (선거인수 34,991,529 · 투표율 70.8%).
+        - {level: nation,  emd: ["합계"], expect: 244}
+        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
 
     # 시도별 16개 파일로 쪼개져 있다. 서울 파일만 쓴다.
     - id: 2007-12-19-presidential
@@ -63,37 +97,63 @@ config:
       layout: {sgg: 0, emd: 1, precinct: 2, eligible: 3, votes: 5,
                candidate_from: 6, total: 16, invalid: 17,
                party_row: 1, candidate_row: 2, data_from: 3}
+      # 서울 파일만 읽으므로 **파일 전체가 서울시**다. 구 합계를 더하면 서울 기준선이
+      # 되고, 전국은 나머지 15개 시도 파일이 필요해 이 회차만 비어 있다.
+      baselines:
+        - {level: sido,    emd: ["합계"], expect: 25}
+        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
 
     # A열이 통째로 비어 있어 모든 열이 1씩 밀려 있다.
     - id: 2012-12-19-presidential
       name: 제18대 대통령선거
       date: "2012-12-19"
       file: "제18대 대통령선거 개표자료.xls"
-      layout: {sgg: 2, emd: 3, precinct: 4, eligible: 5, votes: 6,
+      layout: {sido: 1, sgg: 2, emd: 3, precinct: 4, eligible: 5, votes: 6,
                candidate_from: 7, total: 13, invalid: 14,
                party_row: 4, candidate_row: 4, data_from: 5}
+      # **송파구에 '소계' 행이 둘이다.** 첫 행이 구 전체(545,369), 뒤 행은 재외·부재자를
+      # 뺀 관내분(527,457)이다. 둘 다 산술이 맞아서 합치면 득표가 정확히 두 배가
+      # 되는데도 불변식에 걸리지 않고 투표율까지 그럴듯하게 나온다. expect 로 잡는다.
+      baselines:
+        - {level: nation,  sido: "전국", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
+        - {level: sigungu, sgg: "송파구", emd: ["소계"], expect: 2, take_first: true}
 
     # 동 단위 행의 투표구명이 '합계'다 (다른 선거는 빈칸이나 '소계').
     - id: 2017-05-09-presidential
       name: 제19대 대통령선거
       date: "2017-05-09"
       file: "제19대 대통령선거 개표자료.xlsx"
-      layout: {sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
+      layout: {sido: 0, sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
                candidate_from: 6, total: 19, invalid: 20,
                party_row: 1, candidate_row: 1, data_from: 2}
+      # 이 회차만 전국 총계 행의 시군구 칸이 비어 있다(sgg 조건을 걸 수 없다).
+      baselines:
+        - {level: nation,  sido: "전국", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
+        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
 
     - id: 2022-03-09-presidential
       name: 제20대 대통령선거
       date: "2022-03-09"
       file: "제20대 대통령선거 개표결과.xlsx"
-      layout: {sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
+      layout: {sido: 0, sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
                candidate_from: 6, total: 18, invalid: 19,
                party_row: 0, candidate_row: 0, data_from: 1}
+      # 서울 총계 행의 표기가 '합계(특별시)' 다. 접두사로 잡는다.
+      baselines:
+        - {level: nation,  sido: "전국", sgg: "합계", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg_prefix: "합계", expect: 1}
+        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
 
     - id: 2025-06-03-presidential
       name: 제21대 대통령선거
       date: "2025-06-03"
       file: "제21대 대통령선거 개표결과.xlsx"
-      layout: {sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
+      layout: {sido: 0, sgg: 1, emd: 2, precinct: 3, eligible: 4, votes: 5,
                candidate_from: 6, total: 11, invalid: 12,
                party_row: 4, candidate_row: 4, data_from: 6}
+      baselines:
+        - {level: nation,  sido: "전국", sgg: "합계", expect: 1}
+        - {level: sido,    sido_prefix: "서울", sgg_prefix: "합계", expect: 1}
+        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}

@@ -31,11 +31,29 @@ pytestmark = pytest.mark.skipif(
 
 
 def _parse(filename: str):
-    body = json.loads((FIXTURES / filename).read_text(encoding="utf-8"))["body"]
-    results = list(Collector().parse(RawBatch(collector_id=Collector.id, body=body)))
+    """행정동 레코드만 돌려준다.
+
+    parse 는 동 레코드와 기준선(전국·서울시·송파구) 레코드를 함께 낸다.
+    동 단위 검증은 앞의 것만 보면 되므로 여기서 갈라 둔다 — 기준선은
+    `_baselines` 와 test_baselines.py 가 맡는다.
+    """
+    results = _parse_all(filename)
     rejected = [r for r in results if isinstance(r, Rejected)]
-    records = [r for r in results if not isinstance(r, Rejected)]
+    records = [r for r in results if not isinstance(r, Rejected) and r.geo_level == "emd"]
     return records, rejected
+
+
+def _parse_all(filename: str):
+    body = json.loads((FIXTURES / filename).read_text(encoding="utf-8"))["body"]
+    return list(Collector().parse(RawBatch(collector_id=Collector.id, body=body)))
+
+
+def _baselines(filename: str):
+    return {
+        r.geo_level: r
+        for r in _parse_all(filename)
+        if not isinstance(r, Rejected) and r.geo_level != "emd"
+    }
 
 
 @pytest.mark.parametrize("filename,election_id,n_candidates", CASES)
@@ -95,3 +113,54 @@ def test_old_and_new_layouts_agree_on_geo_codes():
     old = {r.geo_code for r in _parse("sample_raw.json")[0]}
     new = {r.geo_code for r in _parse("sample_raw_modern.json")[0]}
     assert old == new
+
+
+# --- 기준선 (전국·서울시·송파구) -------------------------------------------------
+
+
+@pytest.mark.parametrize("filename,_eid,_n", CASES)
+def test_baselines_are_produced_with_the_right_geography(filename, _eid, _n):
+    """동 레코드와 **같은 kind·같은 payload** 를 쓰고 geo_level 만 다르다.
+
+    그래야 분석기가 특별 취급 없이 geo_level 로만 분기할 수 있다.
+    """
+    baselines = _baselines(filename)
+    assert set(baselines) == {"nation", "sido", "sigungu"}
+
+    assert baselines["nation"].geo_code is None, "전국은 계약상 geo_code 를 가질 수 없다"
+    assert baselines["sido"].geo_code == "1100000000"
+    assert baselines["sigungu"].geo_code == "1171000000"
+
+    for record in baselines.values():
+        assert record.kind == "election_result"
+        assert record.payload["precinct"] is None
+        assert record.derived_from == [], "원천 수집기는 파생 레코드를 만들지 않는다"
+
+
+@pytest.mark.parametrize("filename,_eid,_n", CASES)
+def test_baseline_totals_contain_the_emd_rows(filename, _eid, _n):
+    """포함 관계가 깨지면 상위/하위 단위가 섞여 잡힌 것이다.
+
+    송파갑 9개 동의 합은 송파구 안에, 송파구는 서울 안에, 서울은 전국 안에 있어야 한다.
+    18대 송파구가 실제로 이 검사에 걸릴 뻔했다 — '소계' 행이 둘이라 합치면 두 배가 됐다.
+    """
+    emd_total = sum(r.payload["total_votes"] for r in _parse(filename)[0])
+    b = _baselines(filename)
+
+    assert emd_total < b["sigungu"].payload["total_votes"], "송파갑 9동 ⊂ 송파구"
+    assert b["sigungu"].payload["total_votes"] < b["sido"].payload["total_votes"]
+    assert b["sido"].payload["total_votes"] < b["nation"].payload["total_votes"]
+
+
+@pytest.mark.parametrize("filename,_eid,_n", CASES)
+def test_baseline_record_ids_are_stable(filename, _eid, _n):
+    a = {lvl: r.record_id for lvl, r in _baselines(filename).items()}
+    b = {lvl: r.record_id for lvl, r in _baselines(filename).items()}
+    assert a == b
+
+
+@pytest.mark.parametrize("filename,_eid,_n", CASES)
+def test_baselines_do_not_collide_with_emd_records(filename, _eid, _n):
+    """natural_key 에 'baseline' 이 들어가 동 레코드와 id 가 겹치지 않는다."""
+    ids = [r.record_id for r in _parse_all(filename) if not isinstance(r, Rejected)]
+    assert len(ids) == len(set(ids))

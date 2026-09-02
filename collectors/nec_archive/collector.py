@@ -19,7 +19,14 @@ from votelink.contract.models import Record
 from votelink.reference.districts import resolve_district
 
 from .excel import read_grid
-from .rows import Layout, check_arithmetic, iter_emd_rows
+from .rows import (
+    BaselineRule,
+    Layout,
+    check_arithmetic,
+    check_baseline_arithmetic,
+    iter_baseline_rows,
+    iter_emd_rows,
+)
 
 
 class Collector(BaseCollector):
@@ -58,14 +65,30 @@ class Collector(BaseCollector):
     def parse(self, raw: RawBatch) -> Iterator[ParseResult]:
         election = self._election(raw.body["election_id"])
         layout = Layout(**election["layout"])
+        grid = raw.body["grid"]
+
         rows = iter_emd_rows(
-            raw.body["grid"],
+            grid,
             layout,
             sigungu_match=self.meta.config["sigungu_match"],
             emd_names=self._emd_names,
             total_markers=tuple(self.meta.config["precinct_total_markers"]),
         )
         yield from self.map_items(rows, lambda row: self._to_record(row, election))
+
+        # 기준선(전국·서울시·송파구). 동별 득표율은 '무엇 대비'가 있어야 지표가 된다.
+        # 규칙은 선거마다 다르므로 meta.yaml 에 두었고, 없는 회차는 그냥 건너뛴다
+        # (2002년은 시도 열이 없어 서울시를, 2007년은 서울 파일이라 전국을 못 만든다).
+        # YAML 은 리스트를 주지만 규칙은 frozen 이라 튜플로 맞춘다.
+        rules = [
+            BaselineRule(**{**rule, "emd": tuple(rule.get("emd", ()))})
+            for rule in election.get("baselines", [])
+        ]
+        if rules:
+            baselines = iter_baseline_rows(grid, layout, rules)
+            yield from self.map_items(
+                baselines, lambda row: self._to_baseline_record(row, election)
+            )
 
     def _to_record(self, row: Any, election: dict[str, Any]) -> Record:
         check_arithmetic(row)
@@ -95,6 +118,44 @@ class Collector(BaseCollector):
                 "election_type": "presidential",
                 # 대선에는 선거구 개념이 없다. 분석 대상 선거구를 적는다.
                 "district_name": district.name,
+                "precinct": None,
+                "eligible_voters": row.eligible_voters,
+                "total_votes": row.total_votes,
+                "results": [
+                    {"party": party, "candidate": name, "votes": votes}
+                    for (party, name), votes in zip(row.results, row.votes, strict=True)
+                ],
+                "invalid_votes": row.invalid_votes,
+            },
+        )
+
+    def _to_baseline_record(self, row: Any, election: dict[str, Any]) -> Record:
+        """상위 행정단위(전국·서울시·송파구) 합계 레코드.
+
+        동 레코드와 **같은 kind·같은 payload** 를 쓴다. 다른 것은 geo_level 뿐이다.
+        그래서 분석기는 이걸 특별 취급하지 않고 geo_level 로만 분기하면 된다.
+        """
+        check_baseline_arithmetic(row)
+        geo = self.meta.config["baseline_geo"][row.level]
+        return Record(
+            kind="election_result",
+            collector_id=self.id,
+            source_name=self.meta.source_name,
+            source_url=self.meta.source_url,
+            source_license=self.meta.source_license,
+            observed_at=datetime.fromisoformat(election["date"]),
+            observed_precision="day",
+            geo_level=row.level,
+            # nation 은 계약상 geo_code 를 가질 수 없다 (docs/10-data-contract.md §3).
+            geo_code=geo["code"],
+            geo_name=geo["name"] if geo["code"] else None,
+            confidence=1.0,  # 공식 확정 개표결과의 합계다. 추정이 아니다
+            derived_from=[],
+            natural_key=f"{election['id']}|baseline|{row.level}",
+            payload={
+                "election_id": election["id"],
+                "election_type": "presidential",
+                "district_name": geo["name"],
                 "precinct": None,
                 "eligible_voters": row.eligible_voters,
                 "total_votes": row.total_votes,
