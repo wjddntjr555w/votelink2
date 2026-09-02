@@ -60,9 +60,13 @@ class Collector(BaseCollector):
         if not client_id or not client_secret:
             raise FetchError(
                 f"{ENV_CLIENT_ID}/{ENV_CLIENT_SECRET} 가 없다. "
-                "developers.naver.com 에서 애플리케이션을 등록해 발급받아라 (docs/SETUP.md)"
+                "NAVER Cloud Platform 콘솔에서 발급받아라 (docs/SETUP.md §5). "
+                "구 developers.naver.com 은 2026-07-31 로 신규 등록이 끝났다"
             )
-        return {"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": client_secret}
+        # 헤더 이름을 코드에 박지 않는다. 2026년 이관으로 HUB(X-NCP-*)와
+        # 레거시(X-Naver-*)가 공존하고, 레거시 키는 2027-06-30 까지만 산다.
+        auth = self.meta.config["auth"]
+        return {auth["header_id"]: client_id, auth["header_secret"]: client_secret}
 
     def _fetch_query(
         self,
