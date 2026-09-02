@@ -6,7 +6,7 @@ docs/20-collector-spec.md §7: 재집계·환산 같은 순수 로직은 별도 
 
 import pytest
 
-from collectors.nec_election_result.rows import (
+from collectors._retired.nec_election_result.rows import (
     ColumnMissing,
     EmdTally,
     pick_column,

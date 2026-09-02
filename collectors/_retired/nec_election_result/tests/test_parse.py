@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from collectors.nec_election_result.collector import Collector
+from collectors._retired.nec_election_result.collector import Collector
 from votelink.collect import RawBatch, Rejected
 from votelink.collect.meta import CollectorMeta
 from votelink.contract.models import KST, Record

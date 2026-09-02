@@ -25,8 +25,8 @@ collectors:
   requires_secrets:
   - NAVER_CLIENT_ID
   - NAVER_CLIENT_SECRET
-- id: nec_election_result
-  name: 중앙선관위 과거 선거 개표결과 (행정동 단위)
+- id: nec_archive
+  name: 중앙선관위 개표자료 아카이브 — 대통령선거 (1992~2025)
   kinds:
   - election_result
   source_name: 중앙선거관리위원회
