@@ -147,15 +147,68 @@ uv run votelink collect mois_population                     # 실제 수집
 `meta.verified: false` 인 수집기는 실제 응답으로 검증되지 않은 상태다.
 테스트가 통과하면 `true` 로 올린다.
 
-## 3. 선거구 획정 확인 (권장)
+## 3. 선거구 획정 대조
 
-`data/reference/districts.yaml` 의 송파갑 행정동 9개는 **사용자 제공 목록**이다.
-선관위 선거구 획정 자료로 대조해두는 편이 좋다 — 목록이 틀리면 옆 지역구 데이터가
-섞여 들어와도 **아무 에러가 나지 않는다.** 인구도 득표도 그럴듯한 숫자가 나온다.
+### ✅ 대조 완료 (2026-09-02) — 지금은 할 일이 없다
+
+`districts.yaml` 의 송파갑 행정동 9개가 **선관위 확정 자료와 정확히 일치**한다.
+차집합이 양쪽 다 공집합이었다.
+
+```
+방이1동 방이2동 송파1동 송파2동 오륜동 잠실4동 잠실6동 풍납1동 풍납2동
+```
+
+같은 파일에서 송파구을 8개, 송파구병 10개가 따로 나오므로 **경계도 확인됐다**
+(옆 지역구 동이 섞여 들어오지 않았다).
+
+### 왜 이 대조가 필요한가
+
+목록이 틀리면 옆 지역구 데이터가 섞여 들어와도 **아무 에러가 나지 않는다.**
+인구도 득표도 그럴듯한 숫자가 나오고, 전략 전체가 틀린 모집단 위에서 만들어진다.
+이 프로젝트에서 조용히 틀리는 것이 가장 위험하다.
+
+### 어떻게 대조했나 (재현 방법)
+
+**별도 다운로드가 필요 없다.** `nec_election_result` 용으로 이미 받은
+**제22대 총선 개표결과 CSV가 곧 선관위 확정 자료**다. 그 파일의
+`선거구명=송파구갑` 행에서 `법정읍면동명` 을 뽑아 `districts.yaml` 과 비교한다.
+
+```bash
+uv run python -c "
+import csv, yaml
+p='data/incoming/nec_election_result/중앙선거관리위원회_국회의원선거 개표결과_20240410.csv'
+nec=set()
+with open(p, encoding='cp949', newline='') as fh:
+    for row in csv.DictReader(fh):
+        if (row['선거구명'] or '').strip() == '송파구갑':
+            e=(row['법정읍면동명'] or '').strip()
+            if e.endswith('동'): nec.add(e)
+d=yaml.safe_load(open('data/reference/districts.yaml', encoding='utf-8'))
+ours={e['name'] for e in d['districts'][0]['emd']}
+print('yaml에만:', sorted(ours-nec))
+print('선관위에만:', sorted(nec-ours))
+"
+```
+
+**양쪽 다 빈 리스트여야 한다.** 하나라도 차이가 나면 그게 곧 버그다.
+
+> `법정읍면동명` 이라는 컬럼명에 속지 말 것. 값은 실제로 **행정동**이다
+> (풍납1동/풍납2동이 따로 온다). 자세한 사정은 §4 "검증 완료" 항목.
+
+정의된 목록은 이 명령으로도 볼 수 있다:
 
 ```bash
 uv run votelink district list --emd
 ```
+
+### 언제 다시 해야 하나
+
+**새 총선이 치러져 선거구가 재획정되면.** 획정은 매 선거마다 바뀐다.
+새 선거의 개표결과 CSV를 받은 뒤 위 스크립트의 파일 경로만 바꿔 다시 돌리고,
+`districts.yaml` 의 `emd` 목록과 `source` 를 갱신한다.
+
+대통령선거 CSV로는 대조할 수 없다 — **대선에는 선거구 개념이 없어**
+`선거구명` 컬럼 자체가 없다. 총선 개표결과라야 한다.
 
 ## 4. 선관위 개표결과 CSV 내려받기 (`nec_election_result`)
 
@@ -171,6 +224,12 @@ uv run votelink district list --emd
 | 제21대 국회의원선거 개표결과_20200415 | 포털에서 `국회의원선거 개표결과` 검색 | ⬜ 아직 |
 
 페이지에서 **[다운로드]** 버튼만 누른다. 파란 "활용신청" 버튼은 오픈API용이라 무시한다.
+
+> **21대(2020) 는 22대(2024) 파일 안에 없다.** 확인했다 (2026-09-02).
+> 받은 파일은 엑셀이 아니라 **CSV라서 시트 개념이 없고**, 컬럼이
+> `시도명 / 선거구명 / 법정읍면동명 / 투표구명 / 후보자 / 득표수` 6개뿐이라
+> **선거일·연도 컬럼 자체가 없다.** 126,901행 전부 2024-04-10 한 번의 선거다.
+> 선거마다 별도 데이터셋이므로 21대는 따로 받아야 한다.
 
 > ⚠️ **비례대표는 받지 말 것.** `비례대표국회의원선거 개표결과`(15144273)는
 > 컬럼 구조가 다르다. 필요한 건 **지역구** 결과다.
@@ -248,13 +307,69 @@ uv run votelink collect nec_election_result             # 실제 수집
 | 집계 항목명이 다르다 | `config.aggregate_items` |
 | 파일을 못 찾는다 | `elections[].file_match` |
 
-## 5. 앞으로 필요해질 것 (아직 아님)
+## 5. 네이버 검색 API 키 (`naver_news`) ← **지금 필요하다**
+
+`naver_news` 수집기는 구현됐지만 **키가 없어 아직 한 번도 실행되지 않았다**
+(`verified: false`). 무료이고 승인 대기도 없다. 5분이면 된다.
+
+### 5-1. 발급
+
+1. https://developers.naver.com → 로그인 → **Application > 애플리케이션 등록**
+2. 애플리케이션 이름: 아무거나 (예: `votelink2`)
+3. **사용 API: `검색`** 을 선택한다 (다른 API는 필요 없다)
+4. 환경 추가: **`WEB 설정`** 을 고르고 서비스 URL에 `http://localhost` 를 넣는다
+   (로컬 실행이라 실제로 호출되지 않지만 입력은 필수다)
+5. 등록하면 **Client ID / Client Secret** 이 나온다
+
+### 5-2. 넣을 자리
+
+```bash
+# .env
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
+```
+
+### 5-3. 실행
+
+```bash
+uv run votelink collect naver_news --capture-fixture   # 실제 응답 1건을 fixture로
+uv run pytest collectors/naver_news/                   # skip 이 풀리고 검증된다
+uv run votelink collect naver_news --dry-run           # 저장 없이 계약 검증만
+uv run votelink collect naver_news                     # 실제 수집
+```
+
+fixture 가 없는 동안 `test_parse.py` 4개는 **skip 된다.** 정상이다 —
+합성 데이터로 대신하지 않는다는 뜻이고, "아직 미검증"이라는 정직한 신호다.
+
+### 5-4. 알아둘 제약
+
+| 무엇 | 값 |
+|---|---|
+| 일일 호출 한도 | 25,000회 (검색어 9개 × 최대 10페이지 = 하루 100회 미만) |
+| 검색어당 최대 | **1,000건** (`start` 상한) — **과거 기사 소급 수집이 안 된다** |
+| 기간 필터 | **없다.** `sort=date` 로 받다가 `since` 보다 오래되면 멈춘다 |
+| 저장 범위 | 링크 + 메타 + 출처 스니펫까지. 본문 전문은 계약이 막는다 |
+
+과거 기사가 필요해지면 네이버로는 안 되고 BIGKINDS를 별도 수집기로 붙여야 한다.
+
+### 5-5. 응답이 예상과 다르면
+
+이 수집기는 **fixture 없이 공식 문서만 보고 구현했다.** 실제 응답이 다를 수 있다.
+
+| 증상 | 고칠 곳 |
+|---|---|
+| 필드명이 다르다 | `collectors/naver_news/collector.py` 상단 `F_*` 상수 |
+| 발행시각 파싱 실패 | `collectors/naver_news/text.py` 의 `parse_pub_date` |
+| 검색어를 바꾸고 싶다 | `meta.yaml` 의 `config.queries` (id 는 ascii여야 한다) |
+| 관련 없는 기사가 많다 | `config.sigungu_terms` 를 좁힌다 |
+| 언론사명이 도메인으로 나온다 | `config.publisher_names` 에 `도메인: 매체명` 추가 |
+
+## 6. 앞으로 필요해질 것 (아직 아님)
 
 | 무엇 | 언제 | 비고 |
 |---|---|---|
 | Anthropic API 키 | L2 텍스트 트랙 | 이슈 도출·메시지 생성. 비용 발생 지점 |
-| 네이버 개발자 API | 뉴스 수집기 | Client ID / Secret |
-| BIGKINDS 계정 | 뉴스 심화 | 기관 승인 필요 |
+| BIGKINDS 계정 | 뉴스 심화·과거 기사 백필 | 기관 승인 필요 |
 | 카카오/네이버 지도 API | POI·일정 최적화 | 좌표·이동시간 |
 
 ## 비밀값 관리
@@ -265,4 +380,6 @@ uv run votelink collect nec_election_result             # 실제 수집
 ```bash
 # .env
 DATA_GO_KR_SERVICE_KEY=...
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
 ```
