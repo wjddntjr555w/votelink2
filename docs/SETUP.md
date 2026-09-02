@@ -330,15 +330,48 @@ uv run votelink collect nec_election_result             # 실제 수집
 
 ### 5-1. 발급 (NAVER API HUB)
 
-1. https://www.ncloud.com → **네이버클라우드플랫폼 회원가입 / 로그인**
-2. 콘솔 → **Services > AI·NAVER API > NAVER API HUB**
-3. **Application 등록** → 이름은 아무거나 (예: `votelink2`)
-4. 사용할 API에서 **`검색 > 뉴스`** 를 선택
-5. **인증정보(Authentication information)** 에서 **Client ID / Client Secret** 확인
+**① 가입** — https://www.ncloud.com 에서 네이버클라우드플랫폼 회원가입 / 로그인.
+네이버 아이디와는 **별개 계정**이다.
 
-> **결제수단 등록을 요구할 수 있다.** 현재 검색 API는 *한시적 무료*이고
-> 월 775,000회까지 제공되지만, 네이버가 유료 전환을 예고한 상태다.
-> 카드 등록이 부담되면 §5-6의 대안을 보라.
+**② 콘솔에서 Application 등록**
+
+```
+콘솔 좌측 상단 [Menu]
+  → All Services
+    → Application Services
+      → NAVER API HUB
+        → 좌측 [Application] 메뉴
+          → [Application 등록] 버튼
+```
+
+- 사용할 API에서 **`뉴스 검색 결과 조회`** 를 선택하고 **[다음]**
+  (다른 API는 필요 없다. 나중에 추가할 수 있다)
+- Application 이름 입력 — **최대 20자, 10자 이하 권장** (예: `votelink2`)
+- **[완료]**
+
+> 처음이면 **AI·NAVER API 서비스 이용약관 동의**를 먼저 요구한다. 동의하면 된다.
+
+**③ 인증정보 확인**
+
+```
+Application Management → 해당 Application 선택
+  → API 관리 하위 [인증 정보] 버튼
+```
+
+팝업에 두 값이 나온다. 복사 아이콘으로 그대로 가져온다.
+
+| 팝업의 표기 | 실제 HTTP 헤더 | `.env` 이름 |
+|---|---|---|
+| Client ID | `X-NCP-APIGW-API-KEY-ID` | `NAVER_CLIENT_ID` |
+| Client Secret | `X-NCP-APIGW-API-KEY` | `NAVER_CLIENT_SECRET` |
+
+> **주의**: `Menu > All Services > AI·NAVER API` 경로에도 비슷한 Application 화면이
+> 있는데 그건 **구 콘솔**이다. 신규 발급은 **Application Services > NAVER API HUB**
+> 쪽에서 한다.
+
+> **요금**: 현재 *한시적 무료*(월 775,000회 · 키당 50 RPS)이고 네이버가 유료 전환을
+> 예고했다. 우리 사용량은 **하루 100회 미만**이라 한도의 0.4% 수준이다.
+> 가입·이용신청 과정에서 결제수단 등록을 요구하면 §5-6의 대안을 보라.
 
 ### 5-2. 넣을 자리
 
@@ -391,8 +424,10 @@ fixture 가 없는 동안 `test_parse.py` 4개는 **skip 된다.** 정상이다 
 
 | 항목 | 확인 상태 |
 |---|---|
+| 뉴스 검색이 HUB 에 포함됨 | ✅ 네이버클라우드 공식 문서 (`뉴스 검색 결과 조회`) |
 | 인증 헤더 `X-NCP-APIGW-API-KEY-ID` / `X-NCP-APIGW-API-KEY` | ✅ 네이버클라우드 공식 문서 |
-| 엔드포인트 `https://naverapihub.apigw.ntruss.com/search/v1/news` | ⚠️ **2차 출처. 미확인** |
+| 베이스 URL `https://naverapihub.apigw.ntruss.com` | ✅ 네이버클라우드 공식 문서 |
+| 뒤쪽 경로 `/search/v1/news` | ⚠️ **2차 출처. 미확인** |
 | 응답 필드명 (`items`/`title`/`originallink`/`pubDate` …) | ⚠️ 레거시 기준. HUB 에서 동일한지 미확인 |
 
 | 증상 | 고칠 곳 |

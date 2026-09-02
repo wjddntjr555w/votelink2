@@ -22,8 +22,9 @@ config:
   #   2026-06-25  HUB 정식 오픈
   #   2026-07-31  구 developers.naver.com 신규 등록 종료
   #   2027-06-30  구 인증정보(X-Naver-*) 지원 종료
-  # ⚠️ 아래 endpoint 경로는 아직 실제 호출로 확인하지 못했다 (2차 출처).
-  #    헤더 이름은 네이버클라우드 공식 문서로 확인했다.
+  # 베이스 URL(https://naverapihub.apigw.ntruss.com)과 헤더 이름은 네이버클라우드
+  # 공식 문서로 확인했다. 뉴스 검색이 HUB 에 포함된다는 것도 확인했다.
+  # ⚠️ 다만 뒤쪽 경로(/search/v1/news)는 2차 출처라 아직 미확인이다.
   #    키를 받으면 --capture-fixture 로 확인하고 틀리면 여기만 고친다.
   endpoint: "https://naverapihub.apigw.ntruss.com/search/v1/news"
 
