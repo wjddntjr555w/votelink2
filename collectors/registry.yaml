@@ -1,6 +1,6 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink registry sync`
 generated_by: votelink registry sync
-count: 3
+count: 4
 collectors:
 - id: mois_population
   name: 행정안전부 주민등록 인구 (행정동 × 연령 × 성별)
@@ -27,6 +27,16 @@ collectors:
   - NAVER_CLIENT_SECRET
 - id: nec_archive
   name: 중앙선관위 개표자료 아카이브 — 대통령선거 (1992~2025)
+  kinds:
+  - election_result
+  source_name: 중앙선거관리위원회
+  access: file
+  schedule: null
+  geo_level: emd
+  verified: true
+  requires_secrets: []
+- id: nec_archive_assembly
+  name: 중앙선관위 개표자료 아카이브 — 국회의원선거 지역구 (2008~2024)
   kinds:
   - election_result
   source_name: 중앙선거관리위원회
