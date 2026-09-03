@@ -1,0 +1,21 @@
+id: {{analyzer_id}}
+name: {{한글 이름 — 무엇을 계산하는지 한 줄}}
+inputs: [{{읽는 kind}}]
+outputs: [{{내는 kind}}]
+geo_level: {{emd|sigungu|sido|nation|none}}
+proposal: docs/proposals/{{A-XXX-...}}.md
+
+# 실제 입력으로 compute 가 검증되면 true 로 올리고, 무엇으로 검증했는지 여기 적는다:
+# 입력 N건 → 산출 M건 / 격리 K건 / 재실행 시 교체 M·신규 0(멱등) /
+# 외부 사실과 대조한 결과. 통과하지 않았다면 올리지 않는다.
+verified: false
+
+config:
+  district: seoul_songpa_gap
+
+  # 판단이 들어가는 값(임계값, 분류 기준, 창 크기)은 코드가 아니라 여기 둔다.
+  # 이견이 있으면 이 파일만 고치고 재실행할 수 있어야 하기 때문이다.
+  #
+  # **값마다 왜 그 값인지 주석을 남긴다.** 숫자만 있으면 나중에 아무도 못 건드린다 —
+  # 올려야 할지 내려야 할지 판단할 근거가 사라진다. 다른 값을 넣어봤다면 그때
+  # 무슨 일이 일어났는지(예: "±1.0 을 쓰면 전부 stable 이 된다")까지 적는다.

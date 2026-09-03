@@ -1,0 +1,68 @@
+"""{{한글 이름}} 분석기.
+
+load:    디스크에서 입력 레코드를 읽는다 (네트워크 금지)
+compute: 입력 -> 파생 레코드 (순수 함수. 네트워크·LLM·난수·시계 금지)
+"""
+
+from collections.abc import Iterator
+from typing import Any
+
+from votelink.analyze import AnalyzeError, BaseAnalyzer, ComputeResult
+from votelink.contract.enums import RecordKind
+from votelink.contract.models import Record
+from votelink.reference import resolve_district
+
+PROFILE_TYPE = "{{analyzer_id}}"
+
+
+class Analyzer(BaseAnalyzer):
+    id = "{{analyzer_id}}"
+
+    # load() 는 기본 구현으로 충분한 경우가 많다 — meta.inputs 의 kind 를 전부 읽고
+    # 자기 출력은 뺀다. 참조 데이터가 더 필요할 때만 재정의한다.
+
+    def compute(self, records: list[Record]) -> Iterator[ComputeResult]:
+        if not records:
+            raise AnalyzeError("입력 레코드가 0건이다. 먼저 수집기를 돌려라")
+
+        district = resolve_district(self.meta.config["district"])
+        by_kind = {
+            kind: [r for r in records if r.kind is kind] for kind in self.meta.inputs
+        }
+        if not by_kind[RecordKind.{{주 입력 KIND}}]:
+            # 참조 데이터·필수 입력 결손은 전체 중단이다. 빈 산출물을 조용히 내지 않는다.
+            raise AnalyzeError("{{주 입력}} 레코드가 없다")
+
+        units = self._group(by_kind, district)
+
+        # map_items 로 감싸야 9개 중 1개가 깨져도 나머지 8개가 살아남는다
+        yield from self.map_items(units, self._to_record)
+
+    def _group(self, by_kind: dict[RecordKind, list[Record]], district: Any) -> list[Any]:
+        """산출 단위(행정동 등)마다 계산에 필요한 것을 모은다. 순수 함수."""
+        raise NotImplementedError
+
+    def _to_record(self, unit: Any) -> Record:
+        return Record(
+            # 파생도 원천과 **같은 봉투**를 쓴다. 다른 점은 derived_from 뿐이다.
+            kind="{{산출 kind}}",
+            collector_id=self.id,  # 분석기 id. 입력을 만든 수집기가 아니다
+            source_name="votelink 분석 ({{입력 출처 요약}})",
+            source_url=None,
+            source_license="public_open",
+            # **입력이 가리키는 시점.** 분석을 돌린 시각이 아니다.
+            observed_at=...,
+            observed_precision="{{year|month|day|minute}}",
+            geo_level="{{emd|sigungu|sido|nation}}",
+            geo_code=...,
+            geo_name=...,
+            # 1.0 을 주지 않는다 — 실측이 아니라 파생이다. 결측이 있으면 더 내리고,
+            # 왜 그 값인지 meta.yaml 주석에 남긴다.
+            confidence=0.8,
+            # 계산에 **실제로 쓴** record_id 전부. 근거를 못 대는 결론은 실패로 간주한다.
+            derived_from=[...],
+            # 같은 산출을 다시 만들면 같은 값이 나와야 멱등이다.
+            # 실행 시각을 섞으면 재실행마다 레코드가 쌓인다.
+            natural_key=f"{PROFILE_TYPE}|{...}",
+            payload={},  # docs/10-data-contract.md 의 kind별 스키마
+        )

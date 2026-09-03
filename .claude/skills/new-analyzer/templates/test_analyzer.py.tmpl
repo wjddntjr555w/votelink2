@@ -1,0 +1,99 @@
+"""compute() 는 순수 함수이므로 파일 없이 레코드를 직접 넣어 검증한다.
+
+여기서 쓰는 입력은 **실제 데이터의 축소판**이어야 한다 (합성 숫자여도 구조는 동일).
+단위 3개 × 회차 3회로 줄여도 검증하려는 성질은 그대로 남는다.
+"""
+
+from votelink.analyze import AnalyzeError, Rejected
+from votelink.analyze.meta import AnalyzerMeta
+from votelink.contract.models import Record
+
+from ..analyzer import Analyzer
+
+META = AnalyzerMeta.model_validate(
+    {
+        "id": "{{analyzer_id}}",
+        "name": "시험용",
+        "inputs": [{{읽는 kind}}],
+        "outputs": [{{내는 kind}}],
+        "geo_level": "{{emd}}",
+        "config": {"district": "test_district"},
+    }
+)
+
+
+def make_inputs() -> list[Record]:
+    """축소판 입력. 실제 구조와 같되 숫자는 손으로 계산할 수 있게 둔다."""
+    raise NotImplementedError
+
+
+def run() -> list[Record]:
+    results = list(Analyzer(meta=META).compute(make_inputs()))
+    rejected = [r for r in results if isinstance(r, Rejected)]
+    assert not rejected, f"격리된 항목이 있다: {[r.short_reason for r in rejected]}"
+    return results
+
+
+# --- 계약 -----------------------------------------------------------------------
+
+
+def test_output_records_are_valid():
+    records = run()
+    assert records, "입력이 있는데 산출이 하나도 없다"
+    for r in records:
+        Record.model_validate(r.model_dump())
+        assert r.collector_id == Analyzer.id, "파생 레코드의 collector_id 는 분석기 id 다"
+        assert r.geo_code is not None, "geo_code 는 null 일 수 없다"
+
+
+def test_evidence_is_recorded():
+    """근거를 못 대는 결론은 실패로 간주한다."""
+    for r in run():
+        assert r.derived_from, "derived_from 이 비었다"
+        assert len(set(r.derived_from)) == len(r.derived_from), "derived_from 에 중복이 있다"
+
+
+def test_confidence_is_not_certain():
+    """실측이 아니라 파생이다. 1.0 은 줄 수 없다."""
+    for r in run():
+        assert r.confidence < 1.0
+
+
+def test_observed_at_points_at_the_input_not_the_run():
+    """분석을 언제 돌렸는지가 아니라 데이터가 언제를 가리키는지를 담는다."""
+    inputs = make_inputs()
+    latest_input = max(r.observed_at for r in inputs)
+    for r in run():
+        assert r.observed_at <= latest_input
+
+
+# --- 순수성 ---------------------------------------------------------------------
+
+
+def test_compute_is_deterministic():
+    """같은 입력에 record_id 가 달라지면 멱등성이 깨진다 — upsert 가 교체 대신 누적한다."""
+    ids_a = [r.record_id for r in run()]
+    ids_b = [r.record_id for r in run()]
+    assert ids_a == ids_b
+
+
+def test_empty_input_is_an_error():
+    """빈 산출물을 조용히 내지 않는다."""
+    try:
+        list(Analyzer(meta=META).compute([]))
+    except AnalyzeError:
+        return
+    raise AssertionError("입력 0건인데 AnalyzeError 가 나지 않았다")
+
+
+# --- 변별력 ---------------------------------------------------------------------
+
+
+def test_output_discriminates_between_units():
+    """모든 단위에서 같은 값이 나오면 그 지표는 아무것도 말하지 않는다.
+
+    docs/30-analysis-spec.md §9. 전국 공통 흐름이 섞이면 실제로 이렇게 된다 —
+    상위 단위 대비 편차를 쓰면 공통 흐름이 상쇄되고 단위별 차이만 남는다.
+    """
+    values = {r.geo_code: r.payload["{{변별력을 볼 필드}}"] for r in run()}
+    assert len(set(values.values())) > 1, f"모든 단위가 같은 값이다: {values}"
