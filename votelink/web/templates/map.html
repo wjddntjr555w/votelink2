@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_output.html" import output %}
+{% set active = 'map' %}
+{% block title %}지도 — {{ view.district_name }}{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>{{ view.district_name }} · 지도</h1>
+
+  {% if not map.is_real_boundary %}
+    {# 경계 파일이 없을 때만 뜬다. 파일이 들어오면 자동으로 사라진다. #}
+    <p class="banner banner--note">
+      <strong>실제 행정동 경계가 아니다 — 격자 배치다.</strong>
+      칸은 행정동코드 오름차순이며 지리적 인접성을 뜻하지 않는다.
+    </p>
+  {% endif %}
+
+  <nav class="sorts">
+    {% for key, m in map.metrics.items() %}
+    <a href="/map?metric={{ key }}" class="{{ 'on' if map.metric.key == key }}">{{ m.label }}</a>
+    {% endfor %}
+  </nav>
+</section>
+
+{% if view.is_empty %}
+  <div class="banner banner--warn">
+    <strong>표시할 분석 결과가 없다</strong>
+    <p class="mono">uv run votelink analyze voter_profile</p>
+  </div>
+{% else %}
+  {% call output(map.verdict) %}
+    <div class="mapwrap">
+      <svg class="map" viewBox="{{ map.view_box }}" role="img"
+           aria-label="{{ map.metric.label }} 지도">
+        <defs>
+          {# 값 없음은 색이 아니라 무늬다. 발산 스케일에서 중립색은 0.0 과 구분되지 않는다. #}
+          <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse"
+                   patternTransform="rotate(45)">
+            <rect width="7" height="7" class="hatch-bg"/>
+            <line x1="0" y1="0" x2="0" y2="7" class="hatch-line"/>
+          </pattern>
+        </defs>
+        {% for cell in map.cells %}
+        <g class="{{ cell.css_class }}">
+          <path d="{{ cell.svg_path }}" fill="{{ cell.fill }}"><title>{{ cell.title }}</title></path>
+          <text x="{{ cell.label_x }}" y="{{ cell.label_y }}" text-anchor="middle">
+            <tspan x="{{ cell.label_x }}" dy="-0.2em">{{ cell.geo_name }}</tspan>
+            <tspan x="{{ cell.label_x }}" dy="1.3em" class="val">{{ cell.text }}</tspan>
+          </text>
+        </g>
+        {% endfor %}
+      </svg>
+
+      <aside class="legend">
+        <h2>{{ map.metric.label }}</h2>
+        {# 색만 보여주면 크기를 알 수 없다. 실제 min/max 와 분모를 적는다. #}
+        <p class="mono small">{{ map.range_text }}</p>
+        <ul>
+          {% for stop in map.legend %}
+          {# url(#hatch) 는 SVG 전용 paint 라 CSS background 로는 안 그려진다.
+             값 없음 항목만 CSS 해칭으로 바꿔 같은 무늬를 보여준다. #}
+          {% if stop.fill.startswith('url(') %}
+          <li><i class="swatch swatch--hatch"></i>{{ stop.label }}</li>
+          {% else %}
+          <li><i class="swatch" style="background: {{ stop.fill }}"></i>{{ stop.label }}</li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+        <p class="muted small">
+          {{ '발산 스케일 (중심 기준 양쪽)' if map.metric.scale == 'divergent' else '순차 스케일' }}
+        </p>
+      </aside>
+    </div>
+  {% endcall %}
+{% endif %}
+{% endblock %}

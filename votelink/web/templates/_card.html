@@ -1,0 +1,113 @@
+{# 행정동 한 곳 = 카드 한 장. 제안서 A-001의 설계다.
+   좌표와 폭은 전부 뷰모델이 계산해서 온다 — 템플릿은 산술을 하지 않는다. #}
+
+{% macro card(c, gap_labels, trend_note) %}
+<article class="card">
+  <header>
+    <h3>{{ c.geo_name }}</h3>
+    <span class="muted mono">{{ c.geo_code }}</span>
+  </header>
+
+  {# 진영 구성 (최근 선거) — 계약이 4개 진영 키를 전부 보장한다 #}
+  <div class="row">
+    <span class="label">진영 구성</span>
+    <svg class="stack" viewBox="0 0 100 8" preserveAspectRatio="none" role="img"
+         aria-label="진영별 득표 구성">
+      {% for s in c.camp_bar %}
+      <rect x="{{ s.offset }}" y="0" width="{{ s.pct }}" height="8"
+            class="{{ s.css_class }}"><title>{{ s.label }} {{ '%.1f'|format(s.pct) }}%</title></rect>
+      {% endfor %}
+    </svg>
+  </div>
+  <ul class="legend-inline">
+    {% for s in c.camp_bar %}
+    <li><i class="swatch {{ s.css_class }}"></i>{{ s.label }} {{ '%.1f'|format(s.pct) }}%</li>
+    {% endfor %}
+  </ul>
+
+  <dl class="facts">
+    <div><dt>투표율</dt><dd>{{ '%.1f'|format(c.turnout) }}%</dd></div>
+    <div><dt>스윙</dt><dd>{{ '%.1f'|format(c.swing) }}%p</dd></div>
+    <div>
+      <dt>추세</dt>
+      <dd><span class="trend trend--{{ c.trend.value }}" title="{{ trend_note }}">
+        {{ c.trend_label }}</span></dd>
+    </div>
+    {# sex_ratio 는 이 payload 의 유일한 비-퍼센트 값이다. % 를 붙이지 않는다. #}
+    <div><dt>성비 (남/여)</dt><dd>{{ c.sex_ratio_text }}</dd></div>
+    <div><dt>인구</dt><dd>{{ '{:,}'.format(c.population_total) }}</dd></div>
+    <div><dt>신뢰도</dt><dd>{{ '%.2f'|format(c.confidence) }}</dd></div>
+  </dl>
+
+  {# 상위 단위 대비 보수 득표율 편차. 값 없음은 —, 색도 칠하지 않는다. #}
+  <div class="gaps">
+    <span class="label">상위 단위 대비 보수 편차 (최근 선거)</span>
+    <ul>
+      {% for level in ('district', 'sigungu', 'sido', 'nation') %}
+      {% set cell = c.gaps[level] %}
+      {% set cover = c.gap_coverage[level] %}
+      <li>
+        <span class="muted">{{ gap_labels[level] }}</span>
+        <span class="{{ cell.css_class }}" title="{{ cell.title }}">{{ cell.text }}</span>
+        {# 최근 회차만 보면 과거의 결측이 안 보인다. 비어 있을 때만 분모를 적는다. #}
+        {% if cover.known < cover.total %}
+        <span class="warn-text small" title="이 단위의 기준선 레코드가 없는 회차가 있다">
+          {{ cover.total }}회 중 {{ cover.known }}회</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="muted small">
+      지역구 대비 평균 {{ c.gap_summary.text }}
+      {%- if c.missing_gaps %} · 기준선 {{ c.missing_gaps }}건 결측{% endif %}
+    </p>
+  </div>
+
+  <div class="sparks">
+    {{ spark(c.conservative_spark, '보수 득표율 ' ~ c.election_count ~ '회') }}
+    {{ spark(c.gap_spark, '지역구 대비 편차 ' ~ c.election_count ~ '회') }}
+  </div>
+
+  <div class="ages">
+    <span class="label">연령 구조</span>
+    <ul class="agebars">
+      {% for a in c.age_bars %}
+      <li title="{{ a.band.value }}세 {{ '%.1f'|format(a.pct) }}%">
+        <i style="height: {{ a.height_pct }}%"></i>
+        <span class="muted small">{{ a.band.value }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <details class="evidence">
+    <summary>근거 {{ c.evidence_count }}건 · 최근 선거 {{ c.latest_election_id }}</summary>
+    <p class="mono small">{{ c.evidence_ids|join(' ') }}</p>
+  </details>
+</article>
+{% endmacro %}
+
+
+{# 인라인 SVG 꺾은선. None 은 점을 찍지 않고 선을 끊는다 —
+   앞뒤를 이으면 없는 데이터를 보간한 게 된다. #}
+{% macro spark(s, label) %}
+<figure class="spark">
+  <figcaption class="muted small">
+    {{ label }}
+    {%- if s.breaks %} · <span class="warn-text">{{ s.breaks }}회 값 없음</span>{% endif %}
+  </figcaption>
+  {% if s.is_empty %}
+    <p class="muted small">값이 없어 그리지 않는다</p>
+  {% else %}
+  <svg viewBox="-2 -2 {{ s.width + 4 }} {{ s.height + 4 }}" role="img" aria-label="{{ label }}">
+    {% for points in s.segments %}
+    <polyline points="{{ points }}" fill="none" />
+    {% endfor %}
+    {% for d in s.dots %}
+    <circle cx="{{ d.cx }}" cy="{{ d.cy }}" r="1.6"><title>{{ d.title }}</title></circle>
+    {% endfor %}
+  </svg>
+  <span class="muted small mono">{{ '%.1f'|format(s.y_min) }} ~ {{ '%.1f'|format(s.y_max) }}</span>
+  {% endif %}
+</figure>
+{% endmacro %}

@@ -1,0 +1,32 @@
+{# 서버 렌더 껍데기. JS 프레임워크도 CDN 도 없다 —
+   외부 요청 0건이어야 캠프의 열람 맥락이 제3자에게 새지 않는다. #}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}votelink{% endblock %}</title>
+  {# url_for 가 아니라 상대 경로다. url_for 는 절대 URL(호스트 포함)을 만드는데,
+     이 페이지에서 나가는 요청이 전부 같은 출처임을 눈으로도 테스트로도 확인할 수
+     있어야 한다. 마운트 경로는 app.py 에 고정돼 있다. #}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">votelink</a>
+    <nav>
+      <a href="/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
+      <a href="/map" class="{{ 'on' if active == 'map' }}">지도</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="muted">로컬 전용 · 캠프 내부 열람</span>
+  </header>
+
+  <main>{% block content %}{% endblock %}</main>
+
+  <footer class="muted">
+    산출물의 적법성은 이 시스템이 판정하지 않는다. 최종 판단자는 캠프의 법률 검토다
+    (<code>docs/90-compliance.md</code>).
+  </footer>
+</body>
+</html>

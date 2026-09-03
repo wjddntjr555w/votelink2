@@ -9,9 +9,18 @@ dependencies = [
     "PyYAML>=6.0",
     "openpyxl>=3.1.5",
     "xlrd>=2.0.2",
+    # L3 웹앱. `serve` 가 1급 명령이라 optional 로 빼지 않는다 — 환경이 하나여야 단순하다.
+    # uvicorn[standard] 를 쓰지 않는다: uvloop 는 Windows 에서 안 깔리고,
+    # httptools·watchfiles 는 필요 없다 (--reload 를 두지 않는다).
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
 ]
 
-[project.optional-dependencies]
+# optional-dependencies(extra) 가 아니라 dependency-group 이다.
+# extra 로 두면 `uv sync` 가 pytest·ruff 를 **지운다** — CLAUDE.md 가 안내하는 `uv sync` 가
+# 같은 문서의 `uv run pytest` 를 깨뜨리는 상태였다. 그룹은 uv 가 기본으로 설치한다.
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
@@ -36,3 +45,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "collectors", "analyzers"]
+filterwarnings = [
+    # starlette 의 TestClient 가 httpx2 를 권한다. 우리 코드로 고칠 수 있는 게 없고,
+    # httpx 는 수집기(polite_client)가 이미 쓰는 런타임 의존성이다.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

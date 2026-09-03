@@ -1,0 +1,40 @@
+{# 절대 규칙 5의 집행 지점.
+
+   산출물은 이 매크로를 통해서만 그린다. 내용은 `caller()` 안에 있고, 매크로가 그걸
+   부를지 말지 정한다. **경고 없이 콘텐츠만 그릴 수 있는 경로가 존재하지 않는다.**
+
+   - blocked    → caller() 를 부르지 않는다. 수치가 HTML 에 나가지 않는다
+   - unreviewed → 경고를 콘텐츠 **위에** 놓는다. 읽기 전에 보여야 한다
+   - cleared    → 조용한 배지 + 검토자·검토일
+   - notes      → 상태와 무관하게 항상 #}
+
+{% macro output(verdict) %}
+{% if verdict is none %}
+  {{ caller() }}
+{% else %}
+<section class="output output--{{ verdict.status.value }}">
+  {% if verdict.status.value == 'blocked' %}
+    <div class="banner banner--blocked">
+      <strong>표시가 차단된 산출물이다</strong>
+      <ul>{% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+    </div>
+  {% elif verdict.status.value == 'unreviewed' %}
+    <div class="banner banner--warn">
+      <strong>선거법 검토를 받지 않은 산출물이다</strong>
+      <ul>{% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+    </div>
+  {% else %}
+    <p class="badge badge--cleared">
+      검토 완료{% if verdict.reviewed_by %} · {{ verdict.reviewed_by }}{% endif %}
+      {%- if verdict.reviewed_at %} ({{ verdict.reviewed_at }}){% endif %}
+    </p>
+  {% endif %}
+
+  {% if verdict.notes %}
+    <ul class="notes">{% for note in verdict.notes %}<li>{{ note }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% if verdict.shows_content %}{{ caller() }}{% endif %}
+</section>
+{% endif %}
+{% endmacro %}

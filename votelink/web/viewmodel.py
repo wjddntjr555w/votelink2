@@ -269,6 +269,13 @@ class EmdCard(BaseModel):
     trend: Trend
     trend_label: str
     gaps: dict[str, GapCell]
+    """최근 선거의 편차 4종."""
+    gap_coverage: dict[str, GapSummary]
+    """단위별 **시계열 전체**의 편차 요약. 어느 단위의 기준선이 몇 회 비었는지 여기서 드러난다.
+
+    최근 선거만 보여주면 과거 회차의 결측이 화면 어디에도 안 나타난다 — 실제로
+    2002년 시도 기준선이 그런 상태다.
+    """
     gap_summary: GapSummary
     conservative_spark: Sparkline
     gap_spark: Sparkline
@@ -303,6 +310,10 @@ def build_card(profile: EmdProfile, district: District, policy: Policy) -> EmdCa
         trend_label=TREND_LABELS[payload.trend],
         gaps={
             level: GapCell.of(getattr(latest, f"gap_{level}"), labels[level])
+            for level in GAP_LEVELS
+        },
+        gap_coverage={
+            level: GapSummary.of([getattr(p, f"gap_{level}") for p in series])
             for level in GAP_LEVELS
         },
         gap_summary=GapSummary.of([p.gap_district for p in series]),
@@ -357,6 +368,8 @@ class DistrictView(BaseModel):
     cards: list[EmdCard]
     diagnostics: LoadDiagnostics
     sort: str
+    gap_labels: dict[str, str] = Field(default_factory=dict)
+    """편차 기준이 되는 상위 단위의 실제 이름. 템플릿이 "서울시"를 박아 쓰지 않게."""
     sorts: dict[str, str] = Field(default_factory=lambda: dict(SORTS))
     trend_note: str = TREND_NOTE
 
@@ -403,6 +416,7 @@ def build_view(profiles: DistrictProfiles, policy: Policy, *, sort: str = "code"
         cards=ordered,
         diagnostics=profiles.diagnostics,
         sort=sort if sort in SORTS else "code",
+        gap_labels=gap_labels(district),
         population_total=sum(c.population_total for c in cards),
         population_months=sorted({p.payload.population_month for p in profiles.profiles}),
         as_of_months=sorted({p.payload.as_of for p in profiles.profiles}),

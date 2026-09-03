@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}설정 오류 — votelink{% endblock %}
+
+{# 참조 데이터나 설정이 어긋난 경우. 트레이스백 대신 무엇을 고쳐야 하는지 보여준다. #}
+{% block content %}
+<section class="head">
+  <h1>화면을 그릴 수 없다</h1>
+  <div class="banner banner--blocked">
+    <strong>{{ kind }}</strong>
+    <p>{{ message }}</p>
+  </div>
+  <p class="muted small">
+    참조 데이터는 <code>data/reference/</code> 에 있다. 선거구 정의는
+    <code>districts.yaml</code>, 산출물 검증 정책은 <code>compliance.yaml</code> 이다.
+  </p>
+</section>
+{% endblock %}

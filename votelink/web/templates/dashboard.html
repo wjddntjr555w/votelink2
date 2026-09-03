@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_output.html" import output %}
+{% from "_card.html" import card %}
+{% set active = 'dashboard' %}
+{% block title %}{{ view.district_name }} — votelink{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>{{ view.district_name }}</h1>
+
+  {% if view.is_empty %}
+    {# 서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 빈 상태에서 무엇을 할지 말해준다. #}
+    <div class="banner banner--warn">
+      <strong>표시할 분석 결과가 없다</strong>
+      <p>먼저 분석기를 돌린다:</p>
+      <p class="mono">uv run votelink analyze voter_profile</p>
+      <p class="muted small">
+        선거구 정의는 행정동 {{ view.diagnostics.expected }}곳을 말하는데
+        읽은 레코드는 {{ view.diagnostics.read }}건이다.
+      </p>
+    </div>
+  {% else %}
+    <dl class="summary">
+      {# 로드된 수와 정의된 수를 둘 다 보여준다 — 다르면 결측이다. #}
+      <div><dt>행정동</dt>
+        <dd class="{{ '' if view.diagnostics.is_complete else 'warn-text' }}">
+          {{ view.coverage_text }}</dd></div>
+      <div><dt>총 인구</dt><dd>{{ '{:,}'.format(view.population_total) }}</dd></div>
+      <div><dt>인구 기준월</dt><dd>{{ view.population_month_text }}</dd></div>
+      <div><dt>분석 기준월</dt><dd>{{ view.as_of_months|join(' · ') }}</dd></div>
+      <div><dt>최근 선거</dt><dd>{{ view.latest_election_date }}</dd></div>
+    </dl>
+
+    <p class="muted small">
+      출처 {{ view.source_names|join(' · ') }}
+      ({{ view.source_licenses|join(' · ') }})
+    </p>
+
+    <p class="muted small">
+      읽음 {{ view.diagnostics.read }}건 · 표시 {{ view.diagnostics.loaded }}건
+      {%- if view.diagnostics.outside_district %}
+        · 선거구 밖 {{ view.diagnostics.outside_district }}건 제외{% endif %}
+      {%- if view.diagnostics.superseded %}
+        · 이전 기준월 {{ view.diagnostics.superseded }}건은 표시하지 않았다{% endif %}
+      {%- if view.diagnostics.rejected %}
+        · <span class="warn-text">계약 위반 {{ view.diagnostics.rejected }}건 격리</span>{% endif %}
+      {%- if view.missing_gaps %} · 상위 기준선 {{ view.missing_gaps }}칸 결측{% endif %}
+    </p>
+
+    {% if view.diagnostics.missing_codes %}
+      <p class="warn-text small">
+        분석 결과가 없는 행정동: {{ view.diagnostics.missing_codes|join(', ') }}
+      </p>
+    {% endif %}
+
+    <nav class="sorts">
+      {% for key, label in view.sorts.items() %}
+      <a href="/?sort={{ key }}" class="{{ 'on' if view.sort == key }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+</section>
+
+{% if not view.is_empty %}
+  {% call output(view.verdict) %}
+    <div class="cards">
+      {% for c in view.cards %}{{ card(c, view.gap_labels, view.trend_note) }}{% endfor %}
+    </div>
+  {% endcall %}
+{% endif %}
+{% endblock %}

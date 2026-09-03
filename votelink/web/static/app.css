@@ -1,0 +1,207 @@
+/* 손으로 쓴 한 장. 프레임워크도 CDN 도 없다 —
+   외부 요청 0건이 이 웹앱의 컴플라이언스 요건이다 (docs/40-webapp-spec.md §10). */
+
+:root {
+  --bg: #fbfbfa;
+  --surface: #fff;
+  --line: #e3e2df;
+  --ink: #1d1c1a;
+  --muted: #6f6d68;
+  --warn-bg: #fff6e0;
+  --warn-line: #e0a93a;
+  --block-bg: #fdecea;
+  --block-line: #cc4436;
+  --note-bg: #eef3fb;
+  --note-line: #7593c4;
+  --ok-line: #4a8a5c;
+  --conservative: #d9534f;
+  --progressive: #4a72b8;
+  --centrist: #79a05e;
+  --other: #b6b3ad;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161614;
+    --surface: #201f1d;
+    --line: #38352f;
+    --ink: #eceae4;
+    --muted: #a09c93;
+    --warn-bg: #3a2f14;
+    --block-bg: #3a1f1c;
+    --note-bg: #1c2634;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+}
+
+main { padding: 20px 24px 40px; }
+footer { padding: 0 24px 32px; font-size: 13px; }
+h1 { font-size: 22px; margin: 0 0 12px; }
+h2 { font-size: 15px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 0; }
+code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.warn-text { color: var(--warn-line); font-weight: 600; }
+
+/* --- 상단 --- */
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.topbar .brand { font-weight: 700; text-decoration: none; color: var(--ink); }
+.topbar nav { display: flex; gap: 12px; }
+.topbar .spacer { flex: 1; }
+.topbar a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.topbar a.on { color: var(--ink); font-weight: 600; }
+
+/* --- 머리말 --- */
+
+.head { margin-bottom: 18px; }
+.summary { display: flex; flex-wrap: wrap; gap: 22px; margin: 0 0 8px; }
+.summary div { margin: 0; }
+.summary dt { font-size: 12px; color: var(--muted); }
+.summary dd { margin: 0; font-size: 17px; font-weight: 600; }
+
+.sorts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.sorts a {
+  font-size: 13px; text-decoration: none; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px;
+  background: var(--surface);
+}
+.sorts a.on { color: var(--ink); border-color: var(--ink); font-weight: 600; }
+
+/* --- 규칙 5: 검증 배지와 경고 --- */
+
+.banner {
+  border-left: 4px solid var(--warn-line);
+  background: var(--warn-bg);
+  padding: 10px 14px; margin: 0 0 14px; border-radius: 0 6px 6px 0;
+}
+.banner p { margin: 4px 0; }
+.banner ul { margin: 6px 0 0; padding-left: 18px; }
+.banner--blocked { border-color: var(--block-line); background: var(--block-bg); }
+.banner--note { border-color: var(--note-line); background: var(--note-bg); }
+
+.badge--cleared {
+  display: inline-block; margin: 0 0 12px;
+  font-size: 13px; color: var(--muted);
+  border-left: 3px solid var(--ok-line); padding-left: 8px;
+}
+.notes {
+  margin: 0 0 14px; padding: 8px 14px 8px 30px;
+  border: 1px dashed var(--line); border-radius: 6px;
+  font-size: 13px; color: var(--muted);
+}
+
+/* --- 카드 --- */
+
+.cards {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px;
+}
+.card > header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.row { margin-bottom: 8px; }
+
+.stack { width: 100%; height: 10px; display: block; border-radius: 3px; overflow: hidden; }
+.camp--conservative { fill: var(--conservative); }
+.camp--progressive { fill: var(--progressive); }
+.camp--centrist { fill: var(--centrist); }
+.camp--other { fill: var(--other); }
+
+.legend-inline { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 12px; padding: 0;
+  list-style: none; font-size: 12px; color: var(--muted); }
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+.swatch.camp--conservative { background: var(--conservative); }
+.swatch.camp--progressive { background: var(--progressive); }
+.swatch.camp--centrist { background: var(--centrist); }
+.swatch.camp--other { background: var(--other); }
+
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 0 0 12px; }
+.facts div { margin: 0; }
+.facts dt { font-size: 11px; color: var(--muted); }
+.facts dd { margin: 0; font-size: 14px; font-weight: 600; }
+
+.trend { font-size: 13px; border-bottom: 1px dotted var(--muted); cursor: help; }
+.trend--conservative_shift { color: var(--conservative); }
+.trend--progressive_shift { color: var(--progressive); }
+
+/* --- 편차: None 은 0 과 절대 같아 보이지 않는다 --- */
+
+.gaps { margin-bottom: 10px; }
+.gaps ul { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 4px; padding: 0;
+  list-style: none; font-size: 13px; }
+.gaps li { display: flex; flex-direction: column; }
+.gaps li > span:first-child { font-size: 11px; }
+
+.gap { font-weight: 600; font-variant-numeric: tabular-nums; }
+.gap--pos { color: var(--conservative); }
+.gap--neg { color: var(--progressive); }
+.gap--zero { color: var(--ink); }
+/* 값 없음은 색이 아니라 무늬로 구분한다. 0.0 과 화면상 같아지면 안 된다. */
+.gap--unknown {
+  color: var(--muted); font-weight: 400; cursor: help;
+  background: repeating-linear-gradient(45deg,
+    transparent 0 3px, var(--line) 3px 5px);
+  padding: 0 5px; border-radius: 3px;
+}
+
+/* --- 스파크라인 --- */
+
+.sparks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.spark { margin: 0; }
+.spark svg { width: 100%; height: 34px; display: block; }
+.spark polyline { stroke: var(--ink); stroke-width: 1.2; }
+.spark circle { fill: var(--ink); }
+
+/* --- 연령 --- */
+
+.agebars { display: flex; align-items: flex-end; gap: 3px; height: 46px;
+  margin: 0; padding: 0; list-style: none; }
+.agebars li { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+  align-items: center; height: 100%; }
+.agebars i { display: block; width: 100%; background: var(--note-line); border-radius: 2px 2px 0 0; }
+.agebars span { font-size: 9px; transform: rotate(-45deg); white-space: nowrap; }
+
+.evidence { margin-top: 14px; font-size: 13px; }
+.evidence summary { color: var(--muted); cursor: pointer; }
+.evidence p { word-break: break-all; color: var(--muted); }
+
+/* --- 지도 --- */
+
+.mapwrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.map { width: min(520px, 100%); height: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.map path { stroke: var(--line); stroke-width: 1; }
+.map text { font-size: 11px; fill: var(--ink); pointer-events: none; }
+.map .val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cell--unknown path { stroke-dasharray: 3 2; }
+.hatch-bg { fill: var(--surface); }
+.hatch-line { stroke: var(--muted); stroke-width: 2.5; }
+
+.legend { background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; min-width: 200px; }
+.legend ul { margin: 8px 0; padding: 0; list-style: none; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); }
+/* 지도의 url(#hatch) 와 같은 무늬. 범례에서도 색이 아니라 무늬로 보여야 한다. */
+.swatch--hatch {
+  background: repeating-linear-gradient(45deg,
+    var(--surface) 0 3px, var(--muted) 3px 5px);
+}
