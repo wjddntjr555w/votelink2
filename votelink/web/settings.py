@@ -17,10 +17,10 @@ class WebSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     district_id: str | None = None
-    """어느 선거구를 보여줄 것인가.
+    """기본 선거구. 요청 URL `/d/<선거구>/` 이 이것을 덮어쓴다.
 
-    `None` 이면 `districts.yaml` 에 정의된 선거구가 **정확히 하나일 때만** 그것을 쓴다.
-    둘 이상이면 실패한다 — 조용히 첫 번째를 고르지 않는다.
+    `None` 이고 `districts.yaml` 에 선거구가 하나뿐이면 그것을 쓴다. 여럿이면
+    `/` 가 선거구 선택 화면을 띄운다 — 조용히 첫 번째를 고르지 않는다.
     """
 
     records_root: Path | None = None

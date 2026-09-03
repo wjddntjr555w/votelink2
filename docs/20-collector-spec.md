@@ -76,6 +76,22 @@ config:                          # 수집기별 설정. 비밀값은 넣지 않�
   per_page: 1000
 ```
 
+**선거구에 종속적인 수집기**(대상 행정동을 좁히거나 지역명으로 조회하는 등)는 `config` 를
+세 갈래로 둔다. 코드는 `self.meta.config` 가 아니라 `self.config[...]` / `self.cfg(...)` 로
+읽는다 — `--district` (없으면 `default_district`)로 해석된 평평한 dict 다.
+
+```yaml
+config:
+  default_district: seoul_songpa_gap   # --district 없이 실행하면 이걸 쓴다
+  common:                              # 선거구 무관 값
+    endpoint: "https://..."
+  districts:                           # 선거구별로 달라지는 값
+    seoul_songpa_gap: { sigungu_admm_code: "1171000000" }
+```
+
+`common`/`districts` 키가 없는 평평한 `config` 도 그대로 동작한다(`votelink.districtcfg`).
+없는 선거구를 `--district` 로 요구하면 실행이 한 줄 오류로 끝난다.
+
 `proposal` 경로가 실제로 없으면 등록이 거부된다. 제안서 없이 만든 수집기를 막는 장치다.
 
 `verified: false` 인 수집기는 실행할 때마다 경고가 뜬다. 실제 응답 fixture로

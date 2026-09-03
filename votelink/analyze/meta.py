@@ -14,6 +14,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from votelink.contract.enums import GeoLevel, RecordKind
+from votelink.districtcfg import resolve_config
 
 
 class AnalyzerMeta(BaseModel):
@@ -44,6 +45,13 @@ class AnalyzerMeta(BaseModel):
         if v and not Path(v).exists():
             raise ValueError(f"proposal 경로가 없다: {v}")
         return v
+
+    def resolved_config(self, district_id: str | None = None) -> dict[str, Any]:
+        """선거구 하나를 골라 평평한 설정 dict 를 만든다 (`votelink.districtcfg`).
+
+        `common`/`districts` 구조가 아닌 평평한 `config` 는 그대로 돌려준다.
+        """
+        return resolve_config(self.id, self.config, district_id)
 
     @classmethod
     def load(cls, path: Path) -> AnalyzerMeta:

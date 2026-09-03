@@ -71,12 +71,30 @@ class BaseCollector(ABC):
         if file:
             cls._package_dir = Path(file).resolve().parent
 
-    def __init__(self, meta: CollectorMeta | None = None) -> None:
+    def __init__(
+        self, meta: CollectorMeta | None = None, *, district_id: str | None = None
+    ) -> None:
         self._meta = meta or CollectorMeta.load(self.package_dir / "meta.yaml")
+        self.district_id = district_id
+        self._config: dict[str, Any] | None = None
 
     @property
     def meta(self) -> CollectorMeta:
         return self._meta
+
+    @property
+    def config(self) -> dict[str, Any]:
+        """이 선거구로 해석된 평평한 설정. `meta.config` 대신 이것을 읽는다.
+
+        `district_id` 가 주어지면 그 선거구 블록이, 없으면 `default_district` 가 적용된다
+        (`votelink.districtcfg`). 평평한 `meta.config` 는 그대로 통과한다.
+        """
+        if self._config is None:
+            self._config = self._meta.resolved_config(self.district_id)
+        return self._config
+
+    def cfg(self, key: str, default: Any = None) -> Any:
+        return self.config.get(key, default)
 
     @property
     def package_dir(self) -> Path:

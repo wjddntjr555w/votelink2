@@ -42,13 +42,13 @@ class Collector(BaseCollector):
         `since` 는 무시한다 (`incremental: false`). 과거 선거는 값이 바뀌지 않고,
         재실행해도 `record_id` 가 같아 멱등이다.
         """
-        base = Path(self.meta.config["archive_dir"])
+        base = Path(self.config["archive_dir"])
         if not base.is_dir():
             raise FetchError(
                 f"아카이브 폴더가 없다: {base}. "
                 "선관위 개표자료를 data/raw/nec_archive/ 아래에 두어야 한다 (docs/SETUP.md)"
             )
-        for election in self.meta.config["elections"]:
+        for election in self.config["elections"]:
             path = base / election["file"]
             if not path.is_file():
                 raise FetchError(f"{election['id']}: 파일이 없다 — {path}")
@@ -86,9 +86,9 @@ class Collector(BaseCollector):
         rows = iter_emd_rows(
             grid,
             layout,
-            sigungu_match=self.meta.config["sigungu_match"],
+            sigungu_match=self.config["sigungu_match"],
             emd_names=self._emd_names,
-            total_markers=tuple(self.meta.config["precinct_total_markers"]),
+            total_markers=tuple(self.config["precinct_total_markers"]),
         )
         yield from self.map_items(rows, lambda row: self._to_record(row, election))
 
@@ -132,7 +132,7 @@ class Collector(BaseCollector):
 
     def _to_record(self, row: Any, election: dict[str, Any]) -> Record:
         check_arithmetic(row)
-        district = resolve_district(self.meta.config["district"])
+        district = resolve_district(self.config["district"])
         code = next((e.code for e in district.emd if e.name == row.emd_name), None)
         if not code:
             raise ValueError(
@@ -176,7 +176,7 @@ class Collector(BaseCollector):
         그래서 분석기는 이걸 특별 취급하지 않고 geo_level 로만 분기하면 된다.
         """
         check_baseline_arithmetic(row)
-        geo = self.meta.config["baseline_geo"][row.level]
+        geo = self.config["baseline_geo"][row.level]
         return Record(
             kind="election_result",
             collector_id=self.id,
@@ -210,7 +210,7 @@ class Collector(BaseCollector):
     # --- 설정 ------------------------------------------------------------------
 
     def _election(self, election_id: str) -> dict[str, Any]:
-        for election in self.meta.config["elections"]:
+        for election in self.config["elections"]:
             if election["id"] == election_id:
                 return election
         raise ValueError(
@@ -220,4 +220,4 @@ class Collector(BaseCollector):
     @cached_property
     def _emd_names(self) -> set[str]:
         """수집 대상 행정동. districts.yaml 이 단일 진실이다."""
-        return {emd.name for emd in resolve_district(self.meta.config["district"]).emd}
+        return {emd.name for emd in resolve_district(self.config["district"]).emd}

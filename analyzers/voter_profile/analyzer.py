@@ -53,7 +53,7 @@ class Analyzer(BaseAnalyzer):
     id = "voter_profile"
 
     def compute(self, records: list[Record]) -> Iterator[ComputeResult]:
-        district = resolve_district(self.meta.config["district"])
+        district = resolve_district(self.config["district"])
         codes = set(district.emd_codes)
         if not codes:
             raise AnalyzeError(
@@ -61,7 +61,7 @@ class Analyzer(BaseAnalyzer):
                 "districts.yaml 의 emd[].code 를 먼저 채워야 한다"
             )
 
-        wanted_types = set(self.meta.config["election_types"])
+        wanted_types = set(self.config["election_types"])
 
         # election_id -> geo_code -> _Row
         by_election: dict[str, dict[str, _Row]] = defaultdict(dict)
@@ -103,8 +103,8 @@ class Analyzer(BaseAnalyzer):
             baselines=baselines,
             populations=populations,
             district_pct=district_pct,
-            threshold=float(self.meta.config["trend_threshold"]),
-            window=int(self.meta.config["trend_window"]),
+            threshold=float(self.config["trend_threshold"]),
+            window=int(self.config["trend_window"]),
         )
         yield from self.map_items(sorted(codes), lambda code: self._profile(code, context))
 

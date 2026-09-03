@@ -72,10 +72,12 @@ votelink/web/
 임시 디렉터리를 주입할 수 있다. 라우트는 `Depends()` 대신 `request.app.state` 를 읽는다 —
 라우트가 셋뿐이라 DI가 값을 못 하고, 기본인자 안의 함수 호출은 ruff `B008` 에 걸린다.
 
-**선거구를 아는 법**: `analyzers/voter_profile/meta.yaml` 의 `config.district` 를 읽지 않는다
-(L2 내부 상태다). 새 설정 파일도 만들지 않는다(값이 중복된다). 규칙은 이것이다 —
-**`districts.yaml` 에 선거구가 정확히 하나면 그것을 쓰고, 둘 이상이면 `--district` 를 요구한다.**
-조용히 첫 번째를 고르지 않는다.
+**선거구를 아는 법**: `analyzers/voter_profile/meta.yaml` 의 `config` 를 읽지 않는다
+(L2 내부 상태다). 새 설정 파일도 만들지 않는다(값이 중복된다). 선거구는 **URL 이 정한다** —
+`/d/<선거구>/` 와 `/d/<선거구>/map`. `/` 는 선거구가 하나뿐이면 그리로 302, 여럿이면
+선택 화면(`districts.html`)을 띄운다. `--district` 나 `WebSettings.district_id` 는 `/` 가
+바로 보낼 **기본 선거구**를 정할 뿐, 요청 URL 이 항상 이긴다. 조용히 첫 번째를 고르지 않는다.
+`districts.yaml` 에 선거구가 여럿이어도 서버는 뜬다.
 
 ## 5. 무엇을 읽는가 — 화이트리스트
 
@@ -84,7 +86,7 @@ votelink/web/
 | # | 필터 | 왜 |
 |---|---|---|
 | 1 | `iter_records(kinds=[...])` — **kind를 반드시 준다** | 인자 없이 부르면 `data/records/` 전체를 먹는다 |
-| 2 | `District.contains(geo_code)` | 위생 조치가 아니라 **원래 맞는 동작**이다. 앱은 선거구 하나를 보여준다 |
+| 2 | `District.contains(geo_code)` | 위생 조치가 아니라 **원래 맞는 동작**이다. 한 화면은 선거구 하나만 보여준다 — `data/records/` 한 파일에 여러 선거구 레코드가 섞여 있어도 이 필터가 갈라낸다 |
 | 3 | `(profile_type, geo_code)` 별 **최신 `as_of` 하나** | §6 참조 |
 
 `exclude_owners=["fake_collector"]` 같은 **블랙리스트는 쓰지 않는다.** 시험 산출물 이름을
@@ -108,8 +110,15 @@ votelink/web/
 ## 7. 화면
 
 MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 이상 만들지 않는다.
+선거구는 URL 축(`/d/<선거구>/...`)으로만 늘어난다 — 화면 종류는 그대로다.
 
-### `GET /` 대시보드
+### `GET /` — 선거구 라우팅
+
+선거구가 하나면 `/d/<그 선거구>/` 로 302. 여럿이면 선택 화면(`districts.html`, 링크 목록).
+`WebSettings.district_id`(= `serve --district`)가 있으면 그리로 바로 302.
+내비게이션에는 선거구가 둘 이상일 때만 전환 `<select>` 가 뜬다 (`onchange` 한 줄, 외부 요청 없음).
+
+### `GET /d/{district_id}/` 대시보드
 
 **지역구 헤더**
 
@@ -146,7 +155,7 @@ MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 �
 
 **`meta.yaml` 의 `config` 값(`trend_threshold` 등)을 화면에 쓰지 않는다.** L2 내부 값이다.
 
-### `GET /map` 지도
+### `GET /d/{district_id}/map` 지도
 
 - 9칸 + `?metric=gap_district|swing|conservative|turnout` (기본 `gap_district`)
 - **발산 스케일**(gap·conservative, 중심 0) vs **순차 스케일**(swing·turnout)
@@ -262,6 +271,10 @@ shapes_for(codes) -> list[EmdShape]
 uv run votelink serve [--host 127.0.0.1] [--port 8420] [--district <id>]
 ```
 
+- `--district` 는 **선택**이다. 주면 `/` 가 그 선거구로 바로 이동하고, 안 주면 `/` 가
+  선택 화면을 띄운다(선거구가 하나뿐이면 그리로 이동). 기동 전 점검은 `--district` 를
+  줬으면 그 하나만, 안 줬으면 정의된 선거구 전부를 `loaded/expected` 로 요약한다 —
+  선거구가 여럿이어도 죽이지 않는다.
 - **기본 호스트는 `127.0.0.1`.** `0.0.0.0` 이 아니다. 편의가 아니라 컴플라이언스에 인접한
   결정이다 — 미검토 산출물이 경고와 함께 뜨는 화면을 LAN에 열어두면 그게 의도치 않은 공표가 된다
 - `fastapi`·`uvicorn` 을 **모듈 최상단에서 import 하지 않는다.** `cmd_serve` 안에서 하고

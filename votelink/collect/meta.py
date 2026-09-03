@@ -13,6 +13,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from votelink.contract.enums import GeoLevel, RecordKind, SourceLicense
+from votelink.districtcfg import resolve_config
 
 
 class AccessMethod(StrEnum):
@@ -54,6 +55,15 @@ class CollectorMeta(BaseModel):
         if v and not Path(v).exists():
             raise ValueError(f"proposal 경로가 없다: {v}")
         return v
+
+    def resolved_config(self, district_id: str | None = None) -> dict[str, Any]:
+        """선거구 하나를 골라 평평한 설정 dict 를 만든다.
+
+        `config` 가 `common`/`districts` 구조면 `common` 위에 선택된 선거구 블록을
+        덮어쓰고 `district` 키를 채운다. 아직 그 구조가 아닌(평평한) `config` 는
+        그대로 돌려준다 — 다지역구로 옮기지 않은 수집기도 계속 동작한다.
+        """
+        return resolve_config(self.id, self.config, district_id)
 
     @classmethod
     def load(cls, path: Path) -> CollectorMeta:

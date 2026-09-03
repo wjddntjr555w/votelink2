@@ -14,14 +14,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
 from votelink.reference.compliance import load_policy
 from votelink.reference.districts import DistrictNotFound
-from votelink.web.loader import AmbiguousDistrict, load_profiles
+from votelink.web.loader import AmbiguousDistrict, available_districts, load_profiles
 from votelink.web.settings import WebSettings
 from votelink.web.shapes import ShapeError, shapes_for
 from votelink.web.viewmodel import DEFAULT_METRIC, build_map, build_view
@@ -48,13 +48,24 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/", response_class=Response)
-    def dashboard(request: Request, sort: str = "code") -> Response:
-        view = _view(request, sort=sort)
-        return _render(request, "dashboard.html", {"view": view})
+    def index(request: Request) -> Response:
+        """선거구 하나면 그리로 보낸다. 여러 개면 고르게 한다 —
+        조용히 첫 번째를 열면 옆 지역구를 보여주면서 맞다고 우기는 화면이 된다."""
+        settings: WebSettings = request.app.state.settings
+        districts = available_districts(settings)
+        target = settings.district_id or (districts[0][0] if len(districts) == 1 else None)
+        if target:
+            return RedirectResponse(f"/d/{target}/", status_code=307)
+        return _render(request, "districts.html", {"districts": districts})
 
-    @app.get("/map", response_class=Response)
-    def map_screen(request: Request, metric: str = DEFAULT_METRIC) -> Response:
-        view = _view(request)
+    @app.get("/d/{district_id}/", response_class=Response)
+    def dashboard(request: Request, district_id: str, sort: str = "code") -> Response:
+        view = _view(request, district_id, sort=sort)
+        return _render(request, "dashboard.html", _ctx(request, district_id, view=view))
+
+    @app.get("/d/{district_id}/map", response_class=Response)
+    def map_screen(request: Request, district_id: str, metric: str = DEFAULT_METRIC) -> Response:
+        view = _view(request, district_id)
         shapes = shapes_for(
             [(c.geo_code, c.geo_name) for c in view.cards],
             path=request.app.state.settings.boundaries_path,
@@ -62,7 +73,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return _render(
             request,
             "map.html",
-            {"view": view, "map": build_map(view, shapes, metric_key=metric)},
+            _ctx(
+                request,
+                district_id,
+                view=view,
+                map=build_map(view, shapes, metric_key=metric),
+            ),
         )
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -75,11 +91,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     return app
 
 
-def _view(request: Request, *, sort: str = "code"):
+def _view(request: Request, district_id: str | None = None, *, sort: str = "code"):
     settings: WebSettings = request.app.state.settings
-    profiles = load_profiles(settings)
+    profiles = load_profiles(settings, district_id)
     policy = load_policy(settings.policy_path)
     return build_view(profiles, policy, sort=sort)
+
+
+def _ctx(request: Request, district_id: str, **extra) -> dict:
+    """모든 화면이 공유하는 컨텍스트 — 현재 선거구와 전환 목록."""
+    settings: WebSettings = request.app.state.settings
+    return {
+        "district_id": district_id,
+        "districts": available_districts(settings),
+        **extra,
+    }
 
 
 def _render(request: Request, template: str, context: dict) -> Response:

@@ -41,13 +41,13 @@ class Collector(BaseCollector):
         좁혀진 것이고(18~21대), 없으면 grid 전체가 전국이라 parse 가 골라낸다
         (22대, `layout.district_col`).
         """
-        base = Path(self.meta.config["archive_dir"])
+        base = Path(self.config["archive_dir"])
         if not base.is_dir():
             raise FetchError(
                 f"아카이브 폴더가 없다: {base}. "
                 "선관위 개표자료를 data/raw/nec_archive_assembly/ 옆에 두어야 한다"
             )
-        for election in self.meta.config["elections"]:
+        for election in self.config["elections"]:
             selector = election["selector"]
             path = base / selector["file"]
             if not path.is_file():
@@ -78,7 +78,7 @@ class Collector(BaseCollector):
 
     def _to_record(self, row: Any, election: dict[str, Any]) -> Record:
         check_arithmetic(row)
-        district = resolve_district(self.meta.config["district"])
+        district = resolve_district(self.config["district"])
         code = next((e.code for e in district.emd if e.name == row.emd_name), None)
         if not code:
             raise ValueError(
@@ -118,7 +118,7 @@ class Collector(BaseCollector):
     # --- 설정 ------------------------------------------------------------------
 
     def _election(self, election_id: str) -> dict[str, Any]:
-        for election in self.meta.config["elections"]:
+        for election in self.config["elections"]:
             if election["id"] == election_id:
                 return election
         raise ValueError(
@@ -128,4 +128,4 @@ class Collector(BaseCollector):
     @cached_property
     def _emd_names(self) -> set[str]:
         """수집 대상 행정동. districts.yaml 이 단일 진실이다 (현재=2024 기준)."""
-        return {emd.name for emd in resolve_district(self.meta.config["district"]).emd}
+        return {emd.name for emd in resolve_district(self.config["district"]).emd}

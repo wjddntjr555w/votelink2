@@ -58,7 +58,9 @@ def sync(root: Path = ANALYZERS_DIR, out: Path | None = None) -> Path:
     return target
 
 
-def load(analyzer_id: str, root: Path = ANALYZERS_DIR) -> BaseAnalyzer:
+def load(
+    analyzer_id: str, root: Path = ANALYZERS_DIR, *, district_id: str | None = None
+) -> BaseAnalyzer:
     """analyzers/<id>/analyzer.py 의 Analyzer 클래스를 불러 인스턴스로 만든다."""
     metas = discover(root)
     if analyzer_id not in metas:
@@ -75,4 +77,4 @@ def load(analyzer_id: str, root: Path = ANALYZERS_DIR) -> BaseAnalyzer:
     cls = getattr(module, "Analyzer", None)
     if cls is None:
         raise AttributeError(f"{root.name}/{analyzer_id}/analyzer.py 에 Analyzer 클래스가 없다")
-    return cls(meta=metas[analyzer_id])
+    return cls(meta=metas[analyzer_id], district_id=district_id)

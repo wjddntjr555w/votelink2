@@ -81,25 +81,37 @@ class DistrictProfiles(BaseModel):
     diagnostics: LoadDiagnostics
 
 
-def pick_district(settings: WebSettings) -> District:
+def pick_district(settings: WebSettings, district_id: str | None = None) -> District:
     """어느 선거구를 보여줄 것인가.
 
     `analyzers/voter_profile/meta.yaml` 의 `config.district` 를 읽지 않는다 — L2의 내부
     상태이고, 읽는 순간 계층 무지가 깨진다. 새 설정 파일도 만들지 않는다(값이 중복된다).
+
+    우선순위: 요청이 지정한 `district_id` > `settings.district_id`(기본 선거구) >
+    정의된 선거구가 정확히 하나면 그것. 둘 이상인데 아무것도 안 골랐으면 실패한다 —
+    조용히 첫 번째를 고르면 옆 지역구를 보여주면서 맞다고 우기는 화면이 된다.
     """
-    if settings.district_id:
-        return resolve_district(settings.district_id, settings.districts_path)
+    chosen = district_id or settings.district_id
+    if chosen:
+        return resolve_district(chosen, settings.districts_path)
     table = load_districts(settings.districts_path)
     if len(table) == 1:
         return next(iter(table.values()))
     raise AmbiguousDistrict(
         f"선거구가 {len(table)}개 정의돼 있다: {sorted(table)}. "
-        "--district 로 무엇을 볼지 지정하라 (임의로 고르지 않는다)"
+        "URL(/d/<선거구>/) 이나 --district 로 무엇을 볼지 지정하라 (임의로 고르지 않는다)"
     )
 
 
-def load_profiles(settings: WebSettings) -> DistrictProfiles:
-    district = pick_district(settings)
+def available_districts(settings: WebSettings) -> list[tuple[str, str]]:
+    """(id, name) 목록. 내비게이션의 선거구 전환 UI 가 쓴다. `geo_code` 오름차순이 아니라
+    정의 순서를 지킨다 (districts.yaml 이 의도한 순서)."""
+    table = load_districts(settings.districts_path)
+    return [(d.id, d.name) for d in table.values()]
+
+
+def load_profiles(settings: WebSettings, district_id: str | None = None) -> DistrictProfiles:
+    district = pick_district(settings, district_id)
     codes = set(district.emd_codes)
 
     read = outside = rejected = 0

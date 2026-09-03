@@ -46,7 +46,7 @@ class Collector(BaseCollector):
     # --- fetch ----------------------------------------------------------------
 
     def fetch(self, since: datetime | None) -> Iterator[RawBatch]:
-        cfg = self.meta.config
+        cfg = self.config
         paging = cfg["paging"]
         display, max_start = int(paging["display"]), int(paging["max_start"])
 
@@ -65,7 +65,7 @@ class Collector(BaseCollector):
             )
         # 헤더 이름을 코드에 박지 않는다. 2026년 이관으로 HUB(X-NCP-*)와
         # 레거시(X-Naver-*)가 공존하고, 레거시 키는 2027-06-30 까지만 산다.
-        auth = self.meta.config["auth"]
+        auth = self.config["auth"]
         return {auth["header_id"]: client_id, auth["header_secret"]: client_secret}
 
     def _fetch_query(
@@ -76,7 +76,7 @@ class Collector(BaseCollector):
         display: int,
         max_start: int,
     ) -> Iterator[RawBatch]:
-        cfg = self.meta.config
+        cfg = self.config
         start = 1
         page = 1
         while start <= max_start:
@@ -134,7 +134,7 @@ class Collector(BaseCollector):
         yield from self.map_items(local, self._to_record)
 
     def _to_record(self, item: dict[str, Any]) -> Record:
-        cfg = self.meta.config
+        cfg = self.config
         title = clean_text(item[F_TITLE])
         summary = clean_text(item[F_DESCRIPTION])
         url = normalize_url(item.get(F_ORIGINAL_LINK) or item[F_LINK])
@@ -193,16 +193,16 @@ class Collector(BaseCollector):
         districts.yaml 의 행정동명(풍납1동 등)과 meta.yaml 의 표현(풍납동 등)을 합친다.
         뉴스는 보통 법정동·통칭으로 쓰기 때문에 둘 다 필요하다.
         """
-        district = resolve_district(self.meta.config["district"])
+        district = resolve_district(self.config["district"])
         terms = {emd.name for emd in district.emd}
-        terms.update(self.meta.config.get("district_terms") or [])
+        terms.update(self.config.get("district_terms") or [])
         return sorted(terms)
 
     @cached_property
     def _sigungu_terms(self) -> list[str]:
-        return sorted(set(self.meta.config.get("sigungu_terms") or []))
+        return sorted(set(self.config.get("sigungu_terms") or []))
 
     @cached_property
     def _person_terms(self) -> list[str]:
         """공인 화이트리스트. 일반인 이름은 어떤 경우에도 넣지 않는다 (절대규칙 3)."""
-        return sorted(set(self.meta.config.get("person_terms") or []))
+        return sorted(set(self.config.get("person_terms") or []))

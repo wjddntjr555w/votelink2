@@ -14,11 +14,22 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/">votelink</a>
+    {% if district_id %}
     <nav>
-      <a href="/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
-      <a href="/map" class="{{ 'on' if active == 'map' }}">지도</a>
+      <a href="/d/{{ district_id }}/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
+      <a href="/d/{{ district_id }}/map" class="{{ 'on' if active == 'map' }}">지도</a>
     </nav>
+    {% endif %}
     <span class="spacer"></span>
+    {% if district_id and districts and districts|length > 1 %}
+    {# 선거구 전환. onchange 한 줄 말고 다른 스크립트는 없다 — 외부 요청 0건 규칙에 걸리지 않는다. #}
+    <select class="district-switch" aria-label="선거구 선택"
+            onchange="if(this.value)location.href='/d/'+this.value+'/'">
+      {% for d_id, d_name in districts %}
+      <option value="{{ d_id }}" {{ 'selected' if d_id == district_id }}>{{ d_name }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     <span class="muted">로컬 전용 · 캠프 내부 열람</span>
   </header>
 

@@ -184,9 +184,7 @@ class Collector(BaseCollector):
         return agg.admm_code
 
     # --- 설정 -----------------------------------------------------------------
-
-    def cfg(self, key: str, default: Any = None) -> Any:
-        return self.meta.config.get(key, default)
+    # `cfg()` 는 BaseCollector 가 준다 — 선거구로 해석된 config 를 읽는다.
 
     def month_params(self) -> dict[str, str]:
         """기준월 하나에서 조회 기간 파라미터를 만든다 (2026-07 -> 202607).

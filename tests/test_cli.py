@@ -100,7 +100,7 @@ def test_collect_warns_when_meta_is_unverified(monkeypatch, capsys):
     from votelink.collect import registry
 
     unverified = FakeCollector([], meta=make_meta(id="unverified_x", verified=False))
-    monkeypatch.setattr(registry, "load", lambda collector_id: unverified)
+    monkeypatch.setattr(registry, "load", lambda collector_id, **kw: unverified)
 
     assert cli.main(["collect", "unverified_x", "--dry-run"]) == 0
     assert "검증되지 않았다" in capsys.readouterr().out
@@ -111,7 +111,31 @@ def test_collect_is_quiet_when_verified(monkeypatch, capsys):
     from votelink.collect import registry
 
     verified = FakeCollector([{"n": 1}], meta=make_meta(id="verified_x", verified=True))
-    monkeypatch.setattr(registry, "load", lambda collector_id: verified)
+    monkeypatch.setattr(registry, "load", lambda collector_id, **kw: verified)
 
     assert cli.main(["collect", "verified_x", "--dry-run"]) == 0
     assert "검증되지 않았다" not in capsys.readouterr().out
+
+
+def test_collect_with_an_unknown_district_fails_cleanly(monkeypatch, capsys):
+    """meta.yaml 에 없는 선거구를 요구하면 트레이스백이 아니라 한 줄 오류로 끝난다."""
+    from tests.conftest import FakeCollector, make_meta
+    from votelink.collect import registry
+
+    layered = make_meta(
+        id="layered_x",
+        verified=True,
+        config={"common": {}, "districts": {"seoul_songpa_gap": {}}},
+    )
+
+    def fake_load(collector_id, **kw):
+        c = FakeCollector([{"n": 1}], meta=layered)
+        c.district_id = kw.get("district_id")
+        c._config = None
+        return c
+
+    monkeypatch.setattr(registry, "load", fake_load)
+
+    rc = cli.main(["collect", "layered_x", "--district", "seoul_gangnam_gap", "--dry-run"])
+    assert rc == 1
+    assert "선거구 설정 오류" in capsys.readouterr().err

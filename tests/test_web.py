@@ -101,7 +101,7 @@ def test_cleared_shows_the_signature_not_a_warning(tmp_path):
 
 def test_blocked_map_hides_values_too(tmp_path):
     """규칙 5는 화면마다 다시 구현되지 않는다. 같은 매크로를 쓴다."""
-    html = build(tmp_path, POLICY_BLOCKED).get("/map").text
+    html = build(tmp_path, POLICY_BLOCKED).get("/d/test_gap/map").text
     assert "표시가 차단된 산출물이다" in html
     assert '<svg class="map"' not in html
 
@@ -142,8 +142,9 @@ def test_missing_dong_is_called_out(tmp_path):
 
 def test_sort_changes_the_order(tmp_path):
     client = build(tmp_path)
-    assert client.get("/?sort=swing").status_code == 200
-    assert client.get("/?sort=말도안되는키").status_code == 200  # 정렬 때문에 죽지 않는다
+    assert client.get("/d/test_gap/?sort=swing").status_code == 200
+    # 정렬 키가 이상해도 죽지 않는다
+    assert client.get("/d/test_gap/?sort=말도안되는키").status_code == 200
 
 
 def test_empty_state_points_at_the_analyzer(tmp_path):
@@ -160,24 +161,24 @@ def test_empty_state_points_at_the_analyzer(tmp_path):
 def test_map_renders_with_each_metric(tmp_path):
     client = build(tmp_path)
     for metric in ("gap_district", "conservative", "swing", "turnout"):
-        response = client.get(f"/map?metric={metric}")
+        response = client.get(f"/d/test_gap/map?metric={metric}")
         assert response.status_code == 200, metric
         assert 'id="hatch"' in response.text  # 값 없음 무늬는 항상 정의돼 있다
 
 
 def test_map_legend_shows_real_numbers(tmp_path):
     """색만 보여주면 크기를 알 수 없다."""
-    html = build(tmp_path).get("/map?metric=turnout").text
+    html = build(tmp_path).get("/d/test_gap/map?metric=turnout").text
     assert "70.0 ~ 70.0%" in html
     assert "3곳 중 3곳" in html  # 분모
 
 
 def test_map_says_it_is_not_a_real_boundary(tmp_path):
-    assert "실제 행정동 경계가 아니다" in build(tmp_path).get("/map").text
+    assert "실제 행정동 경계가 아니다" in build(tmp_path).get("/d/test_gap/map").text
 
 
 def test_unknown_metric_falls_back(tmp_path):
-    assert build(tmp_path).get("/map?metric=없는지표").status_code == 200
+    assert build(tmp_path).get("/d/test_gap/map?metric=없는지표").status_code == 200
 
 
 # --- 로컬 원칙 -------------------------------------------------------------------
@@ -186,7 +187,7 @@ def test_unknown_metric_falls_back(tmp_path):
 def test_no_external_requests(tmp_path):
     """외부 요청 0건이어야 캠프의 열람 맥락이 제3자에게 새지 않는다."""
     client = build(tmp_path)
-    for url in ("/", "/map"):
+    for url in ("/", "/d/test_gap/", "/d/test_gap/map"):
         html = client.get(url).text
         # 절대 URL 이 하나도 없어야 한다. CSS·SVG 전부 같은 출처이거나 인라인이다.
         assert "http://" not in html, url
@@ -216,11 +217,73 @@ def test_serving_never_writes(tmp_path):
     root = tmp_path / "records"
     before = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in root.rglob("*")}
 
-    for url in ("/", "/map", "/?sort=swing", "/map?metric=swing", "/healthz"):
+    urls = (
+        "/",
+        "/d/test_gap/",
+        "/d/test_gap/?sort=swing",
+        "/d/test_gap/map?metric=swing",
+        "/healthz",
+    )
+    for url in urls:
         assert client.get(url).status_code == 200
 
     after = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in root.rglob("*")}
     assert before == after
+
+
+# --- 다지역구 -----------------------------------------------------------------
+
+TWO_DISTRICTS_EXTRA = (
+    "  - id: test_eul\n"
+    "    name: 시험 지역구 을\n"
+    "    sido: 시험시\n"
+    "    sigungu: 시험구\n"
+    "    emd:\n"
+    '      - {name: 딴동, code: "1171057000"}\n'
+)
+
+
+def build_two(tmp_path) -> TestClient:
+    store.append_records(
+        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
+    )
+    policy_path = tmp_path / "compliance.yaml"
+    policy_path.write_text(POLICY_CLEARED, encoding="utf-8")
+    settings = WebSettings(
+        districts_path=write_districts(tmp_path, extra=TWO_DISTRICTS_EXTRA),
+        records_root=tmp_path / "records",
+        policy_path=policy_path,
+        boundaries_path=tmp_path / "없다.geojson",
+    )
+    return TestClient(create_app(settings), raise_server_exceptions=False)
+
+
+def test_root_offers_a_choice_when_there_are_several(tmp_path):
+    """선거구가 여럿이면 조용히 첫 번째를 열지 않고 고르게 한다."""
+    html = build_two(tmp_path).get("/").text
+    assert "선거구를 고르세요" in html
+    assert "시험 지역구 갑" in html
+    assert "시험 지역구 을" in html
+
+
+def test_each_district_renders_on_its_own_path(tmp_path):
+    client = build_two(tmp_path)
+    assert client.get("/d/test_gap/").status_code == 200
+    assert client.get("/d/test_eul/").status_code == 200
+    # 갑에는 프로파일이 있고 을에는 없다 — 을은 빈 상태 화면이지만 여전히 뜬다
+    assert "동1000" not in client.get("/d/test_eul/").text
+
+
+def test_switcher_appears_with_multiple_districts(tmp_path):
+    html = build_two(tmp_path).get("/d/test_gap/").text
+    assert 'class="district-switch"' in html
+    assert 'value="test_eul"' in html
+
+
+def test_unknown_district_shows_what_to_fix(tmp_path):
+    response = build_two(tmp_path).get("/d/없는구/")
+    assert response.status_code == 500
+    assert "없는구" in response.text
 
 
 # --- 설정 오류 -------------------------------------------------------------------

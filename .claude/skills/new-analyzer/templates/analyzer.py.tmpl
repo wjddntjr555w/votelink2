@@ -25,7 +25,8 @@ class Analyzer(BaseAnalyzer):
         if not records:
             raise AnalyzeError("입력 레코드가 0건이다. 먼저 수집기를 돌려라")
 
-        district = resolve_district(self.meta.config["district"])
+        # self.config 는 --district (없으면 meta 의 default_district) 로 해석된 설정이다.
+        district = resolve_district(self.config["district"])
         by_kind = {
             kind: [r for r in records if r.kind is kind] for kind in self.meta.inputs
         }

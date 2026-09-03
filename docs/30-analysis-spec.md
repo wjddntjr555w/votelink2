@@ -120,6 +120,13 @@ store.load_records(self.meta.inputs, exclude_owners=[self.id])
 
 임계값도 마찬가지다. `meta.yaml` 의 `config` 에 두고 이유를 주석으로 남긴다.
 
+선거구는 `config` 를 `default_district` / `common` / `districts.<id>` 세 갈래로 두고,
+분석기는 `self.meta.config` 가 아니라 `self.config[...]` / `self.cfg(...)` 로 읽는다 —
+`uv run votelink analyze <id> --district <선거구>` (없으면 `default_district`)로
+해석된 평평한 dict 다. 평평한 `config` 도 그대로 동작한다(`votelink.districtcfg`).
+지역 특화 임계값(예: `voter_profile` 의 `trend_threshold`)은 `districts.<id>` 에,
+선거구 무관 값은 `common` 에 둔다.
+
 ## 9. 지표를 설계할 때 — 변별력을 먼저 확인하라
 
 `voter_profile` 에서 실제로 겪은 함정이다.

@@ -17,7 +17,7 @@
 
   <nav class="sorts">
     {% for key, m in map.metrics.items() %}
-    <a href="/map?metric={{ key }}" class="{{ 'on' if map.metric.key == key }}">{{ m.label }}</a>
+    <a href="/d/{{ district_id }}/map?metric={{ key }}" class="{{ 'on' if map.metric.key == key }}">{{ m.label }}</a>
     {% endfor %}
   </nav>
 </section>
@@ -25,7 +25,7 @@
 {% if view.is_empty %}
   <div class="banner banner--warn">
     <strong>표시할 분석 결과가 없다</strong>
-    <p class="mono">uv run votelink analyze voter_profile</p>
+    <p class="mono">uv run votelink analyze voter_profile --district {{ district_id }}</p>
   </div>
 {% else %}
   {% call output(map.verdict) %}

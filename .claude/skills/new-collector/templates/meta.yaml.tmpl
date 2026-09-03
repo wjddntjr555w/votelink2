@@ -12,4 +12,14 @@ requires_secrets: []
 rate_limit_rps: 1
 proposal: docs/proposals/{{C-XXX-...}}.md
 verified: false
+
+# 수집기가 선거구에 종속적이면(대상 행정동을 좁히거나 지역명으로 조회하는 등)
+# config 를 아래 구조로 두고 collector.py 에서 self.config[...] / self.cfg(...) 로 읽는다.
+# 선거구 무관이면 그냥 config: {} 로 둔다.
+#
+#   config:
+#     default_district: seoul_songpa_gap   # --district 없이 실행하면 이걸 쓴다
+#     common: { endpoint: "...", ... }     # 선거구 무관 값
+#     districts:
+#       seoul_songpa_gap: { sigungu_admm_code: "1171000000", ... }
 config: {}

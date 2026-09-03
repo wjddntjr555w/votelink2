@@ -61,7 +61,9 @@ def sync(root: Path = COLLECTORS_DIR, out: Path | None = None) -> Path:
     return target
 
 
-def load(collector_id: str, root: Path = COLLECTORS_DIR) -> BaseCollector:
+def load(
+    collector_id: str, root: Path = COLLECTORS_DIR, *, district_id: str | None = None
+) -> BaseCollector:
     """collectors/<id>/collector.py 의 Collector 클래스를 불러 인스턴스로 만든다."""
     metas = discover(root)
     if collector_id not in metas:
@@ -78,4 +80,4 @@ def load(collector_id: str, root: Path = COLLECTORS_DIR) -> BaseCollector:
     cls = getattr(module, "Collector", None)
     if cls is None:
         raise AttributeError(f"{root.name}/{collector_id}/collector.py 에 Collector 클래스가 없다")
-    return cls(meta=metas[collector_id])
+    return cls(meta=metas[collector_id], district_id=district_id)

@@ -44,12 +44,27 @@ class BaseAnalyzer(ABC):
         if file:
             cls._package_dir = Path(file).resolve().parent
 
-    def __init__(self, meta: AnalyzerMeta | None = None) -> None:
+    def __init__(self, meta: AnalyzerMeta | None = None, *, district_id: str | None = None) -> None:
         self._meta = meta or AnalyzerMeta.load(self.package_dir / "meta.yaml")
+        self.district_id = district_id
+        self._config: dict[str, Any] | None = None
 
     @property
     def meta(self) -> AnalyzerMeta:
         return self._meta
+
+    @property
+    def config(self) -> dict[str, Any]:
+        """이 선거구로 해석된 평평한 설정. `meta.config` 대신 이것을 읽는다.
+
+        평평한 `meta.config` 는 그대로 통과한다 (`votelink.districtcfg`).
+        """
+        if self._config is None:
+            self._config = self._meta.resolved_config(self.district_id)
+        return self._config
+
+    def cfg(self, key: str, default: Any = None) -> Any:
+        return self.config.get(key, default)
 
     @property
     def package_dir(self) -> Path:

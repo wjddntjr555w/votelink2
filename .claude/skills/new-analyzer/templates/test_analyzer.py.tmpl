@@ -17,7 +17,11 @@ META = AnalyzerMeta.model_validate(
         "inputs": [{{읽는 kind}}],
         "outputs": [{{내는 kind}}],
         "geo_level": "{{emd}}",
-        "config": {"district": "test_district"},
+        "config": {
+            "default_district": "test_district",
+            "common": {},
+            "districts": {"test_district": {}},
+        },
     }
 )
 

@@ -13,7 +13,7 @@
     <div class="banner banner--warn">
       <strong>표시할 분석 결과가 없다</strong>
       <p>먼저 분석기를 돌린다:</p>
-      <p class="mono">uv run votelink analyze voter_profile</p>
+      <p class="mono">uv run votelink analyze voter_profile --district {{ district_id }}</p>
       <p class="muted small">
         선거구 정의는 행정동 {{ view.diagnostics.expected }}곳을 말하는데
         읽은 레코드는 {{ view.diagnostics.read }}건이다.
@@ -55,7 +55,7 @@
 
     <nav class="sorts">
       {% for key, label in view.sorts.items() %}
-      <a href="/?sort={{ key }}" class="{{ 'on' if view.sort == key }}">{{ label }}</a>
+      <a href="/d/{{ district_id }}/?sort={{ key }}" class="{{ 'on' if view.sort == key }}">{{ label }}</a>
       {% endfor %}
     </nav>
   {% endif %}

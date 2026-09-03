@@ -51,7 +51,13 @@ def _pick_column(header: list[str], explicit: str | None, candidates: tuple[str,
 
 
 def cmd_collect(args: argparse.Namespace) -> int:
-    collector = registry.load(args.collector_id)
+    collector = registry.load(args.collector_id, district_id=args.district)
+
+    try:
+        _ = collector.config  # 선거구 설정을 지금 해석해 문제를 빨리 드러낸다
+    except KeyError as exc:
+        print(f"선거구 설정 오류: {exc}", file=sys.stderr)
+        return 1
 
     if args.capture_fixture:
         return _capture_fixture(collector)
@@ -214,7 +220,12 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             print(f"{mark} {meta.id:<20} {meta.name}\n    입력: {inputs}")
         return 0
 
-    analyzer = analyze_registry.load(args.analyzer_id)
+    analyzer = analyze_registry.load(args.analyzer_id, district_id=args.district)
+    try:
+        _ = analyzer.config  # 선거구 설정을 지금 해석해 문제를 빨리 드러낸다
+    except KeyError as exc:
+        print(f"선거구 설정 오류: {exc}", file=sys.stderr)
+        return 1
     if not analyzer.meta.verified:
         print(
             f"[주의] {analyzer.id} 는 실제 입력으로 검증되지 않았다 (meta.verified=false). "
@@ -250,24 +261,30 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     # 기동 전 점검. 여기서 걸리는 것은 전부 사용자가 고칠 일이라 트레이스백을 보여주지 않는다.
     try:
-        profiles = load_profiles(settings)
         compliance.load_policy(settings.policy_path)
-    except (AmbiguousDistrict, districts.DistrictNotFound) as exc:
-        print(f"선거구를 정할 수 없다: {exc}", file=sys.stderr)
-        return 1
+        table = districts.load_districts(settings.districts_path)
     except FileNotFoundError as exc:
         print(f"참조 데이터가 없다: {exc}", file=sys.stderr)
         return 1
 
-    if profiles.profiles:
-        diag = profiles.diagnostics
-        print(f"{profiles.district.name} · 행정동 {diag.loaded}/{diag.expected}")
-    else:
-        # 실패로 처리하지 않는다. 서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다.
-        print(
-            "[주의] 표시할 분석 결과가 0건이다. "
-            "`uv run votelink analyze voter_profile` 을 먼저 돌려라"
-        )
+    # --district 를 줬으면 그 하나만, 아니면 정의된 선거구를 전부 점검한다. 선거구가
+    # 여럿이어도 죽이지 않는다 — 웹앱의 `/` 가 선거구 선택 화면을 띄운다.
+    to_check = [args.district] if args.district else list(table)
+    try:
+        for did in to_check:
+            profiles = load_profiles(settings, did)
+            diag = profiles.diagnostics
+            if profiles.profiles:
+                print(f"{profiles.district.name} · 행정동 {diag.loaded}/{diag.expected}")
+            else:
+                cmd = f"uv run votelink analyze voter_profile --district {profiles.district.id}"
+                print(
+                    f"[주의] {profiles.district.name}: 표시할 분석 결과가 0건이다. "
+                    f"`{cmd}` 를 먼저 돌려라"
+                )
+    except (AmbiguousDistrict, districts.DistrictNotFound) as exc:
+        print(f"선거구를 정할 수 없다: {exc}", file=sys.stderr)
+        return 1
 
     print(f"http://{args.host}:{args.port}")
     uvicorn.run(create_app(settings), host=args.host, port=args.port, log_level="warning")
@@ -284,6 +301,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_collect = sub.add_parser("collect", help="수집기 실행")
     p_collect.add_argument("collector_id")
+    p_collect.add_argument(
+        "--district",
+        help="어느 선거구로 수집할지. 생략하면 meta.yaml 의 config.default_district",
+    )
     p_collect.add_argument("--since", help="ISO 8601. 증분 수집 시작 시점")
     p_collect.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_collect.add_argument(
@@ -324,6 +345,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_analyze = sub.add_parser("analyze", help="분석기 실행 (L2)")
     p_analyze.add_argument("analyzer_id", nargs="?", help="생략하면 등록된 분석기 목록")
+    p_analyze.add_argument(
+        "--district",
+        help="어느 선거구로 분석할지. 생략하면 meta.yaml 의 config.default_district",
+    )
     p_analyze.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
     p_analyze.set_defaults(func=cmd_analyze)
@@ -338,7 +363,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
-    p_serve.add_argument("--district", help="districts.yaml 에 선거구가 둘 이상일 때 필요")
+    p_serve.add_argument(
+        "--district",
+        help=(
+            "기본으로 열 선거구. 생략하면 `/` 가 선거구 선택 화면을 띄운다 "
+            "(선거구가 하나뿐이면 그리로 바로 이동)"
+        ),
+    )
     p_serve.set_defaults(func=cmd_serve)
 
     return parser

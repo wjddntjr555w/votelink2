@@ -39,6 +39,7 @@
 ```bash
 uv sync                          # 의존성
 uv run votelink collect <id>     # 수집기 실행
+uv run votelink collect <id> --district <선거구>  # 이 선거구로 수집 (생략 시 meta 의 default_district)
 uv run votelink collect <id> --reparse   # 재수집 없이 저장된 raw만 재파싱
 uv run votelink collect <id> --dry-run   # 저장 없이 계약 검증만
 uv run votelink registry sync            # registry.yaml 재생성
@@ -47,9 +48,11 @@ uv run votelink district list --emd      # 선거구 정의 확인
 uv run votelink collect <id> --capture-fixture  # 실제 응답을 fixture로 저장
 uv run votelink analyze          # 등록된 분석기 목록
 uv run votelink analyze <id>     # 분석기 실행
+uv run votelink analyze <id> --district <선거구>  # 이 선거구로 분석 (생략 시 default_district)
 uv run votelink analyze <id> --dry-run   # 저장 없이 계약 검증만
 uv run votelink analyze --sync           # analyzers/registry.yaml 재생성
-uv run votelink serve            # 로컬 웹앱 (기본 8420)
+uv run votelink serve            # 로컬 웹앱 (기본 8420). `/` 가 선거구 선택, `/d/<선거구>/` 가 각 화면
+uv run votelink serve --district <선거구>  # `/` 를 이 선거구로 바로 보낸다
 uv run pytest                    # 테스트
 uv run ruff check . && uv run ruff format .
 ```

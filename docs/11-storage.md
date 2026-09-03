@@ -32,6 +32,12 @@ data/
 파일 형식이 같고, 그래서 디렉터리도 나누지 않는다. 어느 파일이 파생인지는 경로가 아니라
 레코드의 `derived_from` 이 말한다.
 
+**선거구로도 나누지 않는다.** `collect <id> --district A` 와 `--district B` 는 같은
+`records/<id>.jsonl` 에 함께 쌓인다 — `geo_code`(행정동)가 겹치지 않아 `record_id` 도
+갈리고, `append_records`(중복 제거)·`upsert_records`(교체)가 그대로 성립한다. 어느
+레코드가 어느 선거구인지는 `geo_code` 와 `districts.yaml` 이 말한다. 웹앱은 화면마다
+`District.contains(geo_code)` 로 해당 선거구만 골라낸다(`docs/40-webapp-spec.md §5`).
+
 같은 날 같은 `batch_key` 가 또 오면 파일명 뒤에 `HHMMSS` 를 붙인다 — **덮어쓰지 않는다.**
 날짜 디렉터리는 "언제 가져왔나"이지 "언제의 데이터인가"가 아니다. 후자는 레코드의
 `observed_at` 이다.
