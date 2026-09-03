@@ -158,11 +158,16 @@ def reset_cache() -> None:
 
 
 def review(record: Record, path: Path | None = None) -> Verdict:
+    """정책표를 읽어서 판정한다. 디스크를 타는 쪽은 이것 하나뿐이다."""
+    return review_with(load_policy(path), record)
+
+
+def review_with(policy: Policy, record: Record) -> Verdict:
     """이 레코드를 웹앱에 어떻게 표시할 것인가. `docs/90-compliance.md §8`.
 
-    순수 함수다 — 같은 (정책, 레코드)면 같은 판정이 나온다. 시계도 난수도 쓰지 않는다.
+    **순수 함수다** — 같은 (정책, 레코드)면 같은 판정이 나온다. 시계도 난수도 디스크도
+    쓰지 않는다. L3의 뷰모델이 순수하게 남으려면 판정도 순수해야 해서 갈라 두었다.
     """
-    policy = load_policy(path)
     rule = policy.for_kind(record.kind)
     notes = _notes(record, rule)
 
@@ -203,8 +208,17 @@ def review(record: Record, path: Path | None = None) -> Verdict:
             notes=notes,
         )
 
+    reasons: tuple[str, ...] = ()
+    if rule.status is ReviewStatus.UNREVIEWED:
+        # 사유 없는 경고는 사용자가 무엇을 해야 하는지 알려주지 않는다.
+        reasons = (
+            "정책표에 unreviewed 로 기록돼 있다 — 아직 법률 검토를 받지 않았다. "
+            "검토를 마치면 data/reference/compliance.yaml 에 서명을 남긴다",
+        )
+
     return Verdict(
         status=rule.status,
+        reasons=reasons,
         notes=notes,
         reviewed_by=rule.reviewed_by,
         reviewed_at=rule.reviewed_at,
