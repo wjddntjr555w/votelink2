@@ -13,6 +13,7 @@
 | 새 수집기 추가 | 스킬 `new-collector` 를 호출 (직접 하지 말 것) |
 | 기존 수집기 수정 | `collectors/<id>/` + `docs/20-collector-spec.md` |
 | 데이터 스키마 변경 | `docs/10-data-contract.md` + `votelink/contract/models.py` |
+| 저장 경로·무엇을 지워도 되는지 | `docs/11-storage.md` + `votelink/store.py` |
 | 새 분석기 추가 | 스킬 `new-analyzer` 를 호출 |
 | 분석 로직 수정 | `analyzers/<id>/` + `docs/30-analysis-spec.md` |
 | 웹앱 화면 작업 | `votelink/web/` + `docs/40-webapp-spec.md` |
