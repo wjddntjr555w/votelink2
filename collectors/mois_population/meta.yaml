@@ -68,5 +68,99 @@ config:
   # districts.<id> 에 둔다 — 같은 자치구면 sigungu_admm_code 를 그대로 재사용한다.
   default_district: seoul_songpa_gap
   districts:
+    seoul_jongno:
+      sigungu_admm_code: "1111000000"   # 종로구
+    seoul_jung_seongdong_gap:
+      sigungu_admm_code: "1120000000"   # 성동구
+    seoul_jung_seongdong_eul:
+      sigungu_admm_code: "1114000000"   # 중구
+    seoul_yongsan:
+      sigungu_admm_code: "1117000000"   # 용산구
+    seoul_gwangjin_gap:
+      sigungu_admm_code: "1121500000"   # 광진구
+    seoul_gwangjin_eul:
+      sigungu_admm_code: "1121500000"   # 광진구
+    seoul_dongdaemun_gap:
+      sigungu_admm_code: "1123000000"   # 동대문구
+    seoul_dongdaemun_eul:
+      sigungu_admm_code: "1123000000"   # 동대문구
+    seoul_jungnang_gap:
+      sigungu_admm_code: "1126000000"   # 중랑구
+    seoul_jungnang_eul:
+      sigungu_admm_code: "1126000000"   # 중랑구
+    seoul_seongbuk_gap:
+      sigungu_admm_code: "1129000000"   # 성북구
+    seoul_seongbuk_eul:
+      sigungu_admm_code: "1129000000"   # 성북구
+    seoul_gangbuk_gap:
+      sigungu_admm_code: "1130500000"   # 강북구
+    seoul_gangbuk_eul:
+      sigungu_admm_code: "1130500000"   # 강북구
+    seoul_dobong_gap:
+      sigungu_admm_code: "1132000000"   # 도봉구
+    seoul_dobong_eul:
+      sigungu_admm_code: "1132000000"   # 도봉구
+    seoul_nowon_gap:
+      sigungu_admm_code: "1135000000"   # 노원구
+    seoul_nowon_eul:
+      sigungu_admm_code: "1135000000"   # 노원구
+    seoul_eunpyeong_gap:
+      sigungu_admm_code: "1138000000"   # 은평구
+    seoul_eunpyeong_eul:
+      sigungu_admm_code: "1138000000"   # 은평구
+    seoul_seodaemun_gap:
+      sigungu_admm_code: "1141000000"   # 서대문구
+    seoul_seodaemun_eul:
+      sigungu_admm_code: "1141000000"   # 서대문구
+    seoul_mapo_gap:
+      sigungu_admm_code: "1144000000"   # 마포구
+    seoul_mapo_eul:
+      sigungu_admm_code: "1144000000"   # 마포구
+    seoul_yangcheon_gap:
+      sigungu_admm_code: "1147000000"   # 양천구
+    seoul_yangcheon_eul:
+      sigungu_admm_code: "1147000000"   # 양천구
+    seoul_gangseo_gap:
+      sigungu_admm_code: "1150000000"   # 강서구
+    seoul_gangseo_eul:
+      sigungu_admm_code: "1150000000"   # 강서구
+    seoul_gangseo_byeong:
+      sigungu_admm_code: "1150000000"   # 강서구
+    seoul_guro_gap:
+      sigungu_admm_code: "1153000000"   # 구로구
+    seoul_guro_eul:
+      sigungu_admm_code: "1153000000"   # 구로구
+    seoul_geumcheon:
+      sigungu_admm_code: "1154500000"   # 금천구
+    seoul_yeongdeungpo_gap:
+      sigungu_admm_code: "1156000000"   # 영등포구
+    seoul_yeongdeungpo_eul:
+      sigungu_admm_code: "1156000000"   # 영등포구
+    seoul_dongjak_gap:
+      sigungu_admm_code: "1159000000"   # 동작구
+    seoul_dongjak_eul:
+      sigungu_admm_code: "1159000000"   # 동작구
+    seoul_gwanak_gap:
+      sigungu_admm_code: "1162000000"   # 관악구
+    seoul_gwanak_eul:
+      sigungu_admm_code: "1162000000"   # 관악구
+    seoul_seocho_gap:
+      sigungu_admm_code: "1165000000"   # 서초구
+    seoul_seocho_eul:
+      sigungu_admm_code: "1165000000"   # 서초구
+    seoul_gangnam_gap:
+      sigungu_admm_code: "1168000000"   # 강남구
+    seoul_gangnam_eul:
+      sigungu_admm_code: "1168000000"   # 강남구
+    seoul_gangnam_byeong:
+      sigungu_admm_code: "1168000000"   # 강남구
     seoul_songpa_gap:
       sigungu_admm_code: "1171000000"   # 서울 송파구. lv=3 조회로 검증됨 (2026-09-01)
+    seoul_songpa_eul:
+      sigungu_admm_code: "1171000000"   # 송파구
+    seoul_songpa_byeong:
+      sigungu_admm_code: "1171000000"   # 송파구
+    seoul_gangdong_gap:
+      sigungu_admm_code: "1174000000"   # 강동구
+    seoul_gangdong_eul:
+      sigungu_admm_code: "1174000000"   # 강동구

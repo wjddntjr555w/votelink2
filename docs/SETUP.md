@@ -149,7 +149,28 @@ uv run votelink collect mois_population                     # 실제 수집
 
 ## 3. 선거구 획정 대조
 
-### ✅ 대조 완료 (2026-09-02) — 지금은 할 일이 없다
+### 서울 48개 선거구 (2026-09-04 추가) — 코드는 아직 미검증
+
+`districts.yaml` 에 서울 48개 선거구가 전부 들어 있다. 행정동 목록은
+**제22대 국회의원선거 개표결과(지역구) 전국 xlsx** 에서 프로그램으로 추출했다
+(`data/raw/nec_archive/.../제22대 국회의원선거/1. 개표단위별 개표결과(지역구) -전국.xlsx`,
+선거구명 × 읍면동명). `seoul_songpa_gap` 만 admmCd 가 검증돼 있고, 나머지 47개는
+`code: null`(pending) 이다.
+
+**각 선거구를 실제로 쓰려면 그 선거구로 `mois_population` 을 한 번 돌려야 한다:**
+
+```bash
+uv run votelink collect mois_population --district seoul_gangnam_gap
+uv run votelink district list --emd        # pending 이 0 이 됐는지 확인
+```
+
+응답의 `admmCd` 가 `districts.yaml` 의 해당 동 `code` 에 채워진다(수집기가 이름으로
+매칭). 행정동명이 MOIS 응답과 다르면(예: `창신제1동` vs `창신1동`) 수집이
+`missing target dong` 으로 크게 실패한다 — 그때 `districts.yaml` 의 `name` 을
+MOIS 표기에 맞춘다. `sigungu_admm_code`(표준 시군구코드)는 틀리면 다른 구 응답이
+와서 이름 필터가 전부 걸러 역시 크게 실패하므로 조용히 틀리지 않는다.
+
+### ✅ 송파갑 대조 완료 (2026-09-02)
 
 `districts.yaml` 의 송파갑 행정동 9개가 **선관위 확정 자료와 정확히 일치**한다.
 차집합이 양쪽 다 공집합이었다.
@@ -184,7 +205,8 @@ with open(p, encoding='cp949', newline='') as fh:
             e=(row['법정읍면동명'] or '').strip()
             if e.endswith('동'): nec.add(e)
 d=yaml.safe_load(open('data/reference/districts.yaml', encoding='utf-8'))
-ours={e['name'] for e in d['districts'][0]['emd']}
+blk=next(x for x in d['districts'] if x['id']=='seoul_songpa_gap')
+ours={e['name'] for e in blk['emd']}
 print('yaml에만:', sorted(ours-nec))
 print('선관위에만:', sorted(nec-ours))
 "

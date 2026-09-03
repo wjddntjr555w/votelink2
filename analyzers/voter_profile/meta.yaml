@@ -16,8 +16,54 @@ config:
   # 특화가 필요한 값이 생기면 districts.<id> 에 두어 common 을 덮어쓴다.
   default_district: seoul_songpa_gap
   districts:
+    seoul_jongno: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_gwangjin_gap: {}
+    seoul_gwangjin_eul: {}
+    seoul_dongdaemun_gap: {}
+    seoul_dongdaemun_eul: {}
+    seoul_jungnang_gap: {}
+    seoul_jungnang_eul: {}
+    seoul_seongbuk_gap: {}
+    seoul_seongbuk_eul: {}
+    seoul_gangbuk_gap: {}
+    seoul_gangbuk_eul: {}
+    seoul_dobong_gap: {}
+    seoul_dobong_eul: {}
+    seoul_nowon_gap: {}
+    seoul_nowon_eul: {}
+    seoul_eunpyeong_gap: {}
+    seoul_eunpyeong_eul: {}
+    seoul_seodaemun_gap: {}
+    seoul_seodaemun_eul: {}
+    seoul_mapo_gap: {}
+    seoul_mapo_eul: {}
+    seoul_yangcheon_gap: {}
+    seoul_yangcheon_eul: {}
+    seoul_gangseo_gap: {}
+    seoul_gangseo_eul: {}
+    seoul_gangseo_byeong: {}
+    seoul_guro_gap: {}
+    seoul_guro_eul: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_yeongdeungpo_eul: {}
+    seoul_dongjak_gap: {}
+    seoul_dongjak_eul: {}
+    seoul_gwanak_gap: {}
+    seoul_gwanak_eul: {}
+    seoul_seocho_gap: {}
+    seoul_seocho_eul: {}
+    seoul_gangnam_gap: {}
+    seoul_gangnam_eul: {}
+    seoul_gangnam_byeong: {}
     seoul_songpa_gap: {}
-
+    seoul_songpa_eul: {}
+    seoul_songpa_byeong: {}
+    seoul_gangdong_gap: {}
+    seoul_gangdong_eul: {}
   # 한 시계열에 섞을 선거 유형. **대선만 쓴다.**
   # 대선은 전국이 같은 선택지를 놓고 투표하므로 동별 편차가 곧 그 동네의 진영 성향이다.
   # 총선은 현역 프리미엄과 후보 개인기가 섞이고 선거구 획정도 바뀌어, 같은 축에
