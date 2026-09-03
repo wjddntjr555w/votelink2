@@ -20,7 +20,13 @@ verified: true
 
 config:
   archive_dir: "data/raw/nec_archive/02_국회의원선거(총선,재보궐선거)"
-  district: seoul_songpa_gap
+
+  # --district 없이 실행하면 default_district 를 쓴다. 총선은 선거구 획정이
+  # 회차마다 바뀌므로, 다른 선거구를 넣으려면 elections[] 의 selector.sheet·
+  # district_match·district_name 을 그 선거구 기준으로 다시 정해야 한다.
+  default_district: seoul_songpa_gap
+  districts:
+    seoul_songpa_gap: {}
 
   # 회차별 지역구 선택 방법과 격자 배치. 7종 파일 구조 중 5개(18~22대)만 다룬다.
   # 16·17대는 후보명이 투표구 텍스트에 섞여 있어(`풍납제1동제1투`) 다른 추출

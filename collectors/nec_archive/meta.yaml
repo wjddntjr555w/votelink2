@@ -32,21 +32,27 @@ verified: true
 
 config:
   archive_dir: "data/raw/nec_archive/01_대통령선거(대선)"
-  district: seoul_songpa_gap
-  sigungu_match: "송파"      # 구시군명(또는 위원회명)에 이 문자열이 있으면 대상
 
   # 동 단위 합계 행의 투표구명. 선거마다 다르다 —
   # 16·17대 '소계', 19대 '합계', 18·20·21대 빈칸. 14·15대는 투표구 열 자체가 없다.
   precinct_total_markers: ["", "소계", "합계"]
 
-  # 기준선(상위 행정단위) 레코드의 지리 정보.
-  # 동별 득표율은 그 자체로 의미가 없다 — "무엇 대비"가 있어야 지표가 된다.
-  # nation 은 계약상 geo_code 를 가질 수 없다(§3). sido/sigungu 코드는 검증된
-  # admmCd(1171051000 등)의 접두사 규칙에서 나온 값이다.
-  baseline_geo:
-    nation:  { code: null,         name: "전국" }
-    sido:    { code: "1100000000", name: "서울특별시" }
-    sigungu: { code: "1171000000", name: "송파구" }
+  # --district 없이 실행하면 default_district 를 쓴다. 대선은 선거구 획정과
+  # 무관하지만, 대상 자치구(sigungu_match)와 기준선 지리는 선거구마다 다르다.
+  # 아래 elections[].baselines 는 아직 송파 기준으로 튜닝돼 있다 — 다른 구의
+  # 대선 이력을 넣으려면 그 구의 baselines(sgg_prefix·expect)를 함께 정해야 한다.
+  default_district: seoul_songpa_gap
+  districts:
+    seoul_songpa_gap:
+      sigungu_match: "송파"      # 구시군명(또는 위원회명)에 이 문자열이 있으면 대상
+      # 기준선(상위 행정단위) 레코드의 지리 정보.
+      # 동별 득표율은 그 자체로 의미가 없다 — "무엇 대비"가 있어야 지표가 된다.
+      # nation 은 계약상 geo_code 를 가질 수 없다(§3). sido/sigungu 코드는 검증된
+      # admmCd(1171051000 등)의 접두사 규칙에서 나온 값이다.
+      baseline_geo:
+        nation:  { code: null,         name: "전국" }
+        sido:    { code: "1100000000", name: "서울특별시" }
+        sigungu: { code: "1171000000", name: "송파구" }
 
   # 선거별 레이아웃. 33년치가 서로 다르므로 코드가 아니라 여기 데이터로 둔다.
   #   sgg/emd/eligible/votes/candidate_from/total/invalid : 열 인덱스 (0부터)

@@ -52,13 +52,21 @@ config:
   # district 의 행정동 '이름' 목록으로 걸러낸다. 그래서 동별 코드를 미리
   # 몰라도 된다 — districts.yaml 의 emd[].code 가 null 이어도 수집은 된다.
   #
-  # admm_codes 를 비우면 이 시군구 코드 하나로 조회한다. 채우면 이쪽이 우선한다
+  # admm_codes 를 비우면 시군구 코드 하나로 조회한다. 채우면 이쪽이 우선한다
   # (다른 시군구를 보고 싶을 때 등).
   admm_code_param: admmCd
-  district: seoul_songpa_gap
-  sigungu_admm_code: "1171000000"   # 서울 송파구. lv=3 조회로 검증됨 (2026-09-01)
+
+  # admm_codes 를 채우면 sigungu_admm_code 대신 이 목록으로 조회하고 이름 필터도
+  # 끈다 (다른 시군구를 직접 볼 때 등). 비어 있으면 선거구의 시군구 코드를 쓴다.
   admm_codes: []
 
   # 응답에서 목록을 꺼낼 경로 (예: "response.body.items.item").
   # 비워두면 알려진 형태를 자동 탐색하고, 찾으면 경로를 로그로 알려준다.
   data_path: ""
+
+  # --district 없이 실행하면 default_district 를 쓴다. 선거구마다 달라지는 값은
+  # districts.<id> 에 둔다 — 같은 자치구면 sigungu_admm_code 를 그대로 재사용한다.
+  default_district: seoul_songpa_gap
+  districts:
+    seoul_songpa_gap:
+      sigungu_admm_code: "1171000000"   # 서울 송파구. lv=3 조회로 검증됨 (2026-09-01)

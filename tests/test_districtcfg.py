@@ -15,8 +15,25 @@ def test_flat_config_passes_through_unchanged():
 def test_flat_config_rejects_a_different_district():
     """옮겨지지 않은 수집기에 다른 선거구를 요구하면 조용히 엉뚱한 데이터를 수집하지 않는다."""
     flat = {"district": "seoul_songpa_gap"}
-    with pytest.raises(KeyError, match="common/districts"):
+    with pytest.raises(KeyError, match="default_district/districts"):
         resolve_config("mois_population", flat, "seoul_songpa_eul")
+
+
+def test_non_axis_top_level_keys_are_defaults():
+    """common 을 안 써도 최상위 평평한 값이 기본값으로 흐른다."""
+    cfg = {
+        "endpoint": "x",
+        "params": {"lv": "3"},
+        "default_district": "seoul_songpa_gap",
+        "districts": {"seoul_songpa_gap": {"sigungu_admm_code": "1171000000"}},
+    }
+    got = resolve_config("mois_population", cfg)
+    assert got == {
+        "endpoint": "x",
+        "params": {"lv": "3"},
+        "sigungu_admm_code": "1171000000",
+        "district": "seoul_songpa_gap",
+    }
 
 
 def test_layered_config_merges_common_and_the_chosen_block():

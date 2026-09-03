@@ -12,7 +12,11 @@ proposal: docs/proposals/A-001-voter-profile.md
 verified: true
 
 config:
-  district: seoul_songpa_gap
+  # --district 없이 실행하면 default_district 를 쓴다. trend_threshold 처럼 지역
+  # 특화가 필요한 값이 생기면 districts.<id> 에 두어 common 을 덮어쓴다.
+  default_district: seoul_songpa_gap
+  districts:
+    seoul_songpa_gap: {}
 
   # 한 시계열에 섞을 선거 유형. **대선만 쓴다.**
   # 대선은 전국이 같은 선택지를 놓고 투표하므로 동별 편차가 곧 그 동네의 진영 성향이다.

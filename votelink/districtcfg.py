@@ -1,43 +1,46 @@
 """`meta.yaml` 의 `config` 를 선거구 하나로 해석한다.
 
-수집기(L1)와 분석기(L2)가 같은 규칙을 쓴다. `config` 구조는 둘 중 하나다:
+수집기(L1)와 분석기(L2)가 같은 규칙을 쓴다. `config` 는 세 개의 특수 키로 선거구
+축을 연다:
 
-1. 평평한 형태 (다지역구 이전) — 그대로 돌려준다.
-2. 계층 형태::
+    config:
+      default_district: seoul_songpa_gap   # --district 없이 실행하면 이걸 쓴다
+      districts:                           # 선거구별로 달라지는 값
+        seoul_songpa_gap: { sigungu_admm_code: "1171000000" }
+      common: { ... }                      # (선택) 선거구 무관 값을 명시적으로 묶고 싶을 때
 
-       config:
-         default_district: seoul_songpa_gap
-         common: { ... }              # 선거구 무관
-         districts:
-           seoul_songpa_gap: { ... }  # 선거구별 덮어쓰기
+해석 결과 = **나머지 최상위 키**(평평한 기본값) + `common` + 선택된 `districts.<id>`,
+그리고 `district` 키가 자동으로 채워진다. 즉 `common` 을 안 써도 최상위에 평평하게
+둔 값들이 그대로 기본값이 된다.
 
-   `common` 위에 선택된 선거구 블록을 덮어쓰고 `district` 키를 채워 평평하게 만든다.
-
-`--district` 없이 실행하면 `default_district` 를 쓴다. 둘 다 없으면 선거구 정보가
-필요없는 수집기로 보고 `common` 만 돌려준다.
+이 세 키가 하나도 없으면 **평평한 config** 로 보고 그대로 돌려준다 — 아직 다지역구로
+옮기지 않은 수집기도 계속 동작한다. 이때 다른 선거구를 `--district` 로 요구하면
+조용히 엉뚱한 데이터를 수집하지 않도록 실행을 막는다.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+_AXIS_KEYS = ("default_district", "districts", "common")
+
 
 def resolve_config(
     owner_id: str, config: dict[str, Any], district_id: str | None = None
 ) -> dict[str, Any]:
-    is_layered = "common" in config or "districts" in config
+    is_layered = any(k in config for k in _AXIS_KEYS)
     if not is_layered:
-        # 평평한 config. 다른 선거구를 요구했는데 이 수집기가 아직 옮겨지지 않았다면
-        # 조용히 엉뚱한 선거구를 수집하지 않도록 막는다.
         wanted = district_id
         if wanted and config.get("district") not in (None, wanted):
             raise KeyError(
                 f"{owner_id}: config 가 아직 단일 선거구('{config.get('district')}') 형태다. "
-                f"'{wanted}' 를 쓰려면 meta.yaml 을 common/districts 구조로 옮겨야 한다"
+                f"'{wanted}' 를 쓰려면 meta.yaml 에 default_district/districts 를 두어야 한다"
             )
         return dict(config)
 
-    resolved: dict[str, Any] = dict(config.get("common", {}))
+    resolved: dict[str, Any] = {k: v for k, v in config.items() if k not in _AXIS_KEYS}
+    resolved.update(config.get("common", {}) or {})
+
     blocks = config.get("districts", {}) or {}
     chosen = district_id or config.get("default_district")
     if chosen is not None:

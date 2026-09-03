@@ -149,5 +149,7 @@ def test_collector_has_no_district_list_of_its_own():
 
     meta = CollectorMeta.load(Path("collectors/mois_population/meta.yaml"))
     collector = Collector(meta=meta)
-    assert collector.query_codes() == [meta.config["sigungu_admm_code"]]
+    # 시군구 코드는 이제 선거구 블록 안에 있다 — 해석된 config 로 확인한다.
+    resolved = meta.resolved_config(None)
+    assert collector.query_codes() == [resolved["sigungu_admm_code"]]
     assert collector._target_names() == {e.name for e in resolve_district(TARGET).emd}
