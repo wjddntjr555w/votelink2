@@ -1,6 +1,6 @@
 # 법적 제약과 검증 규칙
 
-> 상태: v1 초안 (2026-09-03) · 정책표는 `data/reference/compliance.yaml`
+> 상태: v1 구현됨 (`votelink/reference/compliance.py`) · 정책표는 `data/reference/compliance.yaml`
 > 산출물이 선거법에 걸리는지 확인할 때 읽을 문서는 **이것 + 그 YAML 뿐**이다.
 
 ## 1. 이 문서가 있는 이유

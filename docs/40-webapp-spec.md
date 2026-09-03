@@ -1,6 +1,6 @@
 # 웹앱(L3) 규약
 
-> 상태: v1 초안 (2026-09-03)
+> 상태: v1 구현됨 (`votelink/web/`, `uv run votelink serve`)
 > 웹앱 화면을 만들거나 고칠 때 읽을 문서는 **이것 + `votelink/web/` 뿐**이다.
 > 검증 배지의 근거는 `docs/90-compliance.md`, 렌더할 데이터의 형태는 `votelink/contract/`.
 
@@ -32,6 +32,10 @@ data/records/*.jsonl  →  로더  →  뷰모델  →  템플릿  →  HTML
 마지막 행이 중요하다. 등록부는 "같은 모양의 것이 N개"일 때 값을 한다. 웹앱은 하나뿐이라
 `registry.py`·`meta.py` 를 만들지 않는다.
 
+같은 이유로 `__init__.py` 는 상수만 들고 있고 `create_app` 을 재수출하지 않는다. 재수출하면
+웹 의존성이 없는 환경에서 `votelink.web` 을 건드리는 순간 죽고, 그러면 `cmd_serve` 의 늦은
+import 가 무의미해진다. CLI는 `from votelink.web.app import create_app` 을 함수 안에서 부른다.
+
 ## 3. L2 ↔ L3 계약 — Record를 읽되, 뷰모델로 한 번 옮긴다
 
 `00-overview.md §3`: "L2와 L3도 산출물 JSON 스키마로만 연결된다."
@@ -54,7 +58,7 @@ data/records/*.jsonl  →  로더  →  뷰모델  →  템플릿  →  HTML
 
 ```
 votelink/web/
-  __init__.py     DEFAULT_HOST / DEFAULT_PORT, create_app 재수출
+  __init__.py     DEFAULT_HOST / DEFAULT_PORT 뿐. fastapi 를 import 하지 않는다
   settings.py     WebSettings — district_id, records_root, policy_path
   loader.py       디스크만. store.iter_records → 타입 변환 → 선거구·최신 as_of 필터
   viewmodel.py    순수 함수. Record → DistrictView / EmdCard / GapCell / 색·좌표
@@ -177,6 +181,11 @@ UI가 이걸 무너뜨리는 경로가 넷이고, 넷 다 막는다.
 `GapCell(value, text, known, css_class)` 를 넘긴다.
 **템플릿에 None을 0으로 포맷할 수 있는 경로가 존재하지 않는다.**
 
+**최근 회차만 보여주면 과거의 결측이 화면에서 사라진다.** 구현하며 실제로 겪었다 —
+유일한 결측인 2002년 시도 기준선이 최근 선거의 편차 4종에 끼지 않아 어디에도 안 보였다.
+그래서 `EmdCard.gap_coverage` 가 단위별로 **시계열 전체의 분모**를 들고 있고, 비어 있는
+단위에만 "8회 중 7회"를 편차 옆에 적는다. 결측이 그것이 속한 자리에서 보여야 한다.
+
 **confidence 와 이어 붙인다.** 현재 `nec_archive` 의 `confidence: 0.7` 은 정확히 이 결측
 (2002 서울시·2007 전국) 때문이다. 카드가 "신뢰도 0.7 · 기준선 N건 결측"을 한 줄로 보여주면
 두 신호가 일관되고 사용자가 왜 낮은지 추론할 수 있다.
@@ -210,6 +219,10 @@ Jinja2는 "FastAPI + 서버 렌더"의 서버 렌더 쪽 절반이다.
 - 이유는 미학이 아니라 **컴플라이언스**다: 외부 요청이 0건이어야 캠프의 열람 맥락이 제3자에게
   새지 않는다. 이것이 "로컬 웹앱" 원칙의 실질이다
 - 경로는 `Path(__file__).resolve().parent / "templates"` (`analyze/base.py` 가 이미 쓰는 패턴)
+- **`/docs`·`/redoc`·`/openapi.json` 을 끈다.** Swagger UI 가 CDN 에서 스크립트를 받아온다
+- CSS 링크는 `url_for` 가 아니라 상대 경로다. `url_for` 는 호스트를 포함한 절대 URL을
+  만드는데, 나가는 요청이 전부 같은 출처임을 테스트로 확인할 수 있어야 한다
+  (`tests/test_web.py::test_no_external_requests` 가 절대 URL 이 하나도 없음을 본다)
 
 ## 11. 지도 배치 — 지금은 격자, 나중에 경계
 

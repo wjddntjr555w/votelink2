@@ -16,7 +16,10 @@ from votelink.analyze.base import AnalyzeError
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
 from votelink.contract.models import GEO_CODE_DIGITS, KST
-from votelink.reference import districts
+from votelink.reference import compliance, districts
+from votelink.web import DEFAULT_HOST, DEFAULT_PORT
+from votelink.web.loader import AmbiguousDistrict, load_profiles
+from votelink.web.settings import WebSettings
 
 # 행안부/통계청 파일마다 헤더 이름이 다르다. 흔한 이름을 먼저 시도한다.
 CODE_COL_CANDIDATES = ("행정기관코드", "행정동코드", "adm_cd", "emd_code", "코드")
@@ -229,9 +232,46 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 1 if report.failed else 0
 
 
-def cmd_not_yet(args: argparse.Namespace) -> int:
-    print(f"'{args.command}' 는 아직 구현되지 않았다. 다음 단위에서 만든다.")
-    return 2
+def cmd_serve(args: argparse.Namespace) -> int:
+    """로컬 웹앱(L3)을 띄운다.
+
+    `fastapi`·`uvicorn` 을 **여기서 늦게 import 한다.** 모듈 최상단에서 부르면 웹
+    의존성이 없는 환경에서 `collect`·`analyze` 까지 같이 죽는다.
+    """
+    try:
+        import uvicorn
+
+        from votelink.web.app import create_app
+    except ImportError as exc:
+        print(f"웹 의존성이 없다 ({exc}). `uv sync` 를 먼저 실행하라", file=sys.stderr)
+        return 1
+
+    settings = WebSettings(district_id=args.district, host=args.host, port=args.port)
+
+    # 기동 전 점검. 여기서 걸리는 것은 전부 사용자가 고칠 일이라 트레이스백을 보여주지 않는다.
+    try:
+        profiles = load_profiles(settings)
+        compliance.load_policy(settings.policy_path)
+    except (AmbiguousDistrict, districts.DistrictNotFound) as exc:
+        print(f"선거구를 정할 수 없다: {exc}", file=sys.stderr)
+        return 1
+    except FileNotFoundError as exc:
+        print(f"참조 데이터가 없다: {exc}", file=sys.stderr)
+        return 1
+
+    if profiles.profiles:
+        diag = profiles.diagnostics
+        print(f"{profiles.district.name} · 행정동 {diag.loaded}/{diag.expected}")
+    else:
+        # 실패로 처리하지 않는다. 서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다.
+        print(
+            "[주의] 표시할 분석 결과가 0건이다. "
+            "`uv run votelink analyze voter_profile` 을 먼저 돌려라"
+        )
+
+    print(f"http://{args.host}:{args.port}")
+    uvicorn.run(create_app(settings), host=args.host, port=args.port, log_level="warning")
+    return 0
 
 
 # --- 파서 ----------------------------------------------------------------------
@@ -288,7 +328,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
     p_analyze.set_defaults(func=cmd_analyze)
 
-    sub.add_parser("serve", help="로컬 웹앱 (L3) — 미구현").set_defaults(func=cmd_not_yet)
+    p_serve = sub.add_parser("serve", help="로컬 웹앱 (L3)")
+    p_serve.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help=(
+            f"기본 {DEFAULT_HOST}. 0.0.0.0 으로 열면 미검토 산출물이 뜨는 화면이 "
+            "LAN 에 공개되고, 그건 의도치 않은 공표가 된다"
+        ),
+    )
+    p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p_serve.add_argument("--district", help="districts.yaml 에 선거구가 둘 이상일 때 필요")
+    p_serve.set_defaults(func=cmd_serve)
 
     return parser
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from votelink import cli
+from votelink import cli, store
 from votelink.collect import geo
 
 
@@ -53,9 +53,36 @@ def test_registry_list_on_empty_project(monkeypatch, tmp_path, capsys):
     assert "new-collector" in capsys.readouterr().out
 
 
-def test_unimplemented_commands_say_so(capsys):
-    assert cli.main(["serve"]) == 2
-    assert "아직 구현되지 않았다" in capsys.readouterr().out
+def test_serve_binds_loopback_by_default(monkeypatch, capsys):
+    """기본 호스트가 127.0.0.1 이다. 편의가 아니라 컴플라이언스에 인접한 결정이다 —
+    미검토 산출물이 경고와 함께 뜨는 화면을 LAN 에 열면 의도치 않은 공표가 된다.
+
+    서버를 실제로 띄우지 않고 uvicorn.run 에 넘어간 인자만 본다.
+    """
+    calls = {}
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls.update(kw))
+
+    assert cli.main(["serve"]) == 0
+    assert calls["host"] == "127.0.0.1"
+    assert calls["port"] == 8420
+    assert "http://127.0.0.1:8420" in capsys.readouterr().out
+
+
+def test_serve_honours_host_and_port(monkeypatch):
+    calls = {}
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls.update(kw))
+
+    assert cli.main(["serve", "--host", "0.0.0.0", "--port", "9000"]) == 0
+    assert (calls["host"], calls["port"]) == ("0.0.0.0", 9000)
+
+
+def test_serve_warns_but_still_starts_with_no_records(monkeypatch, tmp_path, capsys):
+    """서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 경고하고 띄운다."""
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: None)
+    monkeypatch.setattr(store, "RECORDS_DIR", tmp_path / "없다")
+
+    assert cli.main(["serve"]) == 0
+    assert "분석 결과가 0건" in capsys.readouterr().out
 
 
 def test_collect_reports_missing_config_without_traceback(monkeypatch, capsys):
