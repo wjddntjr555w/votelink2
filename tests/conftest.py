@@ -13,13 +13,21 @@ from votelink.contract.models import KST, Record
 NOW = datetime(2026, 9, 1, 12, 0, tzinfo=KST)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def data_root(tmp_path, monkeypatch):
     """data/ 하위 경로를 임시 디렉터리로 돌린다.
 
     raw 는 storage 가, records/rejected 는 store 가 진실이다 (L1·L2 공용이라
     votelink/store.py 로 옮겼다). storage 쪽 재수출 이름을 패치해도 함수는
     store 모듈의 전역을 보므로 효과가 없다 — 여기를 고쳐야 한다.
+
+    **autouse 인 이유**: 이 픽스처를 안 받은 테스트가 하나라도 있으면 그 테스트는
+    실제 `data/records/` 에 쓴다. 실제로 그렇게 샌 흔적이 남아 있었다
+    (`data/records/fake_collector.jsonl`, `data/rejected/fake_collector/`).
+    개별 테스트가 기억해야 하는 안전장치는 언젠가 잊힌다.
+
+    `data/reference/` 는 돌리지 않는다 — 읽기 전용 참조 데이터이고, 실제 파일이
+    유효한지 보는 것도 테스트의 일이다(`test_districts.py`, `test_compliance.py`).
     """
     monkeypatch.setattr(storage, "RAW_DIR", tmp_path / "raw")
     monkeypatch.setattr(store, "RECORDS_DIR", tmp_path / "records")
