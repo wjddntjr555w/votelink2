@@ -1,0 +1,53 @@
+# 산출물 검증 정책. 규약은 `docs/90-compliance.md`.
+#
+# **이 파일은 법률 검토의 기록이지 판정이 아니다.** 시스템은 적법성을 판단하지 않는다.
+# 검토가 있었는지 없었는지만 기록하고, 없으면 웹앱이 경고를 띄운다.
+# 최종 판단자는 캠프의 법률 검토다.
+#
+# 코드가 아니라 데이터로 두는 이유는 districts.yaml(획정이 바뀐다)·
+# party_lineage.yaml(정치적 판단이다)과 같다 — 변호사가 파이썬을 읽지 않아도
+# 검토하고 고칠 수 있어야 한다.
+#
+# 검토를 마쳤다면 그 항목의 status 를 cleared 로 바꾸고 reviewed_by 와 reviewed_at 을
+# 채운다. **reviewed_by 가 비어 있으면 cleared 로 인정되지 않는다** — 서명 없는
+# 서명란은 서명이 아니다 (votelink/reference/compliance.py 의 review()).
+
+version: "2026-09 기준"
+
+# 선거일(YYYY-MM-DD). 모르면 null 로 둔다.
+# 여론조사 공표 금지기간처럼 기간에 의존하는 판정은 이 값 없이 계산할 수 없고,
+# 그런 항목은 전부 unreviewed 로 떨어진다. 0이나 임의 날짜로 채우지 않는다.
+election_day: null
+
+# 정책표에 없는 kind 의 처분. **cleared 로 바꾸는 것은 규칙 5를 끄는 것이다.**
+# 코드가 이 값을 검증해서 cleared 면 로딩 자체가 실패한다.
+default_status: unreviewed
+
+outputs:
+  # 지금 실제로 레코드가 존재하는 산출물만 적는다.
+  # 아직 없는 kind(poll, poi, foot_traffic, local_issue 등)를 미리 적지 않는 이유:
+  # fail-closed 라서 적지 않아도 unreviewed 로 보호되고, 미리 적으면 집행되지 않는
+  # 규칙이 파일에만 쌓인다 (docs/90-compliance.md §6 · §11).
+
+  - kind: segment_profile
+    risk: low
+    derived: true
+    distribution: internal_only
+    ai_generated: false
+
+    # 신뢰도 하한. 미달이면 상태는 그대로 두고 화면에 경고 문구만 덧붙인다 —
+    # 검토를 통과한 것과 데이터가 튼튼한 것은 다른 문제다.
+    # 현재 voter_profile 은 0.7 이다(기준선 2건 결측: 2002 서울시·2007 전국).
+    min_confidence: 0.5
+
+    # 아직 아무도 법률 검토를 하지 않았다. 그래서 unreviewed 다.
+    # 대시보드 첫 화면에 경고 배너가 뜨는 것이 맞는 상태이며, 이것이 규칙 5가
+    # 동작한다는 증거다. 검토를 마치면 cleared 로 바꾸고 아래 두 칸을 채운다.
+    status: unreviewed
+    reviewed_by: ""
+    reviewed_at: ""
+    note: >-
+      읍면동 유권자 프로파일(A-001). 선관위 개표결과와 행안부 주민등록 인구라는
+      이미 공표된 집계의 재표현이며, 최소 집계 단위는 행정동이라 개인 식별 정보가
+      들어 있지 않다. 캠프 내부 열람을 전제로 한다 — 화면을 외부로 내보내면
+      사전선거운동 기간 판정 대상이 된다.
