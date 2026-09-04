@@ -21,6 +21,7 @@
 | 프로젝트 전체 파악 | `docs/00-overview.md` (이것만) |
 | API 키·계정이 필요한지 | `docs/SETUP.md` |
 | 선거구에 어느 동이 속하는지 | `data/reference/districts.yaml` (코드에 박지 말 것) |
+| 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.
@@ -51,7 +52,7 @@ uv run votelink analyze <id>     # 분석기 실행
 uv run votelink analyze <id> --district <선거구>  # 이 선거구로 분석 (생략 시 default_district)
 uv run votelink analyze <id> --dry-run   # 저장 없이 계약 검증만
 uv run votelink analyze --sync           # analyzers/registry.yaml 재생성
-uv run votelink serve            # 로컬 웹앱 (기본 8420). `/` 가 선거구 선택, `/d/<선거구>/` 가 각 화면
+uv run votelink serve            # 로컬 웹앱 (기본 8420). `/` 선거구 선택 · `/d/<선거구>/`[/map] · `/compare` · `/nation`. `?election_type=` 로 계열 재필터
 uv run votelink serve --district <선거구>  # `/` 를 이 선거구로 바로 보낸다
 uv run pytest                    # 테스트
 uv run ruff check . && uv run ruff format .

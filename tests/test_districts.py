@@ -67,10 +67,14 @@ def test_internal_codes_are_all_confirmed():
 
 
 def test_internal_codes_match_what_mois_actually_collected():
-    """선거구 정의의 코드가 인구 레코드의 geo_code 와 정확히 일치해야 한다.
+    """선거구 정의의 코드가 인구 레코드의 geo_code 와 실제로 만나야 한다.
 
     이게 어긋나면 L2에서 선거결과와 인구를 조인할 수 없다 — 두 수집기를
     만든 이유가 통째로 사라진다. 레코드가 아직 없으면 검증할 게 없으므로 skip.
+
+    `records/mois_population.jsonl` 은 선거구별로 나뉘지 않는다(`docs/11-storage.md`)
+    — 다른 선거구를 collect 하면 같은 파일에 쌓인다(D-001, 47개 선거구 백필).
+    그래서 '정확히 일치'가 아니라 'TARGET 의 코드가 전부 그 안에 있다'로 확인한다.
     """
     records = Path("data/records/mois_population.jsonl")
     if not records.exists():
@@ -79,9 +83,8 @@ def test_internal_codes_match_what_mois_actually_collected():
     lines = [line for line in records.read_text("utf-8").splitlines() if line.strip()]
     collected = {json.loads(line)["geo_code"] for line in lines}
     defined = set(resolve_district(TARGET).emd_codes)
-    assert defined == collected, (
-        f"선거구 정의에만: {defined - collected} / 수집분에만: {collected - defined}"
-    )
+    missing = defined - collected
+    assert not missing, f"선거구 정의에 있는데 수집 레코드에는 없다: {missing}"
 
 
 def test_unknown_district_lists_known_ones():

@@ -34,6 +34,20 @@ from .response import ApiError, ResponseShapeError, extract_rows
 SERVICE_KEY_ENV = "DATA_GO_KR_SERVICE_KEY"
 
 
+def emd_admm_codes(raw: RawBatch) -> Iterator[tuple[str, str, str]]:
+    """raw 응답에서 (시군구명, 행정동명, admmCd) 를 그대로 펼친다.
+
+    이름 필터도, 계약 변환도 하지 않는다 — `districts.yaml` 백필(`district
+    backfill-codes`)이 그 자치구의 **모든** 행정동을 보고 싶을 때 쓴다. 봉투 열기·
+    통반 집계는 이 수집기의 `extract_rows`/`aggregate_rows` 를 그대로 재사용해
+    응답 형식 지식이 이 패키지 밖으로 새지 않게 한다.
+    """
+    rows = extract_rows(raw.body, "")
+    for agg in aggregate_rows(rows):
+        if agg.admm_code:
+            yield agg.sigungu, agg.emd, agg.admm_code
+
+
 def normalize_service_key(raw: str) -> str:
     """포털은 인증키를 Encoding/Decoding 두 형태로 준다.
 

@@ -10,13 +10,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from votelink.analyze import registry as analyze_registry
 from votelink.analyze import runner as analyze_runner
 from votelink.analyze.base import AnalyzeError
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
 from votelink.contract.models import GEO_CODE_DIGITS, KST
-from votelink.reference import compliance, districts
+from votelink.reference import compliance, districts, emd_backfill
 from votelink.web import DEFAULT_HOST, DEFAULT_PORT
 from votelink.web.loader import AmbiguousDistrict, load_profiles
 from votelink.web.settings import WebSettings
@@ -202,6 +204,19 @@ def cmd_district_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_district_backfill(args: argparse.Namespace) -> int:
+    """mois_population raw 응답의 admmCd 로 districts.yaml 의 emd[].code 를 채운다 (D-001)."""
+    try:
+        report = emd_backfill.backfill(district_id=args.district, dry_run=args.dry_run)
+    except districts.DistrictNotFound as exc:
+        print(f"실패: {exc}", file=sys.stderr)
+        return 1
+    print(report.summary())
+    if args.dry_run and (report.filled or report.conflicts):
+        print("\n(dry-run: 아무것도 고치지 않았다)")
+    return 1 if not report.ok else 0
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     if args.sync:
         path = analyze_registry.sync()
@@ -342,6 +357,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_dlist = d_sub.add_parser("list", help="정의된 선거구와 행정동")
     p_dlist.add_argument("--emd", dest="verbose_emd", action="store_true", help="행정동까지 출력")
     p_dlist.set_defaults(func=cmd_district_list)
+    p_dfill = d_sub.add_parser(
+        "backfill-codes",
+        help="mois_population raw 응답의 admmCd 로 emd[].code 를 채운다 (D-001)",
+    )
+    p_dfill.add_argument("--district", help="이 선거구만. 생략하면 pending 인 모든 선거구")
+    p_dfill.add_argument(
+        "--dry-run", action="store_true", help="파일을 고치지 않고 무엇이 채워질지만 출력"
+    )
+    p_dfill.set_defaults(func=cmd_district_backfill)
 
     p_analyze = sub.add_parser("analyze", help="분석기 실행 (L2)")
     p_analyze.add_argument("analyzer_id", nargs="?", help="생략하면 등록된 분석기 목록")
@@ -375,7 +399,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_env() -> None:
+    """`.env` 를 읽어 이미 export 된 값은 덮어쓰지 않고 채워 넣는다.
+
+    매번 `export DATA_GO_KR_SERVICE_KEY=...` 하지 않아도 되게 하는 통로다.
+    `encoding="utf-8-sig"` 는 BOM 이 붙은 `.env`(메모장 등으로 저장한 경우)도
+    첫 변수명이 깨지지 않게 한다.
+    """
+    load_dotenv(REPO_ROOT / ".env", encoding="utf-8-sig", override=False)
+
+
 def main(argv: list[str] | None = None) -> int:
+    _load_env()
     args = build_parser().parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

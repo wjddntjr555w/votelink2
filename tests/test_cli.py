@@ -88,6 +88,8 @@ def test_serve_warns_but_still_starts_with_no_records(monkeypatch, tmp_path, cap
 def test_collect_reports_missing_config_without_traceback(monkeypatch, capsys):
     """설정 누락은 사용자가 고칠 일이다. 트레이스백 대신 안내를 보여준다."""
     monkeypatch.delenv("DATA_GO_KR_SERVICE_KEY", raising=False)
+    # 실제 저장소 .env 가 키를 도로 채우지 않게 한다 — 이 테스트는 '키가 아예 없을 때'를 본다.
+    monkeypatch.setattr(cli, "_load_env", lambda: None)
     assert cli.main(["collect", "mois_population"]) == 1
     captured = capsys.readouterr()
     assert "DATA_GO_KR_SERVICE_KEY" in captured.err

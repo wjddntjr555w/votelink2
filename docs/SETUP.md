@@ -157,18 +157,33 @@ uv run votelink collect mois_population                     # 실제 수집
 선거구명 × 읍면동명). `seoul_songpa_gap` 만 admmCd 가 검증돼 있고, 나머지 47개는
 `code: null`(pending) 이다.
 
-**각 선거구를 실제로 쓰려면 그 선거구로 `mois_population` 을 한 번 돌려야 한다:**
+**각 선거구를 실제로 쓰려면 그 선거구로 `mois_population` 을 한 번 돌리고 백필 명령을
+돌려야 한다** (D-001, `docs/proposals/D-001-seoul-emd-backfill.md`):
 
 ```bash
-uv run votelink collect mois_population --district seoul_gangnam_gap
-uv run votelink district list --emd        # pending 이 0 이 됐는지 확인
+export DATA_GO_KR_SERVICE_KEY=...
+
+# 1) raw 를 채운다. 이름이 안 맞아 실패해도 raw 는 이미 저장돼 있으므로 무시하고 넘어간다.
+for d in $(uv run votelink district list | grep 미확인 | awk '{print $1}'); do
+  uv run votelink collect mois_population --district "$d" || true
+done
+
+# 2) raw 의 admmCd 로 districts.yaml 의 code 를 채운다.
+uv run votelink district backfill-codes --dry-run   # 무엇이 채워질지 + 이름 불일치 리포트
+uv run votelink district backfill-codes              # 실제 기록 (재실행해도 안전)
+
+uv run votelink district list --emd                  # pending 이 0 이 됐는지 확인
 ```
 
-응답의 `admmCd` 가 `districts.yaml` 의 해당 동 `code` 에 채워진다(수집기가 이름으로
-매칭). 행정동명이 MOIS 응답과 다르면(예: `창신제1동` vs `창신1동`) 수집이
-`missing target dong` 으로 크게 실패한다 — 그때 `districts.yaml` 의 `name` 을
-MOIS 표기에 맞춘다. `sigungu_admm_code`(표준 시군구코드)는 틀리면 다른 구 응답이
-와서 이름 필터가 전부 걸러 역시 크게 실패하므로 조용히 틀리지 않는다.
+`backfill-codes` 는 `data/raw/mois_population/` 의 원본 응답에서 admmCd 를 읽는다
+(`data/records/mois_population.jsonl` 이 아니다 — jsonl 은 이름이 이미 맞은 동만 있어
+불일치를 진단할 수 없다). **정확히 이름이 일치하는 동만 자동으로 채운다.** 행정동명이
+MOIS 응답과 다르면(예: `창신제1동` vs `창신1동`) 그 동은 채워지지 않고 리포트의
+"이름 불일치" / "응답에만 있는 동" 에 나온다 — `districts.yaml` 의 `name` 을 MOIS
+표기에 맞춘 뒤 `backfill-codes` 를 다시 돌린다. 근사 매칭으로 조용히 채우지 않는 이유는
+옆 동 코드가 붙으면 인구·득표가 그럴듯하게 틀리기 때문이다 (아래 "왜 이 대조가
+필요한가"와 같은 이유). `sigungu_admm_code`(표준 시군구코드)는 틀리면 다른 구 응답이
+와서 이름 필터가 전부 걸러 수집 자체가 크게 실패하므로 조용히 틀리지 않는다.
 
 ### ✅ 송파갑 대조 완료 (2026-09-02)
 
@@ -561,6 +576,15 @@ fixture 가 없는 동안 `test_parse.py` 4개는 **skip 된다.** 정상이다 
 
 환경변수로만 넣는다. **코드나 meta.yaml 에 키를 쓰지 않는다.**
 `.env` 는 `.gitignore` 에 있다.
+
+**저장소 루트에 `.env` 를 만들어두면 `uv run votelink ...` 를 실행할 때마다 자동으로
+읽는다** (`votelink/cli.py::main` 이 `python-dotenv` 로 로드). 매번 `export` 할 필요
+없다. 셸에서 이미 export 한 값이 있으면 그 값이 우선한다(덮어쓰지 않는다).
+
+```bash
+# .env (저장소 루트)
+DATA_GO_KR_SERVICE_KEY=발급받은_키
+```
 
 ```bash
 # .env
