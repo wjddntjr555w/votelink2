@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 {% from "_output.html" import output %}
 {% from "_card.html" import card %}
+{% from "_agg.html" import agg_card %}
 {% set active = 'dashboard' %}
 {% block title %}{{ view.district_name }} — votelink{% endblock %}
 
 {% block content %}
 <section class="head">
-  <h1>{{ view.district_name }}</h1>
+  <h1>{{ view.district_name }} <span class="muted">· {{ view.election_type_label }}</span></h1>
 
   {% if view.is_empty %}
     {# 서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 빈 상태에서 무엇을 할지 말해준다. #}
     <div class="banner banner--warn">
-      <strong>표시할 분석 결과가 없다</strong>
+      <strong>{{ view.election_type_label }} 분석 결과가 없다</strong>
       <p>먼저 분석기를 돌린다:</p>
       <p class="mono">uv run votelink analyze voter_profile --district {{ district_id }}</p>
       <p class="muted small">
@@ -63,6 +64,10 @@
 
 {% if not view.is_empty %}
   {% call output(view.verdict) %}
+    {% if view.summary_card %}
+    <div class="cards cards--summary">{{ agg_card(view.summary_card, view.gap_labels,
+        levels=('sigungu', 'sido', 'nation')) }}</div>
+    {% endif %}
     <div class="cards">
       {% for c in view.cards %}{{ card(c, view.gap_labels, view.trend_note) }}{% endfor %}
     </div>

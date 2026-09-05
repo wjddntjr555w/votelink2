@@ -1,7 +1,7 @@
 {# 행정동 한 곳 = 카드 한 장. 제안서 A-001의 설계다.
    좌표와 폭은 전부 뷰모델이 계산해서 온다 — 템플릿은 산술을 하지 않는다. #}
 
-{% macro card(c, gap_labels, trend_note) %}
+{% macro card(c, gap_labels, trend_note, levels=('district', 'sigungu', 'sido', 'nation')) %}
 <article class="card">
   <header>
     <h3>{{ c.geo_name }}</h3>
@@ -43,7 +43,7 @@
   <div class="gaps">
     <span class="label">상위 단위 대비 보수 편차 (최근 선거)</span>
     <ul>
-      {% for level in ('district', 'sigungu', 'sido', 'nation') %}
+      {% for level in levels %}
       {% set cell = c.gaps[level] %}
       {% set cover = c.gap_coverage[level] %}
       <li>
@@ -58,7 +58,7 @@
       {% endfor %}
     </ul>
     <p class="muted small">
-      지역구 대비 평균 {{ c.gap_summary.text }}
+      {{ c.gap_summary_label }} 대비 평균 {{ c.gap_summary.text }}
       {%- if c.missing_gaps %} · 기준선 {{ c.missing_gaps }}건 결측{% endif %}
     </p>
   </div>

@@ -60,11 +60,11 @@ import 가 무의미해진다. CLI는 `from votelink.web.app import create_app` 
 votelink/web/
   __init__.py     DEFAULT_HOST / DEFAULT_PORT 뿐. fastapi 를 import 하지 않는다
   settings.py     WebSettings — district_id, records_root, policy_path
-  loader.py       디스크만. store.iter_records → 타입 변환 → 선거구·최신 as_of 필터
-  viewmodel.py    순수 함수. Record → DistrictView / EmdCard / GapCell / 색·좌표
+  loader.py       디스크만. _dedup_newest(공용) · load_profiles · load_comparison · load_all_emd
+  viewmodel.py    순수 함수. build_card / build_view / aggregate_profiles / build_comparison / build_nation_view
   shapes.py       배치 좌표 공급자 (격자 ↔ 훗날 GeoJSON)
-  app.py          create_app() 팩토리 + 라우트
-  templates/      base.html dashboard.html map.html _card.html _output.html
+  app.py          create_app() 팩토리 + 라우트 (/, /d/<선거구>/[map], /compare, /nation, /healthz)
+  templates/      base.html dashboard.html map.html compare.html nation.html _card.html _agg.html _output.html
   static/app.css
 ```
 
@@ -81,13 +81,16 @@ votelink/web/
 
 ## 5. 무엇을 읽는가 — 화이트리스트
 
-로더는 세 겹으로 거른다. 전부 **fail-closed** 다.
+로더는 네 겹으로 거른다. 전부 **fail-closed** 다. (`loader._dedup_newest`)
 
 | # | 필터 | 왜 |
 |---|---|---|
 | 1 | `iter_records(kinds=[...])` — **kind를 반드시 준다** | 인자 없이 부르면 `data/records/` 전체를 먹는다 |
 | 2 | `District.contains(geo_code)` | 위생 조치가 아니라 **원래 맞는 동작**이다. 한 화면은 선거구 하나만 보여준다 — `data/records/` 한 파일에 여러 선거구 레코드가 섞여 있어도 이 필터가 갈라낸다 |
-| 3 | `(profile_type, geo_code)` 별 **최신 `as_of` 하나** | §6 참조 |
+| 3 | `payload.election_type == 요청값` (기본 `presidential`) | 한 동에 대선·총선·지선 레코드가 별도로 있다. 계열을 섞으면 편차의 의미가 무너진다 (A-001) |
+| 4 | `(profile_type, election_type, geo_code)` 별 **최신 `as_of` 하나** | §6 참조 |
+
+**`/compare` 는 필터 2를 선거구마다 반복한다** (`load_comparison` 이 각 선거구로 `load_profiles`). **`/nation` 은 필터 2를 의도적으로 건너뛴다** — 전국은 선거구 하나가 아니다. 구멍이 아니라 문서화된 결정이다.
 
 `exclude_owners=["fake_collector"]` 같은 **블랙리스트는 쓰지 않는다.** 시험 산출물 이름을
 프로덕션 코드에 굽는 것이고, 다음 주에는 다른 이름일 것이다. 화이트리스트가 이미 가능하다.
@@ -97,20 +100,26 @@ votelink/web/
 ## 6. 같은 동이 여러 장이 될 수 있다
 
 `analyzers/voter_profile/analyzer.py` 의 `natural_key` 는
-`f"{PROFILE_TYPE}|{code}|{reference_month}"` 이고, `store.upsert_records` 는 다른 키를 보존한다.
-**다음 달 인구로 재분석하면 같은 동의 레코드가 둘이 된다.**
+`f"{PROFILE_TYPE}|{election_type}|{code}|{reference_month}"` 이고, `store.upsert_records` 는 다른 키를 보존한다.
+**다음 달 인구로 재분석하면 같은 (동, 계열) 의 레코드가 둘이 된다.**
 
 이건 분석기의 버그가 아니다. 과거 분석을 남기는 것은 의도된 설계다
 (`store.upsert_records` 독스트링: "다른 `as_of` 의 과거 분석은 record_id 가 다르므로 그대로 남는다").
 
-**고르는 것은 L3의 일이다.** 로더가 `(profile_type, geo_code)` 별로 `as_of` 가 가장 큰 하나만
-남기고, **몇 건을 숨겼는지 보고한다.** 카드가 18장이 되는 화면은 틀린 화면이고, 아무 말 없이
+**고르는 것은 L3의 일이다.** 로더가 `(profile_type, election_type, geo_code)` 별로 `as_of` 가 가장 큰
+하나만 남기고, **몇 건을 숨겼는지 보고한다.** 카드가 18장이 되는 화면은 틀린 화면이고, 아무 말 없이
 9장이 되는 화면도 틀린 화면이다.
 
 ## 7. 화면
 
-MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 이상 만들지 않는다.
-선거구는 URL 축(`/d/<선거구>/...`)으로만 늘어난다 — 화면 종류는 그대로다.
+화면 축은 셋이다:
+
+- **선거구** — `GET /d/<선거구>/`(대시보드) + `GET /d/<선거구>/map`(지도)
+- **선거구 비교** — `GET /compare` (모든 선거구를 근사 집계해 한 표로)
+- **전국 동** — `GET /nation` (선거구 소속 필터를 건너뛴 전체 동)
+
+각 화면은 `?election_type=`(기본 `presidential`)로 계열을 재필터한다 — `?sort=`·`?metric=` 과 같은
+층위다. 선거구는 여전히 **경로 축**(`/d/<선거구>/`), 집계는 그 위의 뷰다.
 
 ### `GET /` — 선거구 라우팅
 
@@ -134,6 +143,11 @@ MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 �
 | 검증 배지 | `review()` 결과 (`docs/90-compliance.md §8`) |
 | 진단 줄 | 읽은 파일·건수, **숨긴 건수** (구 `as_of`, 선거구 밖) |
 
+**선거구 종합 카드 1장** — `viewmodel.aggregate_profiles` 가 동 카드들을 하나로 묶는다.
+`camp_share`·`turnout` 은 **인구·투표율 가중 근사**다 (원시 득표수가 파생 레코드에 없다) →
+`approx` 배지로 표시한다. `age_mix`·`sex_ratio`·인구 합은 정확하다. 추세는 단일 값 대신
+멤버 동들의 **분포**(`trend_mix`)로 — 단일 추세로 뭉개려면 L2 임계값을 화면에서 읽어야 한다.
+
 **동 카드 × 9** — 제안서 A-001이 "`segment_profile` 레코드 1건 = 동 카드 한 장"으로 설계했다.
 
 | 요소 | 출처 |
@@ -151,16 +165,32 @@ MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 �
 | 신뢰도 | `record.confidence` |
 | 근거 | `len(record.derived_from)` + `<details>` 로 record_id 목록 |
 
-`?sort=code|swing|gap|turnout` (기본 `code`). 서버 렌더라 JS가 필요 없다.
+`?sort=code|swing|gap|turnout` (기본 `code`), `?election_type=`(기본 `presidential`).
+서버 렌더라 JS가 필요 없다.
 
 **`meta.yaml` 의 `config` 값(`trend_threshold` 등)을 화면에 쓰지 않는다.** L2 내부 값이다.
 
 ### `GET /d/{district_id}/map` 지도
 
-- 9칸 + `?metric=gap_district|swing|conservative|turnout` (기본 `gap_district`)
+- 9칸 + `?metric=gap_district|swing|conservative|turnout` (기본 `gap_district`), `?election_type=`
 - **발산 스케일**(gap·conservative, 중심 0) vs **순차 스케일**(swing·turnout)
 - 범례에 **실제 min/max 수치와 분모**를 표기
 - **값 없음은 색이 아니라 해칭 + 별도 범례 항목** (§8)
+
+### `GET /compare` — 선거구 비교
+
+정의된 모든 선거구를 훑어 각각 `aggregate_profiles` 로 한 행을 만든다. 행: 선거구명(링크) ·
+진영 구성 mini bar · 투표율 · 스윙 · **전국 대비 편차**(선거구마다 시/도·시군구가 달라
+전국만 공통 축) · 인구 · 동 `loaded/expected` · 검토 상태. `?sort=name|conservative|gap_nation|turnout|swing`.
+
+프로파일이 0건인 선거구는 **`skipped` 목록**에 사유와 조치 커맨드를 남긴다 — 조용히 빠지지
+않는다. 행이 근사 집계이므로 헤더에 그 사실을 적고, `worst_verdict` 로 규칙 5를 게이팅한다.
+
+### `GET /nation` — 전국 전체 동
+
+`load_all_emd` 이 `District.contains` 를 건너뛰고 모든 `segment_profile` EMD 레코드를 로드한다
+(계열 필터·최신 `as_of` dedup 은 그대로). 편차는 **전국 대비만** 유효하다 (`_card.html` 에
+`levels=('nation',)`). 분모가 없으므로 "표시 N곳"만 적는다. `?sort=`·`?election_type=`.
 
 ### `GET /healthz`
 
@@ -168,8 +198,11 @@ MVP 경계(`00-overview.md §4`)가 **대시보드 1 + 지도 1** 이다. 그 �
 
 ### 만들지 않는 것
 
-**동 상세 페이지 `/emd/{code}` 를 만들지 않는다.** MVP 경계가 2화면이고, 제안서가
-"레코드 1건 = 카드 한 장"이라 했으니 시계열까지 카드 안에 넣는다.
+**동 상세 페이지 `/emd/{code}` 를 만들지 않는다.** 제안서가 "레코드 1건 = 카드 한 장"이라
+했으니 시계열까지 카드 안에 넣는다.
+
+**전국 지도 `/nation/map` 은 국가 경계 파일이 들어오기 전까지 만들지 않는다.** 격자 폴백이
+수백 칸을 만들지만 지리적 의미가 0이다. 경계 파일이 들어오면 `build_map` 재사용 한 줄이다.
 
 ## 8. `gap_* = None` 을 0으로 만들지 않는다
 
@@ -185,6 +218,7 @@ UI가 이걸 무너뜨리는 경로가 넷이고, 넷 다 막는다.
 | **색** | 칠하지 않는다. 발산 스케일에서 None이 중립색이 되면 화면상 0.0과 **완전히 같아진다.** **해칭(사선)** 으로 — 색과 무늬는 다른 채널이라 색각 접근성에도 맞다 |
 | **집계** | 평균·최대·최소에 넣지 않고 **분모를 노출한다**: "평균 편차 −4.2%p (8회 중 7회 기준)" |
 | **선 그래프** | 점을 찍지 않고 **선을 끊는다.** 앞뒤를 이으면 없는 데이터를 보간한 게 된다 |
+| **집계 카드 (근사)** | `aggregate_profiles` 의 `camp_share`·`turnout` 은 인구·투표율 가중 근사다 → `approx` 배지. gap 롤업은 `GapSummary`(멤버 동들의 편차, 분모 노출). trend 는 `trend_mix` 분포 |
 
 **타입으로 강제한다.** 뷰모델이 `float | None` 을 템플릿에 넘기지 않고
 `GapCell(value, text, known, css_class)` 를 넘긴다.
@@ -297,3 +331,7 @@ uv run votelink serve [--host 127.0.0.1] [--port 8420] [--district <id>]
 `00-overview.md §4-1` 이 SQLite를 예고하지만 v0.1에서는 쓰지 않는다. 레코드가 9건이고
 `docs/11-storage.md` 는 아직 없다. 전량을 메모리에 올리는 것으로 충분하며, 필요해지는 시점은
 `foot_traffic` 처럼 건수가 자릿수로 커지는 데이터가 들어올 때다.
+
+`/nation` 이 카드 수가 데이터에 비례하는 첫 화면이다 — 선거구 코드가 전부 채워지고 계열이
+셋으로 늘면 수백~수천 장이 된다. `load_comparison` 도 N선거구 × 전체 스캔이라 O(N·R) 이다.
+지금은 무의미하지만, 여기가 SQLite 트리거 지점이다.

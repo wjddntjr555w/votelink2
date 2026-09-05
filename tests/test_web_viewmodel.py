@@ -26,12 +26,14 @@ from votelink.web.viewmodel import (
     UNKNOWN_TEXT,
     GapCell,
     GapSummary,
+    aggregate_profiles,
     build_card,
     build_map,
     build_view,
     camp_bar,
     divergent_fill,
     fmt,
+    gap_labels,
     sort_cards,
     sparkline,
     worst_verdict,
@@ -64,6 +66,7 @@ def payload_dict(series: list[dict]) -> dict:
     return {
         "profile_type": "voter_profile",
         "as_of": "2024-12",
+        "election_type": "presidential",
         "lean_series": series,
         "swing": max(con) - min(con),
         "trend": "stable",
@@ -213,6 +216,105 @@ def test_zero_gap_still_gets_a_color(tmp_path):
     assert cell.fill.startswith("hsl(")
 
 
+# --- 집계 카드 -----------------------------------------------------------------
+
+
+def agg_profile(
+    code: str,
+    con: float,
+    pop: int,
+    *,
+    sex_ratio: float = 1.0,
+    trend: str = "stable",
+    gap_nation: float | None = None,
+    turnout: float = 70.0,
+) -> EmdProfile:
+    series = [
+        lean("2020-04-15", con - 5, gap_nation=gap_nation, turnout=turnout),
+        lean("2025-06-03", con, gap_nation=gap_nation, turnout=turnout),
+    ]
+    payload = payload_dict(series)
+    payload["population_total"] = pop
+    payload["sex_ratio"] = sex_ratio
+    payload["trend"] = trend
+    payload["swing"] = 5.0
+    record = make_record(
+        kind="segment_profile",
+        geo_code=code,
+        geo_name=f"동{code[-4:]}",
+        payload=payload,
+        natural_key=f"voter_profile|presidential|{code}|2024-12",
+    )
+    return EmdProfile(record=record, payload=SegmentProfilePayload.model_validate(record.payload))
+
+
+def test_aggregate_camp_bar_is_population_turnout_weighted_not_arithmetic():
+    """작은 동과 큰 동을 같은 무게로 섞으면 왜곡된다."""
+    small = agg_profile(CODES[0], 40.0, 1000)
+    big = agg_profile(CODES[1], 60.0, 3000)
+    agg = aggregate_profiles([small, big], label="종합", policy=cleared_policy())
+    con = next(s.pct for s in agg.camp_bar if s.camp is Camp.CONSERVATIVE)
+    assert con != pytest.approx(50.0)  # 산술평균이 아니다
+    assert con == pytest.approx(55.0, abs=0.1)  # (40·1000 + 60·3000) / 4000
+    assert sum(s.pct for s in agg.camp_bar) == pytest.approx(100.0, abs=0.01)
+    assert agg.approx is True
+
+
+def test_aggregate_age_mix_sums_to_100_and_is_population_weighted():
+    agg = aggregate_profiles(
+        [agg_profile(CODES[0], 40.0, 1000), agg_profile(CODES[1], 60.0, 9000)],
+        label="종합",
+        policy=cleared_policy(),
+    )
+    assert sum(a.pct for a in agg.age_bars) == pytest.approx(100.0, abs=0.05)
+
+
+def test_aggregate_sex_ratio_reconstructs_headcounts():
+    """비 + 인구로 남/여 인원을 복원해 합산 (정확)."""
+    a = agg_profile(CODES[0], 40.0, 1000, sex_ratio=1.0)  # 남 500 / 여 500
+    b = agg_profile(CODES[1], 40.0, 1000, sex_ratio=3.0)  # 남 750 / 여 250
+    agg = aggregate_profiles([a, b], label="종합", policy=cleared_policy())
+    # (500+750) / (500+250) = 1250/750
+    assert agg.sex_ratio == pytest.approx(1250 / 750, abs=1e-6)
+
+
+def test_aggregate_gap_summary_exposes_denominator_when_some_are_none():
+    known = agg_profile(CODES[0], 50.0, 1000, gap_nation=4.0)
+    blind = agg_profile(CODES[1], 50.0, 1000, gap_nation=None)
+    agg = aggregate_profiles(
+        [known, blind], label="종합", policy=cleared_policy(), levels=("nation",)
+    )
+    assert agg.gaps["nation"].known == 1
+    assert agg.gaps["nation"].total == 2
+    assert agg.gaps["nation"].mean == pytest.approx(4.0)  # None 을 0 으로 끌지 않는다
+
+
+def test_aggregate_trend_mix_counts_members():
+    agg = aggregate_profiles(
+        [
+            agg_profile(CODES[0], 50.0, 1000, trend="conservative_shift"),
+            agg_profile(CODES[1], 50.0, 1000, trend="stable"),
+            agg_profile(CODES[2], 50.0, 1000, trend="conservative_shift"),
+        ],
+        label="종합",
+        policy=cleared_policy(),
+    )
+    assert agg.trend_mix[Trend.CONSERVATIVE_SHIFT] == 2
+    assert agg.trend_mix[Trend.STABLE] == 1
+
+
+def test_aggregate_of_empty_is_none():
+    assert aggregate_profiles([], label="x", policy=cleared_policy()) is None
+
+
+def test_aggregate_is_deterministic():
+    profs = [agg_profile(CODES[0], 40.0, 1000), agg_profile(CODES[1], 60.0, 2000)]
+    policy = cleared_policy()
+    a = aggregate_profiles(profs, label="x", policy=policy)
+    b = aggregate_profiles(profs, label="x", policy=policy)
+    assert a == b
+
+
 # --- 카드 -----------------------------------------------------------------------
 
 
@@ -225,7 +327,7 @@ def _profiles(items: list[EmdProfile]) -> DistrictProfiles:
 
 
 def test_camp_bar_stacks_to_100():
-    card = build_card(make_profile(), make_district(), cleared_policy())
+    card = build_card(make_profile(), gap_labels(make_district()), cleared_policy())
     assert [s.camp for s in card.camp_bar] == list(
         (Camp.PROGRESSIVE, Camp.CENTRIST, Camp.CONSERVATIVE, Camp.OTHER)
     )
@@ -240,21 +342,21 @@ def test_camp_bar_keeps_zero_camps():
 
 def test_sex_ratio_has_no_percent_sign():
     """이 payload 의 유일한 비-퍼센트 값이다."""
-    card = build_card(make_profile(), make_district(), cleared_policy())
+    card = build_card(make_profile(), gap_labels(make_district()), cleared_policy())
     assert card.sex_ratio_text == "0.97"
     assert "%" not in card.sex_ratio_text
 
 
 def test_card_counts_missing_gaps():
     series = [lean("2020-04-15", 40.0), lean("2025-06-03", 50.0, gap_district=1.0)]
-    card = build_card(make_profile(CODES[0], series), make_district(), cleared_policy())
+    card = build_card(make_profile(CODES[0], series), gap_labels(make_district()), cleared_policy())
     # 2회 × 4단위 = 8칸, 그중 채워진 것은 gap_district 하나뿐이다
     assert card.missing_gaps == 7
 
 
 def test_card_uses_the_real_upper_unit_names():
     """편차 기준 이름을 코드에 박지 않는다."""
-    card = build_card(make_profile(), make_district(), cleared_policy())
+    card = build_card(make_profile(), gap_labels(make_district()), cleared_policy())
     assert "시험구" in card.gaps["sigungu"].title
     assert "시험시" in card.gaps["sido"].title
 
@@ -285,7 +387,7 @@ def test_gap_sort_puts_unknown_last():
     unknown = make_profile(CODES[1], [lean("2025-06-03", 50.0, gap_district=None)])
     high = make_profile(CODES[2], [lean("2025-06-03", 50.0, gap_district=9.0)])
     district, policy = make_district(), cleared_policy()
-    cards = [build_card(p, district, policy) for p in (known, unknown, high)]
+    cards = [build_card(p, gap_labels(district), policy) for p in (known, unknown, high)]
 
     ordered = sort_cards(cards, "gap")
     assert [c.gaps["district"].value for c in ordered] == [9.0, -5.0, None]
@@ -293,7 +395,8 @@ def test_gap_sort_puts_unknown_last():
 
 def test_unknown_sort_key_falls_back_to_code():
     cards = [
-        build_card(make_profile(c), make_district(), cleared_policy()) for c in (CODES[2], CODES[0])
+        build_card(make_profile(c), gap_labels(make_district()), cleared_policy())
+        for c in (CODES[2], CODES[0])
     ]
     assert [c.geo_code for c in sort_cards(cards, "말도안되는키")] == [CODES[0], CODES[2]]
 

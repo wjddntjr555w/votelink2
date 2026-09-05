@@ -78,7 +78,7 @@ store.load_records(self.meta.inputs, exclude_owners=[self.id])
 | `observed_at` | **입력이 가리키는 시점.** 분석 실행 시각이 아니다 — 실행할 때마다 값이 바뀌면 시계열이 망가진다 |
 | `derived_from` | 계산에 실제로 쓴 모든 `record_id`. 중복 불가 |
 | `confidence` | **1.0 을 주지 않는다.** 실측이 아니라 파생이다 |
-| `natural_key` | `<profile_type>\|<geo_code>\|<as_of>` 꼴. 같은 입력이면 같은 `record_id` |
+| `natural_key` | `<profile_type>\|<geo_code>\|<as_of>` 꼴. 같은 입력이면 같은 `record_id`. 한 분석기가 같은 동에 여러 축(예: 선거 계열)으로 레코드를 내면 그 축을 키에 더한다 — `voter_profile` 은 `<profile_type>\|<election_type>\|<geo_code>\|<as_of>` |
 
 새 `kind` 를 내려면 `votelink/contract/payloads.py` 에 모델을 등록해야 한다.
 **이건 계약 변경이며 사용자 승인이 필요하다.**

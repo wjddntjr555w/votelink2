@@ -16,11 +16,18 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from votelink.contract.enums import AgeBand, Camp, Trend
+from votelink.contract.enums import AgeBand, Camp, ElectionType, Trend
 from votelink.contract.payloads import LeanPoint
 from votelink.reference.compliance import Policy, ReviewStatus, Verdict, review_with
 from votelink.reference.districts import District
-from votelink.web.loader import DistrictProfiles, EmdProfile, LoadDiagnostics
+from votelink.web.loader import (
+    ComparisonProfiles,
+    DistrictProfiles,
+    EmdProfile,
+    LoadDiagnostics,
+    NationProfiles,
+    SkippedDistrict,
+)
 from votelink.web.shapes import ShapeSet
 
 UNKNOWN_TEXT = "—"
@@ -48,6 +55,31 @@ TREND_NOTE = (Trend.__doc__ or "").strip()
 """
 
 GAP_LEVELS = ("district", "sigungu", "sido", "nation")
+
+ELECTION_TYPE_LABELS: dict[ElectionType, str] = {
+    ElectionType.PRESIDENTIAL: "대선",
+    ElectionType.NATIONAL_ASSEMBLY: "총선",
+    ElectionType.LOCAL: "지방선거",
+    ElectionType.BY_ELECTION: "재보궐",
+}
+DEFAULT_ELECTION_TYPE = ElectionType.PRESIDENTIAL
+
+
+def resolve_election_type(raw: str | None) -> ElectionType:
+    """모르는 값은 기본값으로 떨어뜨린다 (sort/metric 폴백과 같은 관용)."""
+    try:
+        return ElectionType(raw) if raw else DEFAULT_ELECTION_TYPE
+    except ValueError:
+        return DEFAULT_ELECTION_TYPE
+
+
+def election_type_choices() -> list[tuple[str, str]]:
+    """(값, 라벨) 목록. 스위처 UI 가 쓴다 — 데이터 유무와 무관하게 4종 전부.
+
+    "데이터 없음"과 "종류 없음"을 같게 만들지 않는다 (§8 정신).
+    """
+    return [(t.value, ELECTION_TYPE_LABELS[t]) for t in ElectionType]
+
 
 _STATUS_SEVERITY = {
     ReviewStatus.CLEARED: 0,
@@ -277,6 +309,8 @@ class EmdCard(BaseModel):
     2002년 시도 기준선이 그런 상태다.
     """
     gap_summary: GapSummary
+    gap_summary_label: str = "지역구"
+    """gap_summary 가 어느 단위 대비인지. 템플릿이 "지역구"를 박아 쓰지 않게."""
     conservative_spark: Sparkline
     gap_spark: Sparkline
     age_bars: list[AgeBar]
@@ -290,11 +324,19 @@ class EmdCard(BaseModel):
     verdict: Verdict
 
 
-def build_card(profile: EmdProfile, district: District, policy: Policy) -> EmdCard:
+def build_card(
+    profile: EmdProfile,
+    labels: dict[str, str],
+    policy: Policy,
+    *,
+    levels: Sequence[str] = GAP_LEVELS,
+    primary: str = "district",
+) -> EmdCard:
+    """`labels` 는 편차 기준 단위의 이름 dict (`gap_labels(district)` 또는 `{"nation": "전국"}`).
+    `levels` 는 이 카드가 보여줄 편차 단위, `primary` 는 요약·스파크라인의 기준 단위."""
     payload = profile.payload
     series = payload.lean_series
     latest = series[-1]
-    labels = gap_labels(district)
     election_ids = [p.election_id for p in series]
 
     return EmdCard(
@@ -309,18 +351,18 @@ def build_card(profile: EmdProfile, district: District, policy: Policy) -> EmdCa
         trend=payload.trend,
         trend_label=TREND_LABELS[payload.trend],
         gaps={
-            level: GapCell.of(getattr(latest, f"gap_{level}"), labels[level])
-            for level in GAP_LEVELS
+            level: GapCell.of(getattr(latest, f"gap_{level}"), labels.get(level, level))
+            for level in levels
         },
         gap_coverage={
-            level: GapSummary.of([getattr(p, f"gap_{level}") for p in series])
-            for level in GAP_LEVELS
+            level: GapSummary.of([getattr(p, f"gap_{level}") for p in series]) for level in levels
         },
-        gap_summary=GapSummary.of([p.gap_district for p in series]),
+        gap_summary=GapSummary.of([getattr(p, f"gap_{primary}") for p in series]),
+        gap_summary_label=labels.get(primary, primary),
         conservative_spark=sparkline(
             [p.camp_share[Camp.CONSERVATIVE] for p in series], election_ids
         ),
-        gap_spark=sparkline([p.gap_district for p in series], election_ids),
+        gap_spark=sparkline([getattr(p, f"gap_{primary}") for p in series], election_ids),
         age_bars=age_bars(payload.age_mix),
         sex_ratio=payload.sex_ratio,
         # 이 payload 의 유일한 비-퍼센트 값이다. % 를 붙이지 않는다.
@@ -328,12 +370,185 @@ def build_card(profile: EmdProfile, district: District, policy: Policy) -> EmdCa
         population_total=payload.population_total,
         confidence=profile.record.confidence,
         missing_gaps=sum(
-            1 for p in series for level in GAP_LEVELS if getattr(p, f"gap_{level}") is None
+            1 for p in series for level in levels if getattr(p, f"gap_{level}") is None
         ),
         evidence_count=len(profile.record.derived_from),
         evidence_ids=list(profile.record.derived_from),
         verdict=review_with(policy, profile.record),
     )
+
+
+# --- 집계 카드 -----------------------------------------------------------------
+#
+# 여러 동을 하나로 묶어 본다 (선거구 종합 / 전국 종합). **원시 득표수가 파생 레코드에
+# 없어** camp_share·turnout 집계는 인구·투표율 가중 근사다 — approx 배지로 표시한다.
+# 인구 구성(age·sex)은 인구가 정확한 가중치라 정확하고, 인구 합도 정확하다.
+
+
+class AggregateCard(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    label: str
+    member_count: int
+    camp_bar: list[BarSlice]
+    turnout: float
+    turnout_known: int
+    turnout_total: int
+    swing: float
+    trend_mix: dict[Trend, int]
+    """멤버 동들의 추세 분포. 단일 추세로 뭉개지 않는다 — 그러려면 L2 임계값을 화면에서
+    읽어야 하는데 그건 계층 무지를 깬다 (§7)."""
+    age_bars: list[AgeBar]
+    sex_ratio: float
+    sex_ratio_text: str
+    population_total: int
+    gaps: dict[str, GapSummary]
+    """단위별로 멤버 동들의 최근 선거 편차를 요약 (분모 노출)."""
+    conservative_spark: Sparkline
+    gap_spark: Sparkline
+    approx: bool
+    approx_reason: str
+    verdict: Verdict | None = None
+
+    @property
+    def trend_mix_text(self) -> str:
+        parts = [f"{TREND_LABELS[t]} {n}" for t, n in self.trend_mix.items() if n]
+        return " · ".join(parts) or UNKNOWN_TEXT
+
+
+_APPROX_REASON = (
+    "진영 구성·투표율은 동별 인구·투표율 가중 근사다 (원시 득표수가 파생 레코드에 없다)"
+)
+
+
+def _weighted_camp(rows: Sequence[tuple[LeanPoint, float]]) -> dict[Camp, float]:
+    """rows = (point, voters). 투표자 수 가중 평균 후 100 으로 정규화."""
+    wsum = sum(w for _, w in rows) or 1.0
+    raw = {c: sum(pt.camp_share[c] * w for pt, w in rows) / wsum for c in Camp}
+    total = sum(raw.values()) or 1.0
+    return {c: v * 100.0 / total for c, v in raw.items()}
+
+
+def aggregate_profiles(
+    profiles: Sequence[EmdProfile],
+    *,
+    label: str,
+    policy: Policy,
+    levels: Sequence[str] = GAP_LEVELS,
+    primary: str = "district",
+) -> AggregateCard | None:
+    """동 프로파일 여러 개 → 집계 카드 하나. 빈 입력이면 None."""
+    profiles = list(profiles)
+    if not profiles:
+        return None
+
+    dates: dict[str, str] = {}
+    for p in profiles:
+        for pt in p.payload.lean_series:
+            dates[pt.election_id] = pt.election_date
+    election_ids = sorted(dates, key=lambda e: dates[e])
+    etype = profiles[0].payload.election_type
+
+    con_series: list[float | None] = []
+    gap_series: list[float | None] = []
+    latest_point: LeanPoint | None = None
+    latest_turnout = 0.0
+    turnout_known = 0
+
+    for eid in election_ids:
+        rows = [
+            (pt, p.payload.population_total)
+            for p in profiles
+            for pt in p.payload.lean_series
+            if pt.election_id == eid
+        ]
+        if not rows:
+            con_series.append(None)
+            gap_series.append(None)
+            continue
+        voters = [pop * pt.turnout / 100.0 for pt, pop in rows]
+        camp = _weighted_camp([(pt, w) for (pt, _), w in zip(rows, voters, strict=True)])
+        popsum = sum(pop for _, pop in rows) or 1
+        turnout = sum(pt.turnout * pop for pt, pop in rows) / popsum
+        con_series.append(camp[Camp.CONSERVATIVE])
+
+        known = [
+            (getattr(pt, f"gap_{primary}"), w)
+            for (pt, _), w in zip(rows, voters, strict=True)
+            if getattr(pt, f"gap_{primary}") is not None
+        ]
+        gap_series.append(
+            sum(g * w for g, w in known) / (sum(w for _, w in known) or 1.0) if known else None
+        )
+
+        latest_point = LeanPoint(
+            election_id=eid,
+            election_date=dates[eid],
+            election_type=etype,
+            camp_share=camp,
+            turnout=min(turnout, 100.0),
+        )
+        latest_turnout = turnout
+        turnout_known = len(rows)
+
+    assert latest_point is not None  # election_ids 는 비지 않는다 (profiles 가 비지 않음)
+
+    con_known = [c for c in con_series if c is not None]
+    age_agg = _weighted_age(profiles)
+    males, females = _sex_split(profiles)
+
+    return AggregateCard(
+        label=label,
+        member_count=len(profiles),
+        camp_bar=camp_bar(latest_point),
+        turnout=latest_turnout,
+        turnout_known=turnout_known,
+        turnout_total=len(profiles),
+        swing=(max(con_known) - min(con_known)) if con_known else 0.0,
+        trend_mix=_trend_mix(profiles),
+        age_bars=age_bars(age_agg),
+        sex_ratio=(males / females) if females else 0.0,
+        sex_ratio_text=f"{(males / females):.2f}" if females else UNKNOWN_TEXT,
+        population_total=sum(p.payload.population_total for p in profiles),
+        gaps={
+            level: GapSummary.of(
+                [getattr(p.payload.lean_series[-1], f"gap_{level}") for p in profiles]
+            )
+            for level in levels
+        },
+        conservative_spark=sparkline(con_series, election_ids),
+        gap_spark=sparkline(gap_series, election_ids),
+        approx=True,
+        approx_reason=_APPROX_REASON,
+        verdict=worst_verdict([review_with(policy, p.record) for p in profiles]),
+    )
+
+
+def _weighted_age(profiles: Sequence[EmdProfile]) -> dict[AgeBand, float]:
+    popsum = sum(p.payload.population_total for p in profiles) or 1
+    return {
+        band: sum(p.payload.age_mix.get(band, 0.0) * p.payload.population_total for p in profiles)
+        / popsum
+        for band in AgeBand
+    }
+
+
+def _sex_split(profiles: Sequence[EmdProfile]) -> tuple[float, float]:
+    """성비 + 인구로 남/여 인원을 복원해 합산 (정확)."""
+    males = females = 0.0
+    for p in profiles:
+        r = p.payload.sex_ratio
+        pop = p.payload.population_total
+        females += pop / (1 + r)
+        males += pop * r / (1 + r)
+    return males, females
+
+
+def _trend_mix(profiles: Sequence[EmdProfile]) -> dict[Trend, int]:
+    counts = dict.fromkeys(Trend, 0)
+    for p in profiles:
+        counts[p.payload.trend] += 1
+    return counts
 
 
 # --- 대시보드 --------------------------------------------------------------------
@@ -354,10 +569,14 @@ def sort_cards(cards: Sequence[EmdCard], key: str) -> list[EmdCard]:
         return sorted(cards, key=lambda c: -c.turnout)
     if key == "gap":
         # 값 없음은 뒤로. 0.0 과 섞이지 않게 known 을 1차 키로 쓴다.
-        return sorted(
-            cards,
-            key=lambda c: (not c.gaps["district"].known, -(c.gaps["district"].value or 0.0)),
-        )
+        # 전국 화면 카드는 gaps 에 "nation" 키만 있다 — 있는 첫 단위를 쓴다.
+        def gap_key(c: EmdCard) -> tuple[bool, float]:
+            cell = next(iter(c.gaps.values()), None)
+            if cell is None:
+                return (True, 0.0)
+            return (not cell.known, -(cell.value or 0.0))
+
+        return sorted(cards, key=gap_key)
     return sorted(cards, key=lambda c: c.geo_code)
 
 
@@ -372,6 +591,12 @@ class DistrictView(BaseModel):
     """편차 기준이 되는 상위 단위의 실제 이름. 템플릿이 "서울시"를 박아 쓰지 않게."""
     sorts: dict[str, str] = Field(default_factory=lambda: dict(SORTS))
     trend_note: str = TREND_NOTE
+
+    election_type: str = DEFAULT_ELECTION_TYPE.value
+    election_type_label: str = ELECTION_TYPE_LABELS[DEFAULT_ELECTION_TYPE]
+    election_types: list[tuple[str, str]] = Field(default_factory=election_type_choices)
+    summary_card: AggregateCard | None = None
+    """이 선거구 전체를 한 장으로 묶은 집계 (근사). 카드가 없으면 None."""
 
     population_total: int = 0
     population_months: list[str] = Field(default_factory=list)
@@ -405,9 +630,16 @@ def worst_verdict(verdicts: Sequence[Verdict]) -> Verdict | None:
     return max(verdicts, key=lambda v: _STATUS_SEVERITY[v.status])
 
 
-def build_view(profiles: DistrictProfiles, policy: Policy, *, sort: str = "code") -> DistrictView:
+def build_view(
+    profiles: DistrictProfiles,
+    policy: Policy,
+    *,
+    sort: str = "code",
+    election_type: ElectionType = DEFAULT_ELECTION_TYPE,
+) -> DistrictView:
     district = profiles.district
-    cards = [build_card(p, district, policy) for p in profiles.profiles]
+    labels = gap_labels(district)
+    cards = [build_card(p, labels, policy) for p in profiles.profiles]
     ordered = sort_cards(cards, sort)
     latest = cards[0] if cards else None
 
@@ -416,7 +648,12 @@ def build_view(profiles: DistrictProfiles, policy: Policy, *, sort: str = "code"
         cards=ordered,
         diagnostics=profiles.diagnostics,
         sort=sort if sort in SORTS else "code",
-        gap_labels=gap_labels(district),
+        gap_labels=labels,
+        election_type=election_type.value,
+        election_type_label=ELECTION_TYPE_LABELS[election_type],
+        summary_card=aggregate_profiles(
+            profiles.profiles, label=f"{district.name} 종합", policy=policy
+        ),
         population_total=sum(c.population_total for c in cards),
         population_months=sorted({p.payload.population_month for p in profiles.profiles}),
         as_of_months=sorted({p.payload.as_of for p in profiles.profiles}),
@@ -425,6 +662,175 @@ def build_view(profiles: DistrictProfiles, policy: Policy, *, sort: str = "code"
         source_names=sorted({p.record.source_name for p in profiles.profiles}),
         source_licenses=sorted({p.record.source_license for p in profiles.profiles}),
         missing_gaps=sum(c.missing_gaps for c in cards),
+        verdict=worst_verdict([c.verdict for c in cards]),
+    )
+
+
+# --- 선거구 비교 --------------------------------------------------------------------
+
+COMPARE_SORTS = {
+    "name": "선거구명",
+    "conservative": "보수 득표 높은 순",
+    "gap_nation": "전국 대비 편차",
+    "turnout": "투표율 높은 순",
+    "swing": "스윙 큰 순",
+}
+
+
+class ComparisonRow(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    district_id: str
+    district_name: str
+    agg: AggregateCard
+    loaded: int
+    expected: int
+
+    @property
+    def coverage_text(self) -> str:
+        return f"{self.loaded} / {self.expected}"
+
+
+class ComparisonView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rows: list[ComparisonRow]
+    skipped: list[SkippedDistrict]
+    sort: str
+    sorts: dict[str, str] = Field(default_factory=lambda: dict(COMPARE_SORTS))
+    gap_labels: dict[str, str] = Field(default_factory=lambda: {"nation": "전국"})
+    election_type: str = DEFAULT_ELECTION_TYPE.value
+    election_type_label: str = ELECTION_TYPE_LABELS[DEFAULT_ELECTION_TYPE]
+    election_types: list[tuple[str, str]] = Field(default_factory=election_type_choices)
+    verdict: Verdict | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.rows
+
+
+def _row_conservative(row: ComparisonRow) -> float:
+    return next((s.pct for s in row.agg.camp_bar if s.camp is Camp.CONSERVATIVE), 0.0)
+
+
+def _sort_comparison(rows: Sequence[ComparisonRow], key: str) -> list[ComparisonRow]:
+    if key == "conservative":
+        return sorted(rows, key=lambda r: -_row_conservative(r))
+    if key == "turnout":
+        return sorted(rows, key=lambda r: -r.agg.turnout)
+    if key == "swing":
+        return sorted(rows, key=lambda r: -r.agg.swing)
+    if key == "gap_nation":
+        # 값 없음은 뒤로.
+        return sorted(
+            rows,
+            key=lambda r: (
+                r.agg.gaps["nation"].mean is None,
+                -(r.agg.gaps["nation"].mean or 0.0),
+            ),
+        )
+    return sorted(rows, key=lambda r: r.district_name)
+
+
+def build_comparison(
+    comparison: ComparisonProfiles, policy: Policy, *, sort: str = "name"
+) -> ComparisonView:
+    rows: list[ComparisonRow] = []
+    for dp in comparison.rows:
+        agg = aggregate_profiles(
+            dp.profiles,
+            label=dp.district.name,
+            policy=policy,
+            levels=("nation",),
+            primary="nation",
+        )
+        if agg is None:  # comparison.rows 는 비지 않은 것만 담지만 방어적으로
+            continue
+        rows.append(
+            ComparisonRow(
+                district_id=dp.district.id,
+                district_name=dp.district.name,
+                agg=agg,
+                loaded=dp.diagnostics.loaded,
+                expected=dp.diagnostics.expected,
+            )
+        )
+    ordered = _sort_comparison(rows, sort)
+    etype = comparison.election_type
+
+    return ComparisonView(
+        rows=ordered,
+        skipped=list(comparison.skipped),
+        sort=sort if sort in COMPARE_SORTS else "name",
+        election_type=etype.value,
+        election_type_label=ELECTION_TYPE_LABELS[etype],
+        verdict=worst_verdict([r.agg.verdict for r in rows if r.agg.verdict]),
+    )
+
+
+# --- 전국 전체 동 ----------------------------------------------------------------
+
+
+class NationView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    cards: list[EmdCard]
+    summary_card: AggregateCard | None
+    diagnostics: LoadDiagnostics
+    sort: str
+    sorts: dict[str, str] = Field(default_factory=lambda: dict(SORTS))
+    gap_labels: dict[str, str] = Field(default_factory=lambda: {"nation": "전국"})
+    trend_note: str = TREND_NOTE
+    election_type: str = DEFAULT_ELECTION_TYPE.value
+    election_type_label: str = ELECTION_TYPE_LABELS[DEFAULT_ELECTION_TYPE]
+    election_types: list[tuple[str, str]] = Field(default_factory=election_type_choices)
+
+    population_total: int = 0
+    as_of_months: list[str] = Field(default_factory=list)
+    latest_election_id: str = ""
+    latest_election_date: str = ""
+    source_names: list[str] = Field(default_factory=list)
+    source_licenses: list[str] = Field(default_factory=list)
+    verdict: Verdict | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.cards
+
+    @property
+    def shown_text(self) -> str:
+        """전국은 "있어야 할 수"의 분모가 없다. 표시한 곳 수만 정직하게 적는다."""
+        return f"표시 {self.diagnostics.loaded}곳"
+
+
+def build_nation_view(nation: NationProfiles, policy: Policy, *, sort: str = "code") -> NationView:
+    labels = {"nation": "전국"}
+    cards = [
+        build_card(p, labels, policy, levels=("nation",), primary="nation") for p in nation.profiles
+    ]
+    ordered = sort_cards(cards, sort)
+    latest = cards[0] if cards else None
+    etype = nation.election_type
+
+    return NationView(
+        cards=ordered,
+        summary_card=aggregate_profiles(
+            nation.profiles,
+            label="전국 종합",
+            policy=policy,
+            levels=("nation",),
+            primary="nation",
+        ),
+        diagnostics=nation.diagnostics,
+        sort=sort if sort in SORTS else "code",
+        election_type=etype.value,
+        election_type_label=ELECTION_TYPE_LABELS[etype],
+        population_total=sum(c.population_total for c in cards),
+        as_of_months=sorted({p.payload.as_of for p in nation.profiles}),
+        latest_election_id=latest.latest_election_id if latest else "",
+        latest_election_date=latest.latest_election_date if latest else "",
+        source_names=sorted({p.record.source_name for p in nation.profiles}),
+        source_licenses=sorted({p.record.source_license for p in nation.profiles}),
         verdict=worst_verdict([c.verdict for c in cards]),
     )
 

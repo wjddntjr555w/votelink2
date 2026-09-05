@@ -13,9 +13,14 @@ import pytest
 
 from tests.conftest import make_record
 from votelink import store
-from votelink.contract.enums import AgeBand
+from votelink.contract.enums import AgeBand, ElectionType
 from votelink.reference import districts as districts_mod
-from votelink.web.loader import AmbiguousDistrict, load_profiles
+from votelink.web.loader import (
+    AmbiguousDistrict,
+    load_all_emd,
+    load_comparison,
+    load_profiles,
+)
 from votelink.web.settings import WebSettings
 
 CODES = ["1171051000", "1171052000", "1171056100"]
@@ -45,12 +50,12 @@ def write_districts(tmp_path, codes=CODES, extra: str = "") -> object:
     return path
 
 
-def profile_record(code: str, as_of: str = "2024-12"):
+def profile_record(code: str, as_of: str = "2024-12", *, election_type: str = "presidential"):
     series = [
         {
-            "election_id": "2025-06-03-presidential",
+            "election_id": f"2025-06-03-{election_type}",
             "election_date": "2025-06-03",
-            "election_type": "presidential",
+            "election_type": election_type,
             "camp_share": {
                 "conservative": 50.0,
                 "progressive": 50.0,
@@ -68,10 +73,11 @@ def profile_record(code: str, as_of: str = "2024-12"):
         kind="segment_profile",
         geo_code=code,
         geo_name=f"동{code[-4:]}",
-        natural_key=f"voter_profile|{code}|{as_of}",
+        natural_key=f"voter_profile|{election_type}|{code}|{as_of}",
         payload={
             "profile_type": "voter_profile",
             "as_of": as_of,
+            "election_type": election_type,
             "lean_series": series,
             "swing": 0.0,
             "trend": "stable",
@@ -214,6 +220,100 @@ def test_explicit_district_id_is_honoured(tmp_path):
 
 
 # --- 읽기 전용 -------------------------------------------------------------------
+
+
+# --- 선거 계열 필터 -------------------------------------------------------------
+
+
+def test_other_election_types_are_filtered_and_counted(tmp_path):
+    """대선 파일에 총선 레코드가 섞여도 조용히 뭉개지 않는다."""
+    store.append_records(
+        "voter_profile",
+        [profile_record(CODES[0]), profile_record(CODES[0], election_type="national_assembly")],
+        root=tmp_path / "records",
+    )
+    result = load_profiles(settings_for(tmp_path))  # 기본 = presidential
+    assert [p.payload.election_type for p in result.profiles] == [ElectionType.PRESIDENTIAL]
+    assert result.diagnostics.other_election_type == 1
+
+
+def test_requesting_a_type_with_no_data_returns_empty(tmp_path):
+    store.append_records(
+        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
+    )
+    result = load_profiles(settings_for(tmp_path), election_type=ElectionType.NATIONAL_ASSEMBLY)
+    assert result.profiles == []
+    assert result.diagnostics.other_election_type == len(CODES)
+    assert result.diagnostics.expected == len(CODES)  # 무엇이 있어야 하는지는 안다
+
+
+# --- 선거구 비교 --------------------------------------------------------------------
+
+
+def test_comparison_splits_loaded_from_skipped(tmp_path):
+    extra = (
+        "  - id: test_eul\n"
+        "    name: 시험 지역구 을\n"
+        "    sido: 시험시\n"
+        "    sigungu: 시험구\n"
+        "    emd:\n"
+        '      - {name: 딴동, code: "1171057000"}\n'
+    )
+    path = write_districts(tmp_path, extra=extra)
+    store.append_records(
+        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
+    )
+    settings = WebSettings(districts_path=path, records_root=tmp_path / "records")
+
+    comp = load_comparison(settings)
+    assert [dp.district.id for dp in comp.rows] == ["test_gap"]
+    assert [s.district_id for s in comp.skipped] == ["test_eul"]
+    assert "voter_profile" in comp.skipped[0].fix  # 조치를 알려준다
+
+
+def test_comparison_pending_district_says_so(tmp_path):
+    extra = (
+        "  - id: test_pending\n"
+        "    name: 코드 없는 구\n"
+        "    sido: 시험시\n"
+        "    sigungu: 시험구\n"
+        "    emd:\n"
+        "      - {name: 미확정동, code: null}\n"
+    )
+    path = write_districts(tmp_path, extra=extra)
+    store.append_records(
+        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
+    )
+    comp = load_comparison(WebSettings(districts_path=path, records_root=tmp_path / "records"))
+    skip = next(s for s in comp.skipped if s.district_id == "test_pending")
+    assert "행정동코드" in skip.reason
+
+
+# --- 전국 전체 동 -------------------------------------------------------------------
+
+
+def test_all_emd_bypasses_the_district_filter(tmp_path):
+    """전국은 선거구 하나가 아니다 — contains 필터를 건너뛴다."""
+    store.append_records(
+        "voter_profile",
+        [profile_record(CODES[0]), profile_record(OUTSIDE)],
+        root=tmp_path / "records",
+    )
+    result = load_all_emd(settings_for(tmp_path))
+    assert {p.geo_code for p in result.profiles} == {CODES[0], OUTSIDE}
+    assert result.diagnostics.outside_district == 0
+
+
+def test_all_emd_keeps_only_newest_as_of(tmp_path):
+    store.append_records(
+        "voter_profile",
+        [profile_record(CODES[0], "2024-12"), profile_record(CODES[0], "2025-03")],
+        root=tmp_path / "records",
+    )
+    result = load_all_emd(settings_for(tmp_path))
+    assert len(result.profiles) == 1
+    assert result.profiles[0].payload.as_of == "2025-03"
+    assert result.diagnostics.superseded == 1
 
 
 def test_loading_does_not_write_anything(tmp_path):

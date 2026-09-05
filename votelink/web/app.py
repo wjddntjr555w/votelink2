@@ -5,8 +5,10 @@
 
 **`create_app` 팩토리**로 만드는 이유는 테스트다. 전역을 monkeypatch 하는 대신
 `create_app(WebSettings(records_root=tmp_path))` 로 임시 디렉터리를 주입한다.
-라우트는 `Depends()` 대신 `request.app.state` 를 읽는다 — 라우트가 셋뿐이라 DI가 값을
-못 하고, 기본인자 안의 함수 호출은 ruff `B008` 에 걸린다.
+라우트는 `Depends()` 대신 `request.app.state` 를 읽는다.
+
+화면 축은 셋이다 (§7): 선거구(대시보드+지도) · 비교(`/compare`) · 전국 동(`/nation`).
+각 화면은 `?election_type=` 로 재필터한다 (기본 presidential).
 """
 
 from __future__ import annotations
@@ -19,12 +21,27 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
+from votelink.contract.enums import ElectionType
 from votelink.reference.compliance import load_policy
 from votelink.reference.districts import DistrictNotFound
-from votelink.web.loader import AmbiguousDistrict, available_districts, load_profiles
+from votelink.web.loader import (
+    AmbiguousDistrict,
+    available_districts,
+    load_all_emd,
+    load_comparison,
+    load_profiles,
+)
 from votelink.web.settings import WebSettings
 from votelink.web.shapes import ShapeError, shapes_for
-from votelink.web.viewmodel import DEFAULT_METRIC, build_map, build_view
+from votelink.web.viewmodel import (
+    DEFAULT_METRIC,
+    build_comparison,
+    build_map,
+    build_nation_view,
+    build_view,
+    election_type_choices,
+    resolve_election_type,
+)
 
 HERE = Path(__file__).resolve().parent
 TEMPLATES_DIR = HERE / "templates"
@@ -56,16 +73,28 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         target = settings.district_id or (districts[0][0] if len(districts) == 1 else None)
         if target:
             return RedirectResponse(f"/d/{target}/", status_code=307)
-        return _render(request, "districts.html", {"districts": districts})
+        return _render(request, "districts.html", _ctx(request))
 
     @app.get("/d/{district_id}/", response_class=Response)
-    def dashboard(request: Request, district_id: str, sort: str = "code") -> Response:
-        view = _view(request, district_id, sort=sort)
+    def dashboard(
+        request: Request,
+        district_id: str,
+        sort: str = "code",
+        election_type: str = "presidential",
+    ) -> Response:
+        et = resolve_election_type(election_type)
+        view = _view(request, district_id, sort=sort, election_type=et)
         return _render(request, "dashboard.html", _ctx(request, district_id, view=view))
 
     @app.get("/d/{district_id}/map", response_class=Response)
-    def map_screen(request: Request, district_id: str, metric: str = DEFAULT_METRIC) -> Response:
-        view = _view(request, district_id)
+    def map_screen(
+        request: Request,
+        district_id: str,
+        metric: str = DEFAULT_METRIC,
+        election_type: str = "presidential",
+    ) -> Response:
+        et = resolve_election_type(election_type)
+        view = _view(request, district_id, election_type=et)
         shapes = shapes_for(
             [(c.geo_code, c.geo_name) for c in view.cards],
             path=request.app.state.settings.boundaries_path,
@@ -81,6 +110,28 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             ),
         )
 
+    @app.get("/compare", response_class=Response)
+    def compare(
+        request: Request, sort: str = "name", election_type: str = "presidential"
+    ) -> Response:
+        settings: WebSettings = request.app.state.settings
+        et = resolve_election_type(election_type)
+        comparison = load_comparison(settings, election_type=et)
+        policy = load_policy(settings.policy_path)
+        view = build_comparison(comparison, policy, sort=sort)
+        return _render(request, "compare.html", _ctx(request, view=view))
+
+    @app.get("/nation", response_class=Response)
+    def nation(
+        request: Request, sort: str = "code", election_type: str = "presidential"
+    ) -> Response:
+        settings: WebSettings = request.app.state.settings
+        et = resolve_election_type(election_type)
+        profiles = load_all_emd(settings, election_type=et)
+        policy = load_policy(settings.policy_path)
+        view = build_nation_view(profiles, policy, sort=sort)
+        return _render(request, "nation.html", _ctx(request, view=view))
+
     @app.get("/healthz", response_class=PlainTextResponse)
     def healthz() -> str:
         return "ok"
@@ -91,19 +142,26 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     return app
 
 
-def _view(request: Request, district_id: str | None = None, *, sort: str = "code"):
+def _view(
+    request: Request,
+    district_id: str | None = None,
+    *,
+    sort: str = "code",
+    election_type: ElectionType = ElectionType.PRESIDENTIAL,
+):
     settings: WebSettings = request.app.state.settings
-    profiles = load_profiles(settings, district_id)
+    profiles = load_profiles(settings, district_id, election_type=election_type)
     policy = load_policy(settings.policy_path)
-    return build_view(profiles, policy, sort=sort)
+    return build_view(profiles, policy, sort=sort, election_type=election_type)
 
 
-def _ctx(request: Request, district_id: str, **extra) -> dict:
-    """모든 화면이 공유하는 컨텍스트 — 현재 선거구와 전환 목록."""
+def _ctx(request: Request, district_id: str | None = None, **extra) -> dict:
+    """모든 화면이 공유하는 컨텍스트 — 현재 선거구, 전환 목록, 선거 계열 목록."""
     settings: WebSettings = request.app.state.settings
     return {
         "district_id": district_id,
         "districts": available_districts(settings),
+        "election_types": election_type_choices(),
         **extra,
     }
 

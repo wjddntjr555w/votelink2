@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_output.html" import output %}
+{% set active = 'compare' %}
+{% block title %}선거구 비교 — votelink{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>선거구 비교 <span class="muted">· {{ view.election_type_label }}</span></h1>
+  <p class="muted small">
+    각 선거구의 모든 행정동을 하나로 묶은 <strong>근사 집계</strong>다 (인구·투표율 가중).
+    지금은 행정동코드가 확정된 선거구만 나온다.
+  </p>
+
+  {% if not view.is_empty %}
+  <nav class="sorts">
+    {% for key, label in view.sorts.items() %}
+    <a href="/compare?sort={{ key }}&election_type={{ view.election_type }}"
+       class="{{ 'on' if view.sort == key }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+</section>
+
+{% if view.is_empty %}
+  <div class="banner banner--warn">
+    <strong>{{ view.election_type_label }}로 비교할 선거구가 없다</strong>
+    <p class="muted small">아래 목록의 조치를 먼저 한다.</p>
+  </div>
+{% else %}
+  {% call output(view.verdict) %}
+  <div class="tablewrap">
+  <table class="compare">
+    <thead>
+      <tr>
+        <th>선거구</th><th>진영 구성</th><th>투표율</th><th>스윙</th>
+        <th>{{ view.gap_labels['nation'] }} 대비</th><th>인구</th><th>동</th><th>검토</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in view.rows %}
+      <tr>
+        <td><a href="/d/{{ row.district_id }}/?election_type={{ view.election_type }}">{{ row.district_name }}</a></td>
+        <td>
+          <svg class="stack stack--mini" viewBox="0 0 100 8" preserveAspectRatio="none" role="img">
+            {% for s in row.agg.camp_bar %}
+            <rect x="{{ s.offset }}" y="0" width="{{ s.pct }}" height="8" class="{{ s.css_class }}">
+              <title>{{ s.label }} {{ '%.1f'|format(s.pct) }}%</title></rect>
+            {% endfor %}
+          </svg>
+        </td>
+        <td>{{ '%.1f'|format(row.agg.turnout) }}%</td>
+        <td>{{ '%.1f'|format(row.agg.swing) }}%p</td>
+        <td>{{ row.agg.gaps['nation'].text }}</td>
+        <td>{{ '{:,}'.format(row.agg.population_total) }}</td>
+        <td class="{{ '' if row.loaded == row.expected else 'warn-text' }}">{{ row.coverage_text }}</td>
+        <td>
+          {% if row.agg.verdict and row.agg.verdict.status.value != 'cleared' %}
+          <span class="warn-text small">{{ row.agg.verdict.status.value }}</span>
+          {% else %}<span class="muted small">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endcall %}
+{% endif %}
+
+{% if view.skipped %}
+<section class="head">
+  <h2 class="muted">제외된 선거구 {{ view.skipped|length }}곳</h2>
+  <ul class="skipped">
+    {% for s in view.skipped %}
+    <li>
+      <strong>{{ s.district_name }}</strong>
+      <span class="muted small">{{ s.reason }}</span>
+      <p class="mono small">{{ s.fix }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

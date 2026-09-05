@@ -205,3 +205,35 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
   background: repeating-linear-gradient(45deg,
     var(--surface) 0 3px, var(--muted) 3px 5px);
 }
+
+/* --- 선거 계열 스위처 --- */
+
+.et-switch, .district-switch {
+  font-size: 13px; padding: 2px 6px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--ink);
+}
+
+/* --- 집계 카드 --- */
+
+.cards--summary { margin-bottom: 14px; grid-template-columns: 1fr; }
+.card--summary { border-color: var(--muted); border-width: 2px; }
+.badge--approx {
+  font-size: 11px; color: var(--warn-line); font-weight: 600;
+  border: 1px dashed var(--warn-line); border-radius: 4px; padding: 0 5px;
+}
+
+/* --- 선거구 비교 표 --- */
+
+.tablewrap { overflow-x: auto; }
+table.compare { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.compare th, table.compare td {
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.compare th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.stack--mini { width: 90px; height: 8px; vertical-align: middle; }
+
+.skipped { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+.skipped li { border-left: 3px solid var(--line); padding-left: 10px; }
+.skipped p { margin: 2px 0 0; }

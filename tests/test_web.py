@@ -147,11 +147,36 @@ def test_sort_changes_the_order(tmp_path):
     assert client.get("/d/test_gap/?sort=말도안되는키").status_code == 200
 
 
+def test_dashboard_shows_a_district_summary_card(tmp_path):
+    """동 카드 위에 선거구 전체를 묶은 근사 집계 한 장."""
+    html = build(tmp_path).get("/").text
+    assert "시험 지역구 갑 종합" in html
+    assert "card--summary" in html
+    assert "근사" in html  # approx 배지
+
+
+def test_election_type_switcher_offers_all_four(tmp_path):
+    html = build(tmp_path).get("/d/test_gap/").text
+    assert 'class="et-switch"' in html
+    for label in ("대선", "총선", "지방선거", "재보궐"):
+        assert label in html
+
+
+def test_requesting_a_type_with_no_data_shows_empty_state(tmp_path):
+    client = build(tmp_path)
+    r = client.get("/d/test_gap/?election_type=national_assembly")
+    assert r.status_code == 200
+    assert "총선 분석 결과가 없다" in r.text
+    # 쓰레기 값은 기본값으로 떨어진다
+    assert client.get("/d/test_gap/?election_type=쓰레기").status_code == 200
+
+
 def test_empty_state_points_at_the_analyzer(tmp_path):
     """서버가 안 뜨면 왜 비었는지 볼 화면조차 없다."""
     response = build(tmp_path, records=False).get("/")
     assert response.status_code == 200
-    assert "표시할 분석 결과가 없다" in response.text
+    assert "분석 결과가 없다" in response.text
+    assert "대선" in response.text  # 어느 계열이 비었는지 말해준다
     assert "votelink analyze voter_profile" in response.text
 
 
@@ -187,7 +212,7 @@ def test_unknown_metric_falls_back(tmp_path):
 def test_no_external_requests(tmp_path):
     """외부 요청 0건이어야 캠프의 열람 맥락이 제3자에게 새지 않는다."""
     client = build(tmp_path)
-    for url in ("/", "/d/test_gap/", "/d/test_gap/map"):
+    for url in ("/", "/d/test_gap/", "/d/test_gap/map", "/compare", "/nation"):
         html = client.get(url).text
         # 절대 URL 이 하나도 없어야 한다. CSS·SVG 전부 같은 출처이거나 인라인이다.
         assert "http://" not in html, url
@@ -222,6 +247,8 @@ def test_serving_never_writes(tmp_path):
         "/d/test_gap/",
         "/d/test_gap/?sort=swing",
         "/d/test_gap/map?metric=swing",
+        "/compare",
+        "/nation",
         "/healthz",
     )
     for url in urls:

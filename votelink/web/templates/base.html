@@ -14,15 +14,28 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/">votelink</a>
-    {% if district_id %}
     <nav>
+      {% if district_id %}
       <a href="/d/{{ district_id }}/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
       <a href="/d/{{ district_id }}/map" class="{{ 'on' if active == 'map' }}">지도</a>
+      {% endif %}
+      <a href="/compare" class="{{ 'on' if active == 'compare' }}">선거구 비교</a>
+      <a href="/nation" class="{{ 'on' if active == 'nation' }}">전국 동</a>
     </nav>
-    {% endif %}
     <span class="spacer"></span>
+    {% if election_types %}
+    {# 선거 계열 전환. onchange 한 줄뿐 — 외부 요청 0건 규칙에 걸리지 않는다.
+       ?sort=/?metric= 는 전환 시 떨어진다 (MVP 허용). #}
+    <select class="et-switch" aria-label="선거 계열 선택"
+            onchange="if(this.value)location.href=location.pathname+'?election_type='+this.value">
+      {% for et_val, et_label in election_types %}
+      <option value="{{ et_val }}"
+        {{ 'selected' if view is defined and view.election_type == et_val }}>{{ et_label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     {% if district_id and districts and districts|length > 1 %}
-    {# 선거구 전환. onchange 한 줄 말고 다른 스크립트는 없다 — 외부 요청 0건 규칙에 걸리지 않는다. #}
+    {# 선거구 전환. #}
     <select class="district-switch" aria-label="선거구 선택"
             onchange="if(this.value)location.href='/d/'+this.value+'/'">
       {% for d_id, d_name in districts %}

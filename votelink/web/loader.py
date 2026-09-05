@@ -13,14 +13,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from votelink.contract.enums import RecordKind
+from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
 from votelink.contract.payloads import SegmentProfilePayload
 from votelink.reference.districts import District, load_districts, resolve_district
 from votelink.store import iter_records
 from votelink.web.settings import WebSettings
+
+DEFAULT_ELECTION_TYPE = ElectionType.PRESIDENTIAL
 
 
 class AmbiguousDistrict(LookupError):
@@ -58,6 +62,8 @@ class LoadDiagnostics(BaseModel):
     read: int = 0
     """`segment_profile` 로 읽은 총 건수."""
     outside_district: int = 0
+    other_election_type: int = 0
+    """요청한 선거 계열이 아니라 건너뛴 건수. 섞인 파일을 조용히 뭉개지 않는다."""
     superseded: int = 0
     """더 최신 `as_of` 에 밀린 과거 분석. 버그가 아니라 의도된 보존이다."""
     rejected: int = 0
@@ -76,9 +82,40 @@ class DistrictProfiles(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     district: District
+    election_type: ElectionType = DEFAULT_ELECTION_TYPE
     profiles: list[EmdProfile]
     """`geo_code` 오름차순."""
     diagnostics: LoadDiagnostics
+
+
+class NationProfiles(BaseModel):
+    """전국 전체 동. `District.contains` 필터를 의도적으로 건너뛴다 —
+    전국은 선거구 하나가 아니다 (§5)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    election_type: ElectionType = DEFAULT_ELECTION_TYPE
+    profiles: list[EmdProfile]
+    diagnostics: LoadDiagnostics
+
+
+class SkippedDistrict(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    district_id: str
+    district_name: str
+    reason: str
+    fix: str
+
+
+class ComparisonProfiles(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    election_type: ElectionType = DEFAULT_ELECTION_TYPE
+    rows: list[DistrictProfiles]
+    """프로파일이 하나라도 있는 선거구. 정의 순서."""
+    skipped: list[SkippedDistrict]
+    """프로파일 0건이라 뺀 선거구 — 왜 뺐는지 함께."""
 
 
 def pick_district(settings: WebSettings, district_id: str | None = None) -> District:
@@ -110,28 +147,35 @@ def available_districts(settings: WebSettings) -> list[tuple[str, str]]:
     return [(d.id, d.name) for d in table.values()]
 
 
-def load_profiles(settings: WebSettings, district_id: str | None = None) -> DistrictProfiles:
-    district = pick_district(settings, district_id)
-    codes = set(district.emd_codes)
+def _dedup_newest(
+    records: Iterable[Record],
+    *,
+    election_type: ElectionType,
+    within: Callable[[str], bool],
+) -> tuple[list[EmdProfile], dict[str, int]]:
+    """읽기·검증·필터·dedup 을 한 자리에. `within` 이 선거구 소속 필터
+    (`/nation` 은 항상 True). 필터 4겹: kind → within → election_type →
+    `(profile_type, election_type, geo_code)` 별 최신 `as_of`."""
+    read = outside = other = rejected = superseded = 0
+    newest: dict[tuple[str, str, str], EmdProfile] = {}
 
-    read = outside = rejected = 0
-    newest: dict[tuple[str, str], EmdProfile] = {}
-    superseded = 0
-
-    for record in iter_records([RecordKind.SEGMENT_PROFILE], root=settings.records_root):
+    for record in records:
         read += 1
-        if not district.contains(record.geo_code):
+        if not within(record.geo_code):
             outside += 1
             continue
         try:
             payload = SegmentProfilePayload.model_validate(record.payload)
         except ValidationError:
             # 이미 저장 시점에 검증된 값이라 여기 오면 안 된다. 그래도 한 건 때문에
-            # 나머지 8장을 잃지 않는다 — L1·L2 의 항목 격리와 같은 정신이다.
+            # 나머지를 잃지 않는다 — L1·L2 의 항목 격리와 같은 정신이다.
             rejected += 1
             continue
+        if payload.election_type != election_type:
+            other += 1
+            continue
 
-        key = (payload.profile_type, record.geo_code)
+        key = (payload.profile_type, payload.election_type.value, record.geo_code)
         current = newest.get(key)
         if current is None:
             newest[key] = EmdProfile(record=record, payload=payload)
@@ -141,18 +185,93 @@ def load_profiles(settings: WebSettings, district_id: str | None = None) -> Dist
             newest[key] = EmdProfile(record=record, payload=payload)
 
     profiles = sorted(newest.values(), key=lambda p: p.geo_code)
+    return profiles, {
+        "read": read,
+        "outside_district": outside,
+        "other_election_type": other,
+        "rejected": rejected,
+        "superseded": superseded,
+    }
+
+
+def load_profiles(
+    settings: WebSettings,
+    district_id: str | None = None,
+    *,
+    election_type: ElectionType = DEFAULT_ELECTION_TYPE,
+) -> DistrictProfiles:
+    district = pick_district(settings, district_id)
+    codes = set(district.emd_codes)
+    profiles, counters = _dedup_newest(
+        iter_records([RecordKind.SEGMENT_PROFILE], root=settings.records_root),
+        election_type=election_type,
+        within=district.contains,
+    )
     loaded_codes = {p.geo_code for p in profiles}
 
     return DistrictProfiles(
         district=district,
+        election_type=election_type,
         profiles=profiles,
         diagnostics=LoadDiagnostics(
-            read=read,
-            outside_district=outside,
-            superseded=superseded,
-            rejected=rejected,
+            **counters,
             loaded=len(profiles),
             expected=len(codes),
             missing_codes=sorted(codes - loaded_codes),
+        ),
+    )
+
+
+def load_comparison(
+    settings: WebSettings, *, election_type: ElectionType = DEFAULT_ELECTION_TYPE
+) -> ComparisonProfiles:
+    """정의된 모든 선거구를 훑어 각각 로드. 프로파일 0건인 선거구는 사유와 함께 뺀다.
+
+    성능: N선거구 × 전체 레코드 스캔 = O(N·R). 48×9 규모라 무의미하다 (§13 — 커지면
+    SQLite). 역인덱스는 지금 만들지 않는다.
+    """
+    rows: list[DistrictProfiles] = []
+    skipped: list[SkippedDistrict] = []
+    for district in load_districts(settings.districts_path).values():
+        dp = load_profiles(settings, district.id, election_type=election_type)
+        if dp.profiles:
+            rows.append(dp)
+            continue
+        no_codes = not district.emd_codes
+        skipped.append(
+            SkippedDistrict(
+                district_id=district.id,
+                district_name=district.name,
+                reason=(
+                    "행정동코드 미확정 (districts.yaml)"
+                    if no_codes
+                    else "분석 결과 0건 — voter_profile 미실행"
+                ),
+                fix=(
+                    "data/reference/districts.yaml 의 emd[].code 를 채운다"
+                    if no_codes
+                    else f"uv run votelink analyze voter_profile --district {district.id}"
+                ),
+            )
+        )
+    return ComparisonProfiles(election_type=election_type, rows=rows, skipped=skipped)
+
+
+def load_all_emd(
+    settings: WebSettings, *, election_type: ElectionType = DEFAULT_ELECTION_TYPE
+) -> NationProfiles:
+    profiles, counters = _dedup_newest(
+        iter_records([RecordKind.SEGMENT_PROFILE], root=settings.records_root),
+        election_type=election_type,
+        within=lambda _code: True,  # 전국: 선거구 소속 필터를 의도적으로 건너뛴다
+    )
+    return NationProfiles(
+        election_type=election_type,
+        profiles=profiles,
+        diagnostics=LoadDiagnostics(
+            **counters,
+            loaded=len(profiles),
+            # 전국은 "있어야 할 수"의 분모가 없다. 표시 N곳이 곧 전부다.
+            expected=len(profiles),
         ),
     )
