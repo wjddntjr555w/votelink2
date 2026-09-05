@@ -160,3 +160,244 @@ candidates:
   - { election: 2025-06-03-presidential, candidate: 이준석, party: 개혁신당,     camp: centrist }
   - { election: 2025-06-03-presidential, candidate: 권영국, party: 민주노동당,   camp: progressive }
   - { election: 2025-06-03-presidential, candidate: 송진호, party: 무소속,       camp: other }
+
+  # === 국회의원선거(총선) 지역구 — 서울 송파구 갑 =============================
+  #
+  # 2026-09-04 추가. voter_profile 이 election_type 별로 레코드를 내게 되면서
+  # 총선 계열에도 진영 매핑이 필요해졌다. 대선과 **같은 시계열에 섞지 않고**
+  # 별 레코드로 나열하므로, 대선 분류와 독립적으로 이 지역구 후보만 채운다.
+  #
+  # 분류는 같은 기준(득표층의 이념 위치)이다:
+  #   - 양대 정당 후보는 명확: 한나라/새누리/미래통합/국민의힘 → conservative,
+  #     통합민주/민주통합/더불어민주 → progressive
+  #   - 2016 국민의당(김창남)·2024 개혁신당(송재열) → centrist.
+  #     이 파일이 이미 안철수·이준석을 centrist 로 두는 것과 같은 논리다
+  #   - 군소·종교·무소속(평화통일가정당·국민행복당·미래연합·국가혁명배당금당 등) → other
+  # 총선은 상위 단위 기준선 레코드가 없어 gap_* 대부분이 None, confidence 0.7 이다.
+
+  # --- 제18대 (2008-04-09) ---
+  - { election: 2008-04-09-national_assembly, candidate: 박영아, party: 한나라당,         camp: conservative }
+  - { election: 2008-04-09-national_assembly, candidate: 정직,   party: 통합민주당,       camp: progressive }
+  - { election: 2008-04-09-national_assembly, candidate: 김원근, party: 평화통일가정당,   camp: other }
+
+  # --- 제19대 (2012-04-11) ---
+  - { election: 2012-04-11-national_assembly, candidate: 박인숙, party: 새누리당,     camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 박성수, party: 민주통합당,   camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 윤대희, party: 국민행복당,   camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 이정현, party: 미래연합,     camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 정동수, party: 무소속,       camp: other }
+
+  # --- 제20대 (2016-04-13) ---
+  - { election: 2016-04-13-national_assembly, candidate: 박인숙, party: 새누리당,       camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 박성수, party: 더불어민주당,   camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김창남, party: 국민의당,       camp: centrist }
+
+  # --- 제21대 (2020-04-15) ---
+  - { election: 2020-04-15-national_assembly, candidate: 김웅,   party: 미래통합당,           camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 조재희, party: 더불어민주당,         camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 조은정, party: 국가혁명배당금당,     camp: other }
+
+  # --- 제22대 (2024-04-10) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박정훈, party: 국민의힘,       camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 조재희, party: 더불어민주당,   camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 송재열, party: 개혁신당,       camp: centrist }
+
+  # === 국회의원선거(총선) 지역구 — 서울 47개 선거구, 22대(2024)만 (D-003) ==========
+  #
+  # 2026-09-05 추가. D-002 로 nec_archive_assembly 가 22대를 47개 선거구로
+  # 확장한 뒤, voter_profile 이 이 선거구들을 분석하려면 그 지역구 후보의
+  # 진영 매핑이 있어야 한다. 22대 전국 단일 파일(선관위)에서 각 선거구 블록의
+  # 후보 전원(정당·이름)을 그대로 추출했다 — 누락 없음.
+  #
+  # 분류는 정당 단위로 한다(대선처럼 후보 개인 조사를 47곳마다 하지 않는다).
+  # 같은 기준(득표층의 이념 위치)을 정당에 적용한 결과:
+  #   더불어민주당                → progressive (기존 송파갑 판단과 동일)
+  #   국민의힘                    → conservative
+  #   개혁신당                    → centrist (이 파일이 이미 이준석·안철수를
+  #                                 centrist 로 두는 것과 같은 논리 — 2030 이탈표 성격)
+  #   새로운미래                  → centrist (2024년 신설, 더불어민주당 이탈·반(反)
+  #                                 양극화 표방 — 개혁신당과 같은 성격의 이탈)
+  #   녹색정의당·진보당           → progressive (기존 심상정·김재연 판단과 동일 계보)
+  #   그 외 군소·무소속           → other (개별 조사 없이 '군소·종교·무소속 → other'
+  #                                 원칙을 그대로 적용 — 표가 작아 민감도가 낮다)
+  #
+  # **동명이인 주의**: 총선은 지역구 300여 곳이 같은 election_id 를 공유해서
+  # 이름이 우연히 겹칠 수 있다. 2024년 서울에서 유일하게 '이상규'가 두 곳
+  # (성북구을 국민의힘 / 관악구을 진보당)에 있다 — district 필드로 구분했다
+  # (votelink/reference/party_lineage.py, camp_of 가 district_name 우선 조회).
+  #
+  # 위 두 기준(정당 단위 분류, 개별조사 생략)이 이번 배치 전체의 판단 근거다 —
+  # 항목마다 반복하지 않는다. 이견이 있으면 이 블록만 고치고 다시 분석한다.
+
+  # --- seoul_jongno (종로구) ---
+  - { election: 2024-04-10-national_assembly, candidate: 곽상언, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 최재형, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 진예찬, party: 새로운미래, camp: centrist }
+  - { election: 2024-04-10-national_assembly, candidate: 금태섭, party: 개혁신당, camp: centrist }
+  - { election: 2024-04-10-national_assembly, candidate: 김준수, party: 가락특권폐지당, camp: other }
+  - { election: 2024-04-10-national_assembly, candidate: 김종갑, party: 대한국민당, camp: other }
+  - { election: 2024-04-10-national_assembly, candidate: 차은정, party: 민중민주당, camp: other }
+  # --- seoul_jung_seongdong_gap (중구성동구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 전현희, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 윤희숙, party: 국민의힘, camp: conservative }
+  # --- seoul_jung_seongdong_eul (중구성동구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박성준, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이혜훈, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김영기, party: 한국국민당, camp: other }
+  # --- seoul_yongsan (용산구) ---
+  - { election: 2024-04-10-national_assembly, candidate: 강태웅, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 권영세, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김정현, party: 무소속, camp: other }
+  # --- seoul_gwangjin_gap (광진구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 이정헌, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김병민, party: 국민의힘, camp: conservative }
+  # --- seoul_gwangjin_eul (광진구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 고민정, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 오신환, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 서정민, party: 한국국민당, camp: other }
+  # --- seoul_dongdaemun_gap (동대문구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 안규백, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김영우, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 한승민, party: 개혁신당, camp: centrist }
+  # --- seoul_dongdaemun_eul (동대문구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 장경태, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김경진, party: 국민의힘, camp: conservative }
+  # --- seoul_jungnang_gap (중랑구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 서영교, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김삼화, party: 국민의힘, camp: conservative }
+  # --- seoul_jungnang_eul (중랑구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박홍근, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이승환, party: 국민의힘, camp: conservative }
+  # --- seoul_seongbuk_gap (성북구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김영배, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이종철, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 유승희, party: 새로운미래, camp: centrist }
+  # --- seoul_seongbuk_eul (성북구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김남근, party: 더불어민주당, camp: progressive }
+  # 동명이인 — 관악구을(진보당)에도 '이상규'가 있다. district 로 구분한다.
+  - { election: 2024-04-10-national_assembly, candidate: 이상규, party: 국민의힘,
+      camp: conservative, district: "서울 성북구을" }
+  # --- seoul_gangbuk_gap (강북구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 천준호, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 전상범, party: 국민의힘, camp: conservative }
+  # --- seoul_gangbuk_eul (강북구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 한민수, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 박진웅, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 이석현, party: 새로운미래, camp: centrist }
+  # --- seoul_dobong_gap (도봉구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 안귀령, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김재섭, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 윤오, party: 녹색정의당, camp: progressive }
+  # --- seoul_dobong_eul (도봉구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 오기형, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김선동, party: 국민의힘, camp: conservative }
+  # --- seoul_nowon_gap (노원구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 우원식, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 현경병, party: 국민의힘, camp: conservative }
+  # --- seoul_nowon_eul (노원구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김성환, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김준호, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 이창영, party: 무소속, camp: other }
+  # --- seoul_eunpyeong_gap (은평구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박주민, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 홍인정, party: 국민의힘, camp: conservative }
+  # --- seoul_eunpyeong_eul (은평구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김우영, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 장성호, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김종민, party: 녹색정의당, camp: progressive }
+  # --- seoul_seodaemun_gap (서대문구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김동아, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이용호, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 이경선, party: 개혁신당, camp: centrist }
+  # --- seoul_seodaemun_eul (서대문구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김영호, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 박진, party: 국민의힘, camp: conservative }
+  # --- seoul_mapo_gap (마포구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 이지은, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 조정훈, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김혜미, party: 녹색정의당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김기정, party: 개혁신당, camp: centrist }
+  # --- seoul_mapo_eul (마포구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 정청래, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 함운경, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 장혜영, party: 녹색정의당, camp: progressive }
+  # --- seoul_yangcheon_gap (양천구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 황희, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 구자룡, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 염동옥, party: 무소속, camp: other }
+  # --- seoul_yangcheon_eul (양천구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 이용선, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 오경훈, party: 국민의힘, camp: conservative }
+  # --- seoul_gangseo_gap (강서구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 강선우, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 구상찬, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 남평오, party: 새로운미래, camp: centrist }
+  # --- seoul_gangseo_eul (강서구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 진성준, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 박민식, party: 국민의힘, camp: conservative }
+  # --- seoul_gangseo_byeong (강서구병) ---
+  - { election: 2024-04-10-national_assembly, candidate: 한정애, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김일호, party: 국민의힘, camp: conservative }
+  # --- seoul_guro_gap (구로구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 이인영, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 호준석, party: 국민의힘, camp: conservative }
+  # --- seoul_guro_eul (구로구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 윤건영, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 태영호, party: 국민의힘, camp: conservative }
+  # --- seoul_geumcheon (금천구) ---
+  - { election: 2024-04-10-national_assembly, candidate: 최기상, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 강성만, party: 국민의힘, camp: conservative }
+  # --- seoul_yeongdeungpo_gap (영등포구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 채현일, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김영주, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 허은아, party: 개혁신당, camp: centrist }
+  # --- seoul_yeongdeungpo_eul (영등포구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김민석, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 박용찬, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김정기, party: 기후민생당, camp: other }
+  # --- seoul_dongjak_gap (동작구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김병기, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 장진영, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 전병헌, party: 새로운미래, camp: centrist }
+  # --- seoul_dongjak_eul (동작구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 류삼영, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 나경원, party: 국민의힘, camp: conservative }
+  # --- seoul_gwanak_gap (관악구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박민규, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 유종필, party: 국민의힘, camp: conservative }
+  # --- seoul_gwanak_eul (관악구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 정태호, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이성심, party: 국민의힘, camp: conservative }
+  # 동명이인 — 성북구을(국민의힘)에도 '이상규'가 있다. district 로 구분한다.
+  - { election: 2024-04-10-national_assembly, candidate: 이상규, party: 진보당,
+      camp: progressive, district: "서울 관악구을" }
+  # --- seoul_seocho_gap (서초구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김한나, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 조은희, party: 국민의힘, camp: conservative }
+  # --- seoul_seocho_eul (서초구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 홍익표, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 신동욱, party: 국민의힘, camp: conservative }
+  # --- seoul_gangnam_gap (강남구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 김태형, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 서명옥, party: 국민의힘, camp: conservative }
+  # --- seoul_gangnam_eul (강남구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 강청희, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 박수민, party: 국민의힘, camp: conservative }
+  # --- seoul_gangnam_byeong (강남구병) ---
+  - { election: 2024-04-10-national_assembly, candidate: 박경미, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 고동진, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 양한별, party: 내일로미래로, camp: other }
+  # --- seoul_songpa_eul (송파구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 송기호, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 배현진, party: 국민의힘, camp: conservative }
+  # --- seoul_songpa_byeong (송파구병) ---
+  - { election: 2024-04-10-national_assembly, candidate: 남인순, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 김근식, party: 국민의힘, camp: conservative }
+  # --- seoul_gangdong_gap (강동구갑) ---
+  - { election: 2024-04-10-national_assembly, candidate: 진선미, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 전주혜, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 김기수, party: 개혁신당, camp: centrist }
+  # --- seoul_gangdong_eul (강동구을) ---
+  - { election: 2024-04-10-national_assembly, candidate: 이해식, party: 더불어민주당, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 이재영, party: 국민의힘, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 정승우, party: 개혁신당, camp: centrist }

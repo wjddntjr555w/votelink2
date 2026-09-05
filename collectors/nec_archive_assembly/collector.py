@@ -72,6 +72,12 @@ class Collector(BaseCollector):
 
     def parse(self, raw: RawBatch) -> Iterator[ParseResult]:
         election = self._election(raw.body["election_id"])
+        if election is None:
+            # `--reparse` 는 이 collector_id 의 raw 이력 전체를 읽는데, 선거구마다
+            # elections 목록이 다르다(송파갑만 18~21대를 더 갖고 있다, D-002). 이
+            # raw 가 다른 선거구용으로 fetch 된 회차일 뿐이면 조용히 건너뛴다 —
+            # '다른 시군구 행을 버린다'(iter_district_rows)와 같은 판단이다.
+            return
         layout = Layout(**election["layout"])
         rows = iter_district_rows(
             raw.body["grid"],
@@ -109,7 +115,10 @@ class Collector(BaseCollector):
             geo_name=row.emd_name,
             confidence=1.0,  # 공식 확정 개표결과. 표본이 아니다
             derived_from=[],
-            natural_key=f"{election['id']}|{row.emd_name}",
+            # geo_code 로 유일성을 준다 — 동 이름만 쓰면 다른 자치구의 동명이 겹친다
+            # (예: '신사동' 이 관악구·강남구 둘 다에 있다). 47개 선거구로 넓히기
+            # 전에는 선거구가 하나뿐이라 드러나지 않았던 사고다(D-002).
+            natural_key=f"{election['id']}|{code}",
             payload={
                 "election_id": election["id"],
                 "election_type": "national_assembly",
@@ -127,15 +136,18 @@ class Collector(BaseCollector):
 
     # --- 설정 ------------------------------------------------------------------
 
-    def _election(self, election_id: str) -> dict[str, Any]:
+    def _election(self, election_id: str) -> dict[str, Any] | None:
+        """이 선거구의 config 에 이 election_id 가 있으면 돌려주고, 없으면 None.
+
+        선거구마다 elections 목록이 다를 수 있어(D-002) '없다'가 항상 설정
+        오류는 아니다 — 그 판단은 `parse()` 가 한다(다른 선거구용 raw 는 건너뛴다).
+        """
         for election in self.config["elections"]:
             if election["id"] == election_id:
                 if election.get("district_match") == "{auto}":
                     election = {**election, **self._auto_district_match()}
                 return election
-        raise ValueError(
-            f"meta.yaml 에 없는 선거다: {election_id}. raw 는 있는데 설정에서 지워졌을 수 있다"
-        )
+        return None
 
     def _auto_district_match(self) -> dict[str, str]:
         """22대(2024) 전국 파일의 선거구명 표기를 districts.yaml 의 name 에서 유도한다.

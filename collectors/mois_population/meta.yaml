@@ -73,7 +73,13 @@ config:
     seoul_jung_seongdong_gap:
       sigungu_admm_code: "1120000000"   # 성동구
     seoul_jung_seongdong_eul:
-      sigungu_admm_code: "1114000000"   # 중구
+      # 중구성동구 을은 중구 15동 + 성동구 4동(금호1~4가동·옥수동)이 섞여 있다
+      # (D-001·D-002 에서 발견). sigungu_admm_code 하나로는 한쪽만 조회되므로
+      # 두 자치구 코드를 명시한다 — admm_codes 를 쓰면 이름 필터가 꺼져서
+      # (query_codes 우선순위) 두 구의 동이 전부 들어오지만, 이 선거구 하나가
+      # 걸치는 두 구라 무해하다(다른 선거구 분석에는 안 섞인다 — geo_code 로
+      # 조회하므로).
+      admm_codes: ["1114000000", "1120000000"]
     seoul_yongsan:
       sigungu_admm_code: "1117000000"   # 용산구
     seoul_gwangjin_gap:

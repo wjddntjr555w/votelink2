@@ -178,7 +178,10 @@ class Collector(BaseCollector):
             geo_name=row.emd_name,
             confidence=1.0,  # 공식 확정 개표결과. 표본이 아니다
             derived_from=[],
-            natural_key=f"{election['id']}|{row.emd_name}",
+            # geo_code 로 유일성을 준다 — 동 이름만 쓰면 다른 자치구의 동명이 겹친다
+            # (예: '신사동' 이 관악구·강남구 둘 다에 있다). 47개 선거구로 넓히기
+            # 전에는 선거구가 하나뿐이라 드러나지 않았던 사고다(D-002).
+            natural_key=f"{election['id']}|{code}",
             payload={
                 "election_id": election["id"],
                 "election_type": "presidential",
@@ -217,7 +220,11 @@ class Collector(BaseCollector):
             geo_name=geo["name"] if geo["code"] else None,
             confidence=1.0,  # 공식 확정 개표결과의 합계다. 추정이 아니다
             derived_from=[],
-            natural_key=f"{election['id']}|baseline|{row.level}",
+            # level 만으로는 sigungu 단위가 25개 자치구 사이에서 겹친다(모두
+            # '...|baseline|sigungu' 가 된다) — geo_code 로 자치구를 구분한다.
+            # nation/sido 는 모든 선거구에서 같은 가야 정상이라 code 가 없거나
+            # (nation) 같은 값(sido)이면 의도대로 하나로 합쳐진다.
+            natural_key=f"{election['id']}|baseline|{row.level}|{geo['code'] or 'nation'}",
             payload={
                 "election_id": election["id"],
                 "election_type": "presidential",
@@ -253,13 +260,19 @@ class Collector(BaseCollector):
         """
         return {normalize_emd(emd.name) for emd in resolve_district(self.config["district"]).emd}
 
-    def _sigungu_match(self) -> str:
-        """동 필터에 쓸 자치구명 부분 문자열. districts.yaml 의 sigungu 에서 유도한다.
+    def _sigungu_match(self) -> tuple[str, ...]:
+        """동 필터에 쓸 자치구명 부분 문자열들. districts.yaml 의 sigungu 에서 유도한다.
 
         '구'를 뗀다 — 원본 파일의 표기 흔들림('송파구' 든 다른 접미사든)에 substring
         매칭으로 잡히게 하기 위해서다(기존 송파구 설정의 관례를 그대로 따른다).
+
+        선거구가 두 자치구에 걸치면(예: 중구성동구 을 — 중구 15동 + 성동구 4동,
+        D-001·D-002 에서 발견) district.sigungu 하나만으로는 놓치는 동이 생긴다.
+        그런 선거구는 meta.yaml 의 config.extra_sigungu 로 추가 자치구를 적는다.
         """
-        return resolve_district(self.config["district"]).sigungu.removesuffix("구")
+        primary = resolve_district(self.config["district"]).sigungu.removesuffix("구")
+        extra = tuple(self.cfg("extra_sigungu") or ())
+        return (primary, *extra)
 
     @cached_property
     def _baseline_geo(self) -> dict[str, dict[str, str | None]]:

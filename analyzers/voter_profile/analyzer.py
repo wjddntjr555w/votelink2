@@ -61,12 +61,16 @@ class Analyzer(BaseAnalyzer):
                 "districts.yaml 의 emd[].code 를 먼저 채워야 한다"
             )
 
-        wanted_types = set(self.config["election_types"])
+        # 순서 보존 중복 제거 — items 곱집합의 결정성을 위해.
+        wanted_types = list(dict.fromkeys(self.config["election_types"]))
+        wanted_set = set(wanted_types)
 
-        # election_id -> geo_code -> _Row
-        by_election: dict[str, dict[str, _Row]] = defaultdict(dict)
-        # election_id -> geo_level -> 보수 득표 %
-        baselines: dict[str, dict[GeoLevel, tuple[str, float]]] = defaultdict(dict)
+        # election_type -> election_id -> geo_code -> _Row
+        by_election: dict[str, dict[str, dict[str, _Row]]] = defaultdict(lambda: defaultdict(dict))
+        # election_type -> election_id -> geo_level -> 보수 득표 %
+        baselines: dict[str, dict[str, dict[GeoLevel, tuple[str, float]]]] = defaultdict(
+            lambda: defaultdict(dict)
+        )
         # geo_code -> 가장 최근 인구 레코드
         populations: dict[str, Record] = {}
 
@@ -74,31 +78,35 @@ class Analyzer(BaseAnalyzer):
             if record.kind is RecordKind.POPULATION:
                 self._collect_population(record, codes, populations)
             elif record.kind is RecordKind.ELECTION_RESULT:
-                self._collect_election(record, codes, wanted_types, by_election, baselines)
+                self._collect_election(record, codes, wanted_set, by_election, baselines)
 
         if not by_election:
             raise AnalyzeError(
                 f"선거구 '{district.name}' 에 해당하는 개표 레코드가 없다 "
-                f"(선거 유형 {sorted(wanted_types)}). "
+                f"(선거 유형 {sorted(wanted_set)}). "
                 "nec_archive 를 먼저 돌렸는지, districts.yaml 의 코드가 맞는지 확인하라"
             )
 
-        # 선거를 시간순으로 세운다. trend/swing 이 순서에 의존하므로 이게 계약이다.
-        dates = {eid: next(iter(rows.values())).date for eid, rows in by_election.items()}
-        ordered = sorted(by_election, key=lambda eid: dates[eid])
-
-        # 지역구 가중평균 = Σ(동별 보수 득표) / Σ(동별 유효투표).
+        # 선거 계열마다 따로 시간순으로 세운다. 대선과 총선을 한 축에 올리면 편차의
+        # 의미가 달라지므로(A-001) 계열을 섞지 않는다 — 계열당 레코드 1건.
+        ordered_by_type: dict[str, list[str]] = {}
+        # 지역구 가중평균 = Σ(동별 보수 득표) / Σ(동별 유효투표). 계열 안에서만 합산한다.
         # 동별 단순평균이 아니다 — 인구가 다른 동을 같은 무게로 세면 왜곡된다.
-        district_pct: dict[str, float] = {}
-        for eid, rows in by_election.items():
-            total = CampTally()
-            for row in rows.values():
-                total.merge(row.tally)
-            district_pct[eid] = total.conservative_pct
+        district_pct: dict[str, dict[str, float]] = {}
+        for etype, elections in by_election.items():
+            dates = {eid: next(iter(rows.values())).date for eid, rows in elections.items()}
+            ordered_by_type[etype] = sorted(elections, key=lambda eid: dates[eid])
+            pct: dict[str, float] = {}
+            for eid, rows in elections.items():
+                total = CampTally()
+                for row in rows.values():
+                    total.merge(row.tally)
+                pct[eid] = total.conservative_pct
+            district_pct[etype] = pct
 
         context = _Context(
             district=district,
-            ordered=ordered,
+            ordered_by_type=ordered_by_type,
             by_election=by_election,
             baselines=baselines,
             populations=populations,
@@ -106,7 +114,16 @@ class Analyzer(BaseAnalyzer):
             threshold=float(self.config["trend_threshold"]),
             window=int(self.config["trend_window"]),
         )
-        yield from self.map_items(sorted(codes), lambda code: self._profile(code, context))
+
+        # (동 × 계열) 곱집합. config 에 있으나 개표가 0건인 계열은 조용히 건너뛴다
+        # (레코드 미생성, 예외 아님) — 전체가 0건이면 위에서 이미 실패했다.
+        items = [
+            (code, etype)
+            for etype in wanted_types
+            if etype in by_election
+            for code in sorted(codes)
+        ]
+        yield from self.map_items(items, lambda pair: self._profile(pair[0], pair[1], context))
 
     # --- 입력 분류 -------------------------------------------------------------
 
@@ -124,11 +141,12 @@ class Analyzer(BaseAnalyzer):
         record: Record,
         codes: set[str],
         wanted_types: set[str],
-        by_election: dict[str, dict[str, _Row]],
-        baselines: dict[str, dict[GeoLevel, tuple[str, float]]],
+        by_election: dict[str, dict[str, dict[str, _Row]]],
+        baselines: dict[str, dict[str, dict[GeoLevel, tuple[str, float]]]],
     ) -> None:
         payload = record.payload
-        if payload["election_type"] not in wanted_types:
+        etype = payload["election_type"]
+        if etype not in wanted_types:
             return
         # 투표구 행은 동 합계와 이중계산된다. 동 단위(precinct=null)만 받는다.
         if payload.get("precinct"):
@@ -142,13 +160,13 @@ class Analyzer(BaseAnalyzer):
         tally = self._tally(record)
         election_id = payload["election_id"]
         if is_emd:
-            by_election[election_id][record.geo_code] = _Row(
+            by_election[etype][election_id][record.geo_code] = _Row(
                 record=record,
                 tally=tally,
                 date=record.observed_at.date().isoformat(),
             )
         else:
-            baselines[election_id][record.geo_level] = (
+            baselines[etype][election_id][record.geo_level] = (
                 record.record_id,
                 tally.conservative_pct,
             )
@@ -165,7 +183,9 @@ class Analyzer(BaseAnalyzer):
         tally = CampTally()
         for entry in payload["results"]:
             try:
-                camp = camp_of(payload["election_id"], entry["candidate"])
+                camp = camp_of(
+                    payload["election_id"], entry["candidate"], payload.get("district_name")
+                )
             except CampNotFound as exc:
                 raise AnalyzeError(str(exc)) from exc
             tally.add(camp, entry["votes"])
@@ -173,12 +193,15 @@ class Analyzer(BaseAnalyzer):
 
     # --- 동 하나의 프로파일 ------------------------------------------------------
 
-    def _profile(self, code: str, ctx: _Context) -> Record:
+    def _profile(self, code: str, etype: str, ctx: _Context) -> Record:
+        elections = ctx.by_election[etype]
         rows = [
-            (eid, ctx.by_election[eid][code]) for eid in ctx.ordered if code in ctx.by_election[eid]
+            (eid, elections[eid][code])
+            for eid in ctx.ordered_by_type[etype]
+            if code in elections[eid]
         ]
         if not rows:
-            raise ValueError(f"개표 기록이 없는 행정동이다: {code}")
+            raise ValueError(f"개표 기록이 없는 행정동이다: {code} ({etype})")
 
         population = ctx.populations.get(code)
         if population is None:
@@ -191,11 +214,13 @@ class Analyzer(BaseAnalyzer):
         gaps: list[float] = []
         conservative: list[float] = []
         sources: list[str] = []
+        type_pct = ctx.district_pct[etype]
+        type_baselines = ctx.baselines.get(etype, {})
 
         for election_id, row in rows:
             payload = row.record.payload
             own_pct = row.tally.conservative_pct
-            gap_district = own_pct - ctx.district_pct[election_id]
+            gap_district = own_pct - type_pct[election_id]
 
             point: dict[str, Any] = {
                 "election_id": election_id,
@@ -209,7 +234,7 @@ class Analyzer(BaseAnalyzer):
                 **dict.fromkeys(BASELINE_FIELDS.values()),
             }
             for level, field in BASELINE_FIELDS.items():
-                found = ctx.baselines.get(election_id, {}).get(level)
+                found = type_baselines.get(election_id, {}).get(level)
                 if found is not None:
                     base_id, base_pct = found
                     point[field] = own_pct - base_pct
@@ -226,6 +251,7 @@ class Analyzer(BaseAnalyzer):
         payload = {
             "profile_type": PROFILE_TYPE,
             "as_of": population.payload["reference_month"],
+            "election_type": etype,
             "lean_series": lean_series,
             "swing": swing_of(conservative),
             "trend": str(classify_trend(gaps, threshold=ctx.threshold, window=ctx.window)),
@@ -249,33 +275,37 @@ class Analyzer(BaseAnalyzer):
             geo_level=GeoLevel.EMD,
             geo_code=code,
             geo_name=ctx.district.name_of(code) or rows[0][1].record.geo_name,
-            confidence=self._confidence(len(rows), ctx),
+            confidence=self._confidence(len(rows), etype, ctx),
             # dict.fromkeys 로 순서를 지키며 유일화한다 (계약이 중복을 거부한다).
             derived_from=list(dict.fromkeys(sources)),
             payload=payload,
-            natural_key=f"{PROFILE_TYPE}|{code}|{population.payload['reference_month']}",
+            natural_key=(f"{PROFILE_TYPE}|{etype}|{code}|{population.payload['reference_month']}"),
         )
 
     @staticmethod
-    def _confidence(my_elections: int, ctx: _Context) -> float:
+    def _confidence(my_elections: int, etype: str, ctx: _Context) -> float:
         """A-001 §계산 규칙. 1.0 은 주지 않는다 — 실측이 아니라 파생이고,
-        인구가 단일 시점이라 시계열 해석에 한계가 있다."""
-        if my_elections < len(ctx.ordered):
+        인구가 단일 시점이라 시계열 해석에 한계가 있다. 계열 안에서만 판정한다."""
+        ordered = ctx.ordered_by_type[etype]
+        if my_elections < len(ordered):
             return 0.5  # 개표 회차 결측 (동 통폐합 등)
-        complete = all(
-            len(ctx.baselines.get(eid, {})) == len(BASELINE_FIELDS) for eid in ctx.ordered
-        )
+        type_baselines = ctx.baselines.get(etype, {})
+        complete = all(len(type_baselines.get(eid, {})) == len(BASELINE_FIELDS) for eid in ordered)
         return 0.9 if complete else 0.7
 
 
 class _Context(NamedTuple):
-    """_profile 이 쓰는 계산 문맥. 인자 8개를 늘어놓지 않기 위한 묶음이다."""
+    """_profile 이 쓰는 계산 문맥. 인자 8개를 늘어놓지 않기 위한 묶음이다.
+
+    개표·기준선·순서·가중평균은 전부 election_type 으로 한 겹 갈라져 있다 —
+    한 계열의 프로파일을 만들 때 다른 계열의 값이 새지 않는다.
+    """
 
     district: Any
-    ordered: list[str]
-    by_election: dict[str, dict[str, _Row]]
-    baselines: dict[str, dict[GeoLevel, tuple[str, float]]]
+    ordered_by_type: dict[str, list[str]]
+    by_election: dict[str, dict[str, dict[str, _Row]]]
+    baselines: dict[str, dict[str, dict[GeoLevel, tuple[str, float]]]]
     populations: dict[str, Record]
-    district_pct: dict[str, float]
+    district_pct: dict[str, dict[str, float]]
     threshold: float
     window: int

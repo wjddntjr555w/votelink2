@@ -140,11 +140,20 @@ class Collector(BaseCollector):
 
         target = self._target_names()
         if target:
+            our_sigungu = self._target_sigungu()
+            if our_sigungu and not any(a.sigungu == our_sigungu for a in aggs):
+                # 이 raw 는 **다른 자치구용**이다. `--reparse` 는 이 collector_id 의
+                # raw 이력 전체를 읽으므로, 다른 선거구가 예전에 fetch 한 배치를
+                # 만날 수 있다(D-002 와 같은 문제, nec_archive_assembly.parse() 참조).
+                # 동 **이름**으로 걸러내지 않는다 — '신사동'처럼 강남구·관악구에
+                # 동명이인이 있으면 이름만으로는 다른 구의 raw 를 오인할 수 있다.
+                # 조용히 건너뛴다 — '동 이름이 바뀌었다'와는 다른 상황이라 에러가
+                # 아니다.
+                return
             aggs, missing = self._filter_to_target(aggs, target)
             if missing:
-                # 페이지 하나에 시군구 전체가 다 들어온다는 전제(§ query_codes)가
-                # 깨지면(대상이 아주 큰 시군구라 여러 페이지로 나뉘면) 오탐할 수 있다.
-                # 지금 규모(9개 동, 응답 27건)에서는 안전하다.
+                # 대상 동 일부만 빠졌다 — 이건 진짜 문제다(이름이 바뀌었거나
+                # 페이지가 나뉘었다). 위의 '완전히 다른 자치구' 와 구분된다.
                 raise ValueError(
                     f"응답에서 다음 행정동을 찾지 못했다: {', '.join(sorted(missing))}. "
                     "동 이름이 바뀌었거나 여러 페이지에 걸쳐 나뉘어 왔을 수 있다"
@@ -236,6 +245,13 @@ class Collector(BaseCollector):
         if not district_key:
             return set()
         return {e.name for e in resolve_district(district_key).emd}
+
+    def _target_sigungu(self) -> str:
+        """대상 선거구의 자치구명. raw 배치가 우리 구 것인지 가리는 데 쓴다."""
+        district_key = self.cfg("district")
+        if not district_key:
+            return ""
+        return resolve_district(district_key).sigungu
 
     @property
     def reference_month(self) -> str:

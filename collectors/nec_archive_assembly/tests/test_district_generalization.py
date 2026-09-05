@@ -51,3 +51,18 @@ class TestAutoDistrictMatch:
     def test_other_districts_use_auto_marker_at_config_level(self):
         gap_election = _collector("seoul_gangnam_gap")._election("2024-04-10-national_assembly")
         assert gap_election["district_match"] == "강남구갑"  # 이미 치환된 값
+
+    def test_election_not_in_this_districts_config_returns_none(self):
+        """--reparse 는 이 collector_id 의 raw 이력 전체를 읽는다 — 강남갑 config 엔
+        없는 송파갑 전용 18대(2008) raw 를 만나도 설정 오류로 보지 않는다."""
+        assert _collector("seoul_gangnam_gap")._election("2008-04-09-national_assembly") is None
+
+
+def test_parse_skips_batches_for_elections_not_in_this_districts_config():
+    from votelink.collect.base import RawBatch
+
+    col = _collector("seoul_gangnam_gap")
+    batch = RawBatch(
+        collector_id=col.id, body={"election_id": "2008-04-09-national_assembly", "grid": []}
+    )
+    assert list(col.parse(batch)) == []

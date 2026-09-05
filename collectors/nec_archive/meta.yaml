@@ -46,7 +46,10 @@ config:
     seoul_songpa_gap: {}
     seoul_jongno: {}
     seoul_jung_seongdong_gap: {}
-    seoul_jung_seongdong_eul: {}
+    seoul_jung_seongdong_eul:
+      # 중구 15동 + 성동구 4동(금호1~4가동·옥수동)이 섞인 선거구다(D-001·D-002).
+      # district.sigungu(중구) 하나만으로 걸러내면 성동구 4동을 놓친다.
+      extra_sigungu: ["성동"]
     seoul_yongsan: {}
     seoul_gwangjin_gap: {}
     seoul_gwangjin_eul: {}

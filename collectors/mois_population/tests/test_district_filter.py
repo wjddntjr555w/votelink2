@@ -102,6 +102,37 @@ def test_missing_target_dong_fails_loudly():
         list(_collector().parse(raw))
 
 
+def test_unrelated_district_raw_is_skipped_not_raised():
+    """다른 자치구용 raw(시군구 자체가 다르다)는 조용히 건너뛴다.
+
+    `--reparse` 는 이 collector_id 의 raw 이력 전체를 읽으므로, 다른 선거구가
+    예전에 fetch 한 배치(예: 강남구)를 우리 선거구(송파구)로 파싱을 시도할 수
+    있다(D-002 와 같은 문제). '동 이름이 바뀌었다'와는 다른 상황이라 에러가
+    아니어야 한다 — nec_archive_assembly.parse() 와 같은 판단이다.
+
+    동 **이름**이 아니라 **시군구명**으로 가린다 — '신사동'처럼 강남구·관악구에
+    동명이인이 있으면 이름만으로는 다른 구의 raw 를 우리 구로 오인할 수 있다.
+    """
+    row = dong_row("역삼1동", "1168064000", 5)
+    row["sggNm"] = "강남구"  # 송파구가 아니다 — dong_row 기본값을 덮어쓴다
+    body = envelope(row)
+    raw = RawBatch(collector_id=Collector.id, body=body)
+    assert list(_collector().parse(raw)) == []
+
+
+def test_name_collision_across_sigungu_does_not_fool_the_skip_check():
+    """'신사동' 이 강남구·관악구 둘 다에 있다 — 이름만 보면 다른 구 raw 를
+    우리 구로 착각할 수 있다. sigungu 로 가리므로 여전히 건너뛰어야 한다.
+    """
+    # 관악구을을 대상으로 하되, 응답은 강남구의 '신사동'(다른 admmCd) 하나뿐이다.
+    gwanak_eul = Collector(meta=CollectorMeta.load(META_PATH), district_id="seoul_gwanak_eul")
+    row = dong_row("신사동", "1168051000", 5)
+    row["sggNm"] = "강남구"
+    body = envelope(row)
+    raw = RawBatch(collector_id=Collector.id, body=body)
+    assert list(gwanak_eul.parse(raw)) == []
+
+
 def test_all_nine_present_succeeds():
     names_codes = _ALL_NINE
     body = envelope(*(dong_row(n, c) for n, c in names_codes))

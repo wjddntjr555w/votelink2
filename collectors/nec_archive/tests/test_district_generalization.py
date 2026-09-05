@@ -32,11 +32,16 @@ def _collector(district_id: str) -> Collector:
 
 class TestSigunguMatch:
     def test_songpa_unchanged(self):
-        assert _collector("seoul_songpa_gap")._sigungu_match() == "송파"
+        assert _collector("seoul_songpa_gap")._sigungu_match() == ("송파",)
 
     def test_derives_from_districts_yaml(self):
-        assert _collector("seoul_gangnam_gap")._sigungu_match() == "강남"
-        assert _collector("seoul_jongno")._sigungu_match() == "종로"
+        assert _collector("seoul_gangnam_gap")._sigungu_match() == ("강남",)
+        assert _collector("seoul_jongno")._sigungu_match() == ("종로",)
+
+    def test_cross_sigungu_district_adds_extra_sigungu(self):
+        # 중구성동구 을은 district.sigungu(중구)만으로는 성동구 4동을 놓친다 —
+        # config.extra_sigungu 로 채운다(D-002).
+        assert _collector("seoul_jung_seongdong_eul")._sigungu_match() == ("중", "성동")
 
 
 class TestBaselineGeo:

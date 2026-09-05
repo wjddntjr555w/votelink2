@@ -135,27 +135,31 @@ def iter_emd_rows(
     grid: Grid,
     layout: Layout,
     *,
-    sigungu_match: str,
+    sigungu_match: str | tuple[str, ...],
     emd_names: set[str],
     total_markers: tuple[str, ...] = DEFAULT_TOTAL_MARKERS,
 ) -> Iterator[EmdRow]:
     """대상 시군구의 행정동 합계 행만 돌려준다.
 
+    `sigungu_match` 는 보통 문자열 하나지만, 선거구가 두 자치구에 걸치면
+    (예: 중구성동구 을 — 중구 15동 + 성동구 4동, D-002) 튜플로 여러 개를 준다.
+
     버리는 것(격리가 아니라 필터):
-    - 다른 시군구
+    - 대상이 아닌 시군구
     - `거소·선상투표` `관외사전투표` `재외투표` `부재자` 등 — 행정동이 아니다.
       emd_names 에 없으면 그냥 걸러진다. 오류가 아니라 대상이 아닐 뿐이고,
       격리하면 격리율 임계(5%)를 넘겨 수집 전체가 실패한다 (C-002 와 같은 판단)
     - 투표구 단위 행 — 인구와 조인되는 단위는 동이고, 투표구는 선거마다 재편돼
       시계열이 되지 않는다
     """
+    matches = (sigungu_match,) if isinstance(sigungu_match, str) else sigungu_match
     candidates = candidate_columns(grid, layout)
     sigungu = ""
     for row in grid[layout.data_from :]:
         # 신형 파일은 구시군명이 블록 첫 행에만 있다(병합셀). 앞의 값을 이어 쓴다.
         if cell(row, layout.sgg):
             sigungu = strip_disambiguation(cell(row, layout.sgg).strip("[]"))
-        if sigungu_match not in sigungu:
+        if not any(m in sigungu for m in matches):
             continue
         name = normalize_emd(cell(row, layout.emd))
         if name not in emd_names:
