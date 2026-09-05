@@ -147,6 +147,10 @@ class SegmentProfilePayload(_Payload):
 
     profile_type: str = Field(min_length=1, description="어느 분석기가 만들었나")
     as_of: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="분석 기준월")
+    election_type: ElectionType
+    """이 프로파일이 근거한 선거 계열. 한 레코드는 한 종류만 담는다 —
+    대선과 총선은 편차의 의미가 달라 같은 시계열에 섞지 않는다.
+    lean_series 의 모든 point 가 이 값과 일치한다 (_check_series_type)."""
 
     lean_series: list[LeanPoint] = Field(min_length=1, description="오래된 선거 순")
     swing: float = Field(ge=0.0, description="conservative 시계열의 최댓값 − 최솟값 (%p)")
@@ -156,6 +160,18 @@ class SegmentProfilePayload(_Payload):
     sex_ratio: float = Field(gt=0, description="남/여 비. 백분율이 아니다")
     population_total: int = Field(ge=0)
     population_month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+
+    @model_validator(mode="after")
+    def _check_series_type(self):
+        """레코드 하나는 한 선거 계열만 담는다. 종류가 섞이면 swing/trend 의
+        의미가 무너진다 (docs/proposals/A-001)."""
+        mixed = {p.election_type for p in self.lean_series} - {self.election_type}
+        if mixed:
+            raise ValueError(
+                f"lean_series 에 election_type={self.election_type} 이 아닌 point 가 있다: "
+                f"{sorted(m.value for m in mixed)}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _check_series_order(self):

@@ -55,7 +55,8 @@ class LeanPoint(_Payload):
 class SegmentProfilePayload(_Payload):
     profile_type: str  # "voter_profile"
     as_of: str  # 분석 실행 기준월 "2026-09"
-    lean_series: list[LeanPoint]  # 오래된 선거 순
+    election_type: ElectionType  # 이 프로파일이 근거한 선거 계열 (2026-09-04 추가)
+    lean_series: list[LeanPoint]  # 오래된 선거 순, 전부 같은 election_type
     swing: float  # 시계열 진폭 (§4)
     trend: Trend  # conservative_shift / stable / progressive_shift
     age_mix: dict[AgeBand, float]  # 비율. 합 == 1.0
@@ -72,7 +73,20 @@ class SegmentProfilePayload(_Payload):
   실행할 때마다 값이 바뀌면 시계열이 망가진다
 - `derived_from` = 개표 8 + 기준선 24 + 인구 1 = **33건**. 편차 계산에 쓴 기준선도
   근거이므로 전부 넣는다
-- `natural_key` = `voter_profile|{geo_code}|{as_of}` → 같은 달 재실행하면 같은 `record_id`
+- `natural_key` = `voter_profile|{election_type}|{geo_code}|{as_of}` → 같은 달 재실행하면
+  같은 `record_id`
+
+### 2026-09-04 — 선거 계열별 레코드 분리
+
+한 동에 대선·총선·지선이 각각 별도 시계열로 나오도록 `election_type` 축을 추가했다.
+`SegmentProfilePayload.election_type` 필드 + `natural_key` 에 `election_type` 세그먼트.
+`(emd × election_type)` 당 레코드 1건. `swing`/`trend`/`gap_*` 은 그 계열 안에서만 계산된다.
+`natural_key` 가 바뀌므로 기존 레코드는 1회 재생성했다 (`data/records/` 는 재생성 대상).
+
+이어서 `config.election_types` 에 `national_assembly` 를 넣고 `party_lineage.yaml` 에 송파갑
+총선 후보 17건(18~22대) 매핑을 채웠다. 산출 18건(대선 9 + 총선 9). 총선은 상위 기준선
+레코드가 없어 `confidence 0.7`, `gap_sigungu/sido/nation` 전부 None — 대선과 섞지 않고
+별 레코드로 나열하는 이 설계가 그 결측을 정직하게 드러낸다.
 
 ## 정당 → 진영 매핑
 

@@ -143,7 +143,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `foot_traffic` | 시간대별 유동인구 | 통신사·카드사 공공데이터 | |
 | `candidate` | 후보자 정보·공약·전과·재산 | 선관위 후보자정보 | |
 | `local_issue` | 지역 현안 (파생) | 뉴스·민원에서 추출 | |
-| `segment_profile` | 유권자 세그먼트 프로파일 (파생) | 분석 산출 | ✓ |
+| `segment_profile` | 유권자 세그먼트 프로파일 (파생, `election_type` 별 1레코드) | 분석 산출 | ✓ |
 
 ## 5. MVP 3종 payload
 

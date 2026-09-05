@@ -9,6 +9,15 @@ proposal: docs/proposals/A-001-voter-profile.md
 # 입력 81건(개표 72 + 인구 9) → 산출 9건, 격리 0, 재실행 시 교체 9·신규 0(멱등).
 # geo_code 집합이 mois_population · nec_archive 와 정확히 일치한다.
 # trend 분포(보수이동 3 / 안정 2 / 진보이동 4)가 독립 민감도 검사 결과와 일치했다.
+#
+# 2026-09-04: election_type 축 추가 (A-001 변경 이력 참조).
+# natural_key 가 voter_profile|<election_type>|<geo_code>|<as_of> 로 바뀌었다 →
+# data/records/voter_profile.jsonl 을 1회 삭제 후 재생성 (data/records/ 는 gitignore 대상).
+#
+# 2026-09-04: election_types 에 national_assembly 추가. party_lineage.yaml 에 송파갑
+# 총선 후보 17건 매핑을 채웠다 (18~22대). 입력 149 → 산출 18건(대선 9 + 총선 9),
+# 격리 0, 멱등(교체 18·신규 0). 총선 9건은 상위 기준선 레코드가 없어 confidence 0.7,
+# gap_sigungu/sido/nation 전부 None. 총선 trend 분포: 진보이동 5 / 보수이동 3 / 정체 1.
 verified: true
 
 config:
@@ -64,11 +73,12 @@ config:
     seoul_songpa_byeong: {}
     seoul_gangdong_gap: {}
     seoul_gangdong_eul: {}
-  # 한 시계열에 섞을 선거 유형. **대선만 쓴다.**
+  # 산출할 선거 계열. 계열마다 (동 × 계열) 레코드 1건 — 한 시계열에 섞지 않는다.
   # 대선은 전국이 같은 선택지를 놓고 투표하므로 동별 편차가 곧 그 동네의 진영 성향이다.
-  # 총선은 현역 프리미엄과 후보 개인기가 섞이고 선거구 획정도 바뀌어, 같은 축에
-  # 올리면 편차의 의미가 달라진다. C-005(총선)가 들어오면 별도 시계열로 다룬다.
-  election_types: [presidential]
+  # 총선은 현역 프리미엄·후보 개인기·선거구 획정이 섞여 편차의 의미가 대선과 다르다
+  # (A-001 §제약). 그래서 같은 축이 아니라 **별 레코드**로 나열한다. 총선은 상위 단위
+  # 기준선 레코드가 아직 없어 gap_sigungu/sido/nation 이 전부 None, confidence 0.7.
+  election_types: [presidential, national_assembly]
 
   # trend 판정 임계 (%p/회). **편차 기울기**에 적용된다 — 절대 득표율 기울기가 아니다.
   #

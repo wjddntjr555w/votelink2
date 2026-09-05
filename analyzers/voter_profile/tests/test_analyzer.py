@@ -40,6 +40,12 @@ candidates:
   - { election: 2022-03-09-presidential, candidate: 진보후보, camp: progressive }
   - { election: 2025-06-03-presidential, candidate: 보수후보, camp: conservative }
   - { election: 2025-06-03-presidential, candidate: 진보후보, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 보수후보, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 진보후보, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 보수후보, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 진보후보, camp: progressive }
+  - { election: 2024-04-10-national_assembly, candidate: 보수후보, camp: conservative }
+  - { election: 2024-04-10-national_assembly, candidate: 진보후보, camp: progressive }
 """
 
 ELECTIONS = [("2017-05-09", 30.0), ("2022-03-09", 50.0), ("2025-06-03", 55.0)]
@@ -51,6 +57,15 @@ OFFSETS = {
     "1171051000": [0.0, 4.0, 8.0],  # 지역구 평균보다 점점 더 보수로
     "1171052000": [0.0, 0.0, 0.0],  # 평균과 함께 움직인다
     "1171053000": [0.0, -4.0, -8.0],  # 점점 덜 보수로
+}
+
+# 총선 계열. 강한보수동의 편차 방향을 대선과 **반대**로 뒤집어, 같은 동이라도
+# 계열에 따라 trend 가 갈리는 것(= 계열이 서로 오염되지 않음)을 증명한다.
+ASSEMBLY_ELECTIONS = [("2016-04-13", 35.0), ("2020-04-15", 45.0), ("2024-04-10", 48.0)]
+ASSEMBLY_OFFSETS = {
+    "1171051000": [0.0, -4.0, -8.0],  # 대선에선 보수이동, 총선에선 진보이동
+    "1171052000": [0.0, 0.0, 0.0],
+    "1171053000": [0.0, 4.0, 8.0],
 }
 
 
@@ -70,7 +85,9 @@ def reference(tmp_path, monkeypatch):
     party_lineage.reset_cache()
 
 
-def election_record(code: str, name: str, date: str, conservative_pct: float) -> Record:
+def election_record(
+    code: str, name: str, date: str, conservative_pct: float, *, etype: str = "presidential"
+) -> Record:
     """유효투표 1000표짜리 개표 레코드. 무효표까지 넣어 산술 불변식을 실제로 태운다."""
     con = round(conservative_pct * 10)
     return Record(
@@ -85,8 +102,8 @@ def election_record(code: str, name: str, date: str, conservative_pct: float) ->
         geo_name=name,
         confidence=1.0,
         payload={
-            "election_id": f"{date}-presidential",
-            "election_type": "presidential",
+            "election_id": f"{date}-{etype}",
+            "election_type": etype,
             "district_name": "시험 선거구",
             "precinct": None,
             "eligible_voters": 1500,
@@ -97,7 +114,7 @@ def election_record(code: str, name: str, date: str, conservative_pct: float) ->
                 {"party": "나", "candidate": "진보후보", "votes": 1000 - con},
             ],
         },
-        natural_key=f"{date}|{code}",
+        natural_key=f"{date}|{code}|{etype}",
     )
 
 
@@ -140,6 +157,23 @@ def make_records(*, with_population: bool = True) -> list[Record]:
     return out
 
 
+def make_multi_type_records() -> list[Record]:
+    """대선 + 총선 두 계열을 같은 동들에 얹은 입력."""
+    out = make_records()
+    for code, name in NAMES.items():
+        for i, (date, base) in enumerate(ASSEMBLY_ELECTIONS):
+            out.append(
+                election_record(
+                    code,
+                    name,
+                    date,
+                    base + ASSEMBLY_OFFSETS[code][i],
+                    etype="national_assembly",
+                )
+            )
+    return out
+
+
 def analyzer(**config) -> Analyzer:
     meta = AnalyzerMeta(
         id="voter_profile",
@@ -164,11 +198,19 @@ def run(records) -> list[Record]:
     return results
 
 
+def run_multi(records, *, types=("presidential", "national_assembly"), **config) -> list[Record]:
+    results = list(analyzer(election_types=list(types), **config).compute(records))
+    assert not [r for r in results if isinstance(r, Rejected)]
+    return results
+
+
 class TestOutputShape:
-    def test_one_record_per_emd(self, reference):
+    def test_one_record_per_emd_and_election_type(self, reference):
         out = run(make_records())
-        assert len(out) == 3
-        assert {r.geo_code for r in out} == set(NAMES)
+        assert len(out) == 3  # 3 동 × 1 계열(대선)
+        assert {(r.geo_code, r.payload["election_type"]) for r in out} == {
+            (code, "presidential") for code in NAMES
+        }
         assert {r.kind for r in out} == {RecordKind.SEGMENT_PROFILE}
 
     def test_derived_from_names_every_input_used(self, reference):
@@ -277,14 +319,16 @@ class TestFailureModes:
         with pytest.raises(AnalyzeError, match="개표 레코드가 없다"):
             list(analyzer().compute(records))
 
-    def test_other_election_types_are_ignored(self, reference):
-        """총선이 섞여 들어와도 대선 시계열을 오염시키지 않는다."""
+    def test_other_election_types_are_ignored_when_not_configured(self, reference):
+        """config.election_types 에 없는 계열은 통째로 버린다 (대선 시계열 불변)."""
         records = make_records()
-        intruder = election_record("1171051000", "강한보수동", "2024-04-10", 99.0)
-        intruder.payload["election_type"] = "national_assembly"
-        intruder.payload["election_id"] = "2024-04-10-national_assembly"
+        intruder = election_record(
+            "1171051000", "강한보수동", "2024-04-10", 99.0, etype="national_assembly"
+        )
         results = run([*records, intruder])
+        assert len(results) == 3  # 총선 레코드가 생기지 않는다
         for record in results:
+            assert record.payload["election_type"] == "presidential"
             assert len(record.payload["lean_series"]) == 3
 
     def test_precinct_rows_are_skipped(self, reference):
@@ -297,3 +341,104 @@ class TestFailureModes:
         assert out["1171051000"]["lean_series"][-1]["camp_share"][Camp.CONSERVATIVE] == (
             pytest.approx(63.0)
         )
+
+
+class TestElectionTypeSeparation:
+    """대선·총선을 한 시계열에 섞지 않고 계열마다 레코드 1건씩 낸다.
+
+    핵심 성질: 한 계열의 파생값(swing/trend/gap/derived_from)에 다른 계열이 새지 않는다.
+    """
+
+    def test_one_record_per_emd_and_type(self, reference):
+        out = run_multi(make_multi_type_records())
+        assert len(out) == 6  # 3 동 × 2 계열
+        assert {(r.geo_code, r.payload["election_type"]) for r in out} == {
+            (code, etype) for code in NAMES for etype in ("presidential", "national_assembly")
+        }
+
+    def test_each_record_series_is_a_single_type(self, reference):
+        for record in run_multi(make_multi_type_records()):
+            etype = record.payload["election_type"]
+            assert {p["election_type"] for p in record.payload["lean_series"]} == {etype}
+
+    def test_presidential_series_is_identical_with_or_without_assembly(self, reference):
+        solo = {r.geo_code: r.payload for r in run(make_records())}
+        mixed = {
+            r.geo_code: r.payload
+            for r in run_multi(make_multi_type_records())
+            if r.payload["election_type"] == "presidential"
+        }
+        for code, payload in solo.items():
+            assert mixed[code]["swing"] == pytest.approx(payload["swing"])
+            assert mixed[code]["trend"] == payload["trend"]
+            assert [p["camp_share"] for p in mixed[code]["lean_series"]] == [
+                p["camp_share"] for p in payload["lean_series"]
+            ]
+
+    def test_trend_diverges_between_types_for_the_same_emd(self, reference):
+        out = {
+            (r.geo_code, r.payload["election_type"]): r.payload
+            for r in run_multi(make_multi_type_records())
+        }
+        # 강한보수동: 대선 편차는 상승(보수이동), 총선 편차는 하강(진보이동)
+        assert out[("1171051000", "presidential")]["trend"] == Trend.CONSERVATIVE_SHIFT
+        assert out[("1171051000", "national_assembly")]["trend"] == Trend.PROGRESSIVE_SHIFT
+
+    def test_derived_from_is_scoped_to_its_own_type(self, reference):
+        records = make_multi_type_records()
+        pres_ids = {
+            r.record_id
+            for r in records
+            if r.kind is RecordKind.ELECTION_RESULT and r.payload["election_type"] == "presidential"
+        }
+        asm_ids = {
+            r.record_id
+            for r in records
+            if r.kind is RecordKind.ELECTION_RESULT
+            and r.payload["election_type"] == "national_assembly"
+        }
+        for record in run_multi(records):
+            used = set(record.derived_from)
+            if record.payload["election_type"] == "presidential":
+                assert used & pres_ids and not (used & asm_ids)
+            else:
+                assert used & asm_ids and not (used & pres_ids)
+
+    def test_two_records_for_one_emd_share_population_but_not_identity(self, reference):
+        by_type = {
+            r.payload["election_type"]: r
+            for r in run_multi(make_multi_type_records())
+            if r.geo_code == "1171051000"
+        }
+        pres, asm = by_type["presidential"], by_type["national_assembly"]
+        assert pres.geo_code == asm.geo_code
+        assert pres.payload["as_of"] == asm.payload["as_of"]
+        assert pres.observed_at == asm.observed_at
+        assert pres.payload["population_total"] == asm.payload["population_total"]
+        assert pres.record_id != asm.record_id
+        assert pres.natural_key != asm.natural_key
+
+    def test_confidence_is_judged_within_each_type(self, reference):
+        records = make_multi_type_records()
+        # 강한보수동의 총선 한 회차를 뺀다 → 그 계열 레코드만 회차 결측(0.5)
+        dropped = [
+            r
+            for r in records
+            if not (
+                r.kind is RecordKind.ELECTION_RESULT
+                and r.geo_code == "1171051000"
+                and r.payload["election_id"] == "2016-04-13-national_assembly"
+            )
+        ]
+        conf = {(r.geo_code, r.payload["election_type"]): r.confidence for r in run_multi(dropped)}
+        assert conf[("1171051000", "national_assembly")] == 0.5
+        assert conf[("1171052000", "national_assembly")] == 0.7  # baseline 없음
+        assert conf[("1171051000", "presidential")] == 0.7  # 대선은 온전
+
+    def test_configured_type_with_no_data_is_skipped_not_fatal(self, reference):
+        out = run_multi(
+            make_multi_type_records(),
+            types=("presidential", "national_assembly", "local"),
+        )
+        assert len(out) == 6  # local 개표가 0건이라 local 레코드는 안 나온다
+        assert "local" not in {r.payload["election_type"] for r in out}
