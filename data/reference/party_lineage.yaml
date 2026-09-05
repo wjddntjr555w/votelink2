@@ -401,3 +401,631 @@ candidates:
   - { election: 2024-04-10-national_assembly, candidate: 이해식, party: 더불어민주당, camp: progressive }
   - { election: 2024-04-10-national_assembly, candidate: 이재영, party: 국민의힘, camp: conservative }
   - { election: 2024-04-10-national_assembly, candidate: 정승우, party: 개혁신당, camp: centrist }
+
+
+  # === 국회의원선거(총선) 지역구 — 19~21대(2012~2020), D-004 로 확장된 선거구 (D-005) ==
+  #
+  # 2026-09-05 추가. D-004 로 nec_archive_assembly 가 19~21대를 45개 선거구로
+  # 확장한 뒤, voter_profile 이 그 회차들을 분석하려면 후보 진영 매핑이 있어야
+  # 한다. 각 회차의 선거구별 파일에서 후보 전원(정당·이름)을 그대로 추출했다 —
+  # 누락 없음. 송파구갑은 이미 채워져 있어 다시 넣지 않았다.
+  #
+  # 분류는 정당 단위로 한다(D-003 과 같은 기준 — 47곳마다 후보 개인 조사는
+  # 안 한다). 새로 나온 정당들:
+  #   민주통합당(2012)·더불어민주당              → progressive
+  #   새누리당·자유선진당·미래통합당·우리공화당   → conservative
+  #   국민의당(2016)·민생당(2020)                → centrist (이 파일이 이미
+  #                                                 안철수 국민의당을 centrist 로
+  #                                                 두는 것과 같은 논리)
+  #   통합진보당·민중연합당·민중당·진보신당·
+  #   노동당·녹색당·기본소득당                    → progressive (기존 계보)
+  #   그 외 군소·무소속(정통민주당·국민생각·미래연합·
+  #   국가혁명배당금당 등)                        → other
+  #
+  #   **주의**: 2012년의 '국민의 힘'(가운데 띄어쓰기 있음, 군소정당)은 2020년에
+  #   창당된 오늘날의 '국민의힘'과 무관한 별개 정당이다 — other 로 둔다.
+  #
+  # **동명이인**: 2020년(21대) 서울에서 '김종민'(동대문구을 민중당 / 은평구을
+  # 정의당)과 '김용태'(구로구을 미래통합당 / 관악구갑 국가혁명배당금당) 두 쌍이
+  # 겹친다 — district 필드로 구분했다.
+
+  # --- 제19대 (2012-04-11) ---
+  # seoul_jongno (서울 종로구)
+  - { election: 2012-04-11-national_assembly, candidate: 홍사덕, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 정세균, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김준수, party: 국민의 힘, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 홍성훈, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 정재복, party: 불교연합당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 최백순, party: 진보신당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 류승구, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 서맹종, party: 무소속, camp: other }
+  # seoul_yongsan (서울 용산구)
+  - { election: 2012-04-11-national_assembly, candidate: 진영, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 조순용, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 이희정, party: 국민행복당, camp: other }
+  # seoul_gwangjin_gap (서울 광진구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 정송학, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 김한길, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김용, party: 무소속, camp: other }
+  # seoul_gwangjin_eul (서울 광진구을)
+  - { election: 2012-04-11-national_assembly, candidate: 정준길, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 추미애, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김홍준, party: 자유선진당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 길기연, party: 무소속, camp: other }
+  # seoul_dongdaemun_gap (서울 동대문구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 허용범, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 안규백, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 윤지현, party: 국민생각, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 조광한, party: 무소속, camp: other }
+  # seoul_dongdaemun_eul (서울 동대문구을)
+  - { election: 2012-04-11-national_assembly, candidate: 홍준표, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 민병두, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 정병걸, party: 정통민주당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 김재전, party: 무소속, camp: other }
+  # seoul_jungnang_gap (서울 중랑구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 김정, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 서영교, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 강경환, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 유정현, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 이상수, party: 무소속, camp: other }
+  # seoul_jungnang_eul (서울 중랑구을)
+  - { election: 2012-04-11-national_assembly, candidate: 강동호, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 박홍근, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 윤정호, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 김덕규, party: 정통민주당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 이경태, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 진성호, party: 무소속, camp: other }
+  # seoul_seongbuk_gap (서울 성북구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 유승희, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 강승규, party: 국민생각, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 최덕찬, party: 미래연합, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 정태근, party: 무소속, camp: other }
+  # seoul_seongbuk_eul (서울 성북구을)
+  - { election: 2012-04-11-national_assembly, candidate: 서찬교, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 신계륜, party: 민주통합당, camp: progressive }
+  # seoul_gangbuk_gap (서울 강북구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 정양석, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 오영식, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김일웅, party: 진보신당, camp: progressive }
+  # seoul_gangbuk_eul (서울 강북구을)
+  - { election: 2012-04-11-national_assembly, candidate: 안홍렬, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 유대운, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 홍성남, party: 국민생각, camp: other }
+  # seoul_dobong_gap (서울 도봉구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 유경희, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 인재근, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 박춘엽, party: 정통민주당, camp: other }
+  # seoul_dobong_eul (서울 도봉구을)
+  - { election: 2012-04-11-national_assembly, candidate: 김선동, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 유인태, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 박영대, party: 자유선진당, camp: conservative }
+  # seoul_eunpyeong_eul (서울 은평구을)
+  - { election: 2012-04-11-national_assembly, candidate: 이재오, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 천호선, party: 통합진보당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 이문용, party: 정통민주당, camp: other }
+  # seoul_seodaemun_gap (서울 서대문구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 이성헌, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 우상호, party: 민주통합당, camp: progressive }
+  # seoul_seodaemun_eul (서울 서대문구을)
+  - { election: 2012-04-11-national_assembly, candidate: 정두언, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 김영호, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김종수, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 홍성덕, party: 정통민주당, camp: other }
+  # seoul_mapo_gap (서울 마포구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 신영섭, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 노웅래, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 정형호, party: 정통민주당, camp: other }
+  # seoul_mapo_eul (서울 마포구을)
+  - { election: 2012-04-11-national_assembly, candidate: 김성동, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 정청래, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 권완수, party: 청년당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 서현진, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 강용석, party: 무소속, camp: other }
+  # seoul_yangcheon_gap (서울 양천구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 길정우, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 차영, party: 민주통합당, camp: progressive }
+  # seoul_yangcheon_eul (서울 양천구을)
+  - { election: 2012-04-11-national_assembly, candidate: 김용태, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 이용선, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 이현호, party: 국민생각, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 김순범, party: 무소속, camp: other }
+  # seoul_gangseo_gap (서울 강서구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 구상찬, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 신기남, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 백철, party: 자유선진당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 장기만, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 김영권, party: 정통민주당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 백승대, party: 무소속, camp: other }
+  # seoul_gangseo_eul (서울 강서구을)
+  - { election: 2012-04-11-national_assembly, candidate: 김성태, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 김효석, party: 민주통합당, camp: progressive }
+  # seoul_guro_eul (서울 구로구을)
+  - { election: 2012-04-11-national_assembly, candidate: 강요식, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 박영선, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 심재옥, party: 진보신당, camp: progressive }
+  # seoul_geumcheon (서울 금천구)
+  - { election: 2012-04-11-national_assembly, candidate: 김정훈, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 이목희, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 임부재, party: 자유선진당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 최정식, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 강성현, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 안영배, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 정두환, party: 무소속, camp: other }
+  # seoul_yeongdeungpo_gap (서울 영등포구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 박선규, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 김영주, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 여세현, party: 정통민주당, camp: other }
+  # seoul_yeongdeungpo_eul (서울 영등포구을)
+  - { election: 2012-04-11-national_assembly, candidate: 권영세, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 신경민, party: 민주통합당, camp: progressive }
+  # seoul_dongjak_gap (서울 동작구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 서장은, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 전병헌, party: 민주통합당, camp: progressive }
+  # seoul_dongjak_eul (서울 동작구을)
+  - { election: 2012-04-11-national_assembly, candidate: 정몽준, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 이계안, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김종철, party: 진보신당, camp: progressive }
+  # seoul_gwanak_gap (서울 관악구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 유기홍, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김용섭, party: 자유선진당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 한광옥, party: 정통민주당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 김성식, party: 무소속, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 한상삼, party: 무소속, camp: other }
+  # seoul_gwanak_eul (서울 관악구을)
+  - { election: 2012-04-11-national_assembly, candidate: 오신환, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 이상규, party: 통합진보당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 김희철, party: 무소속, camp: other }
+  # seoul_seocho_gap (서울 서초구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 김회선, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 이혁진, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 박세일, party: 국민생각, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 양한별, party: 국민행복당, camp: other }
+  # seoul_seocho_eul (서울 서초구을)
+  - { election: 2012-04-11-national_assembly, candidate: 강석훈, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 임지아, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 최우원, party: 대한국당, camp: other }
+  # seoul_gangnam_gap (서울 강남구갑)
+  - { election: 2012-04-11-national_assembly, candidate: 심윤조, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 김성욱, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 서영신, party: 국민행복당, camp: other }
+  - { election: 2012-04-11-national_assembly, candidate: 권헌성, party: 무소속, camp: other }
+  # seoul_songpa_eul (서울 송파구을)
+  - { election: 2012-04-11-national_assembly, candidate: 유일호, party: 새누리당, camp: conservative }
+  - { election: 2012-04-11-national_assembly, candidate: 천정배, party: 민주통합당, camp: progressive }
+  - { election: 2012-04-11-national_assembly, candidate: 박계동, party: 국민생각, camp: other }
+
+  # --- 제20대 (2016-04-13) ---
+  # seoul_jongno (서울 종로구)
+  - { election: 2016-04-13-national_assembly, candidate: 오세훈, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 정세균, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 박태순, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 윤공규, party: 정의당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김한울, party: 노동당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 하승수, party: 녹색당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이석인, party: 진리대한당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 박종구, party: 한나라당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김대한, party: 무소속, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 이원옥, party: 무소속, camp: other }
+  # seoul_yongsan (서울 용산구)
+  - { election: 2016-04-13-national_assembly, candidate: 황춘자, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 진영, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 곽태원, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 정연욱, party: 정의당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이소영, party: 민중연합당, camp: progressive }
+  # seoul_gwangjin_gap (서울 광진구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 정송학, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 전혜숙, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 임동순, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이정희, party: 고용복지연금선진화연대, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 백승원, party: 한나라당, camp: conservative }
+  # seoul_gwangjin_eul (서울 광진구을)
+  - { election: 2016-04-13-national_assembly, candidate: 정준길, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 추미애, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 황인철, party: 국민의당, camp: centrist }
+  # seoul_dongdaemun_gap (서울 동대문구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 허용범, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 안규백, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김윤, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 오정빈, party: 정의당, camp: progressive }
+  # seoul_dongdaemun_eul (서울 동대문구을)
+  - { election: 2016-04-13-national_assembly, candidate: 박준선, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 민병두, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 윤미연, party: 민중연합당, camp: progressive }
+  # seoul_jungnang_gap (서울 중랑구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 김진수, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 서영교, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 민병록, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이창배, party: 민중연합당, camp: progressive }
+  # seoul_jungnang_eul (서울 중랑구을)
+  - { election: 2016-04-13-national_assembly, candidate: 강동호, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 박홍근, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 강원, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김민상, party: 무소속, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 윤정화, party: 무소속, camp: other }
+  # seoul_seongbuk_gap (서울 성북구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 정태근, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 유승희, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 도천수, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 박철우, party: 민중연합당, camp: progressive }
+  # seoul_seongbuk_eul (서울 성북구을)
+  - { election: 2016-04-13-national_assembly, candidate: 김효재, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 기동민, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김인원, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 박창완, party: 정의당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이경애, party: 무소속, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 양규현, party: 무소속, camp: other }
+  # seoul_gangbuk_gap (서울 강북구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 정양석, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 천준호, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김기옥, party: 국민의당, camp: centrist }
+  # seoul_gangbuk_eul (서울 강북구을)
+  - { election: 2016-04-13-national_assembly, candidate: 안홍렬, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 박용진, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 조구성, party: 국민의당, camp: centrist }
+  # seoul_dobong_gap (서울 도봉구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이재범, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 인재근, party: 더불어민주당, camp: progressive }
+  # seoul_dobong_eul (서울 도봉구을)
+  - { election: 2016-04-13-national_assembly, candidate: 김선동, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 오기형, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 손동호, party: 국민의당, camp: centrist }
+  # seoul_eunpyeong_gap (서울 은평구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 최홍재, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 박주민, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 최승현, party: 노동당, camp: progressive }
+  # seoul_eunpyeong_eul (서울 은평구을)
+  - { election: 2016-04-13-national_assembly, candidate: 강병원, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 고연호, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이강무, party: 민주당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 유지훈, party: 민중연합당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 최병호, party: 무소속, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 이재오, party: 무소속, camp: other }
+  # seoul_seodaemun_gap (서울 서대문구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이성헌, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 우상호, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이종화, party: 민주당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 김영준, party: 녹색당, camp: progressive }
+  # seoul_seodaemun_eul (서울 서대문구을)
+  - { election: 2016-04-13-national_assembly, candidate: 정두언, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김영호, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 홍성덕, party: 국민의당, camp: centrist }
+  # seoul_mapo_gap (서울 마포구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 안대희, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 노웅래, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 홍성문, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이상이, party: 복지국가당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 강승규, party: 무소속, camp: other }
+  # seoul_mapo_eul (서울 마포구을)
+  - { election: 2016-04-13-national_assembly, candidate: 김성동, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 손혜원, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김철, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 배준호, party: 정의당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 하윤정, party: 노동당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 정명수, party: 무소속, camp: other }
+  # seoul_yangcheon_gap (서울 양천구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이기재, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 황희, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 염동옥, party: 무소속, camp: other }
+  # seoul_yangcheon_eul (서울 양천구을)
+  - { election: 2016-04-13-national_assembly, candidate: 김용태, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 이용선, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김현배, party: 국민의당, camp: centrist }
+  # seoul_gangseo_gap (서울 강서구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 구상찬, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 금태섭, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김영근, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 신기남, party: 민주당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 백철, party: 무소속, camp: other }
+  # seoul_gangseo_eul (서울 강서구을)
+  - { election: 2016-04-13-national_assembly, candidate: 김성태, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 진성준, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김용성, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김인자, party: 무소속, camp: other }
+  # seoul_gangseo_byeong (서울 강서구병)
+  - { election: 2016-04-13-national_assembly, candidate: 유영, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 한정애, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김성호, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김종민, party: 정의당, camp: progressive }
+  # seoul_guro_eul (서울 구로구을)
+  - { election: 2016-04-13-national_assembly, candidate: 강요식, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 박영선, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 정찬택, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김선경, party: 민중연합당, camp: progressive }
+  # seoul_geumcheon (서울 금천구)
+  - { election: 2016-04-13-national_assembly, candidate: 한인수, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 이훈, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 정두환, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 유재운, party: 무소속, camp: other }
+  # seoul_yeongdeungpo_gap (서울 영등포구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 박선규, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김영주, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 강신복, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 정재민, party: 정의당, camp: progressive }
+  # seoul_yeongdeungpo_eul (서울 영등포구을)
+  - { election: 2016-04-13-national_assembly, candidate: 권영세, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 신경민, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김종구, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 성성봉, party: 민중연합당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 진재범, party: 무소속, camp: other }
+  # seoul_dongjak_gap (서울 동작구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이상휘, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김병기, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 장환진, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이유진, party: 녹색당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김주식, party: 민중연합당, camp: progressive }
+  # seoul_dongjak_eul (서울 동작구을)
+  - { election: 2016-04-13-national_assembly, candidate: 나경원, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 허동준, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 장진영, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이상현, party: 민중연합당, camp: progressive }
+  # seoul_gwanak_gap (서울 관악구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 원영섭, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 유기홍, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 김성식, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 이동영, party: 정의당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 연시영, party: 민중연합당, camp: progressive }
+  # seoul_gwanak_eul (서울 관악구을)
+  - { election: 2016-04-13-national_assembly, candidate: 오신환, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 정태호, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이행자, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 송광호, party: 민주당, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 이상규, party: 민중연합당, camp: progressive }
+  # seoul_seocho_gap (서울 서초구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이혜훈, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 이정근, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이한준, party: 국민의당, camp: centrist }
+  # seoul_seocho_eul (서울 서초구을)
+  - { election: 2016-04-13-national_assembly, candidate: 박성중, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김기영, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 조순형, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김수근, party: 무소속, camp: other }
+  # seoul_gangnam_gap (서울 강남구갑)
+  - { election: 2016-04-13-national_assembly, candidate: 이종구, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 김성곤, party: 더불어민주당, camp: progressive }
+  # seoul_gangnam_byeong (서울 강남구병)
+  - { election: 2016-04-13-national_assembly, candidate: 이은재, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 전원근, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 양한별, party: 고용복지연금선진화연대, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 양영철, party: 한나라당, camp: conservative }
+  # seoul_songpa_eul (서울 송파구을)
+  - { election: 2016-04-13-national_assembly, candidate: 최명길, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 이래협, party: 국민의당, camp: centrist }
+  - { election: 2016-04-13-national_assembly, candidate: 김영순, party: 무소속, camp: other }
+  - { election: 2016-04-13-national_assembly, candidate: 채현, party: 무소속, camp: other }
+  # seoul_songpa_byeong (서울 송파구병)
+  - { election: 2016-04-13-national_assembly, candidate: 김을동, party: 새누리당, camp: conservative }
+  - { election: 2016-04-13-national_assembly, candidate: 남인순, party: 더불어민주당, camp: progressive }
+  - { election: 2016-04-13-national_assembly, candidate: 차성환, party: 국민의당, camp: centrist }
+
+  # --- 제21대 (2020-04-15) ---
+  # seoul_jongno (서울 종로구)
+  - { election: 2020-04-15-national_assembly, candidate: 이낙연, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 황교안, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 한민호, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 오인환, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이정희, party: 가자!평화인권당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 신동욱, party: 공화당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 박준영, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 백병찬, party: 국민새정당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 박소현, party: 민중민주당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 김형석, party: 한나라당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김용덕, party: 무소속, camp: other }
+  # seoul_yongsan (서울 용산구)
+  - { election: 2020-04-15-national_assembly, candidate: 강태웅, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 권영세, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 권혁문, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 정연욱, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김은희, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김희전, party: 국가혁명배당금당, camp: other }
+  # seoul_gwangjin_gap (서울 광진구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 전혜숙, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김병민, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 임동순, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 오봉석, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이승욱, party: 국가혁명배당금당, camp: other }
+  # seoul_gwangjin_eul (서울 광진구을)
+  - { election: 2020-04-15-national_assembly, candidate: 고민정, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 오세훈, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 허정연, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 오태양, party: 미래당, camp: other }
+  # seoul_dongdaemun_gap (서울 동대문구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 안규백, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 허용범, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 백금산, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 오준석, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 정공명, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 이가현, party: 무소속, camp: other }
+  # seoul_dongdaemun_eul (서울 동대문구을)
+  - { election: 2020-04-15-national_assembly, candidate: 장경태, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이혜훈, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김종민, party: 민중당, camp: progressive, district: "서울 동대문구을" }
+  - { election: 2020-04-15-national_assembly, candidate: 박경희, party: 국가혁명배당금당, camp: other }
+  # seoul_jungnang_gap (서울 중랑구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 서영교, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김삼화, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 이기현, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 김지수, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 성치화, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 박명수, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 이성복, party: 무소속, camp: other }
+  # seoul_jungnang_eul (서울 중랑구을)
+  - { election: 2020-04-15-national_assembly, candidate: 박홍근, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 윤상일, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 이소영, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 신황우, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 민정기, party: 한국복지당, camp: other }
+  # seoul_seongbuk_gap (서울 성북구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 김영배, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 한상학, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 박춘림, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 최원용, party: 국가혁명배당금당, camp: other }
+  # seoul_seongbuk_eul (서울 성북구을)
+  - { election: 2020-04-15-national_assembly, candidate: 기동민, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 정태근, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 편재승, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 임경호, party: 국가혁명배당금당, camp: other }
+  # seoul_gangbuk_gap (서울 강북구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 천준호, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 정양석, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김은진, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 선계선, party: 무소속, camp: other }
+  # seoul_gangbuk_eul (서울 강북구을)
+  - { election: 2020-04-15-national_assembly, candidate: 박용진, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 안홍렬, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 좌태홍, party: 국가혁명배당금당, camp: other }
+  # seoul_dobong_gap (서울 도봉구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 인재근, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김재섭, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 윤오, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 박영찬, party: 국가혁명배당금당, camp: other }
+  # seoul_dobong_eul (서울 도봉구을)
+  - { election: 2020-04-15-national_assembly, candidate: 오기형, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김선동, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김관석, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 최순자, party: 무소속, camp: other }
+  # seoul_eunpyeong_gap (서울 은평구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 박주민, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 홍인정, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 한웅, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 노병현, party: 국가혁명배당금당, camp: other }
+  # seoul_eunpyeong_eul (서울 은평구을)
+  - { election: 2020-04-15-national_assembly, candidate: 강병원, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 허용석, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김종민, party: 정의당, camp: progressive, district: "서울 은평구을" }
+  - { election: 2020-04-15-national_assembly, candidate: 신민주, party: 기본소득당, camp: progressive }
+  # seoul_seodaemun_gap (서울 서대문구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 우상호, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이성헌, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 신민호, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 전진희, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 고상일, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 신지예, party: 무소속, camp: other }
+  # seoul_seodaemun_eul (서울 서대문구을)
+  - { election: 2020-04-15-national_assembly, candidate: 김영호, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 송주범, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 오수청, party: 국가혁명배당금당, camp: other }
+  # seoul_mapo_gap (서울 마포구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 노웅래, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 강승규, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김명숙, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 박선아, party: 통일민주당, camp: other }
+  # seoul_mapo_eul (서울 마포구을)
+  - { election: 2020-04-15-national_assembly, candidate: 정청래, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김성동, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 오현주, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이소윤, party: 국가혁명배당금당, camp: other }
+  # seoul_yangcheon_gap (서울 양천구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 황희, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 송한섭, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 최사현, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 염동옥, party: 무소속, camp: other }
+  # seoul_yangcheon_eul (서울 양천구을)
+  - { election: 2020-04-15-national_assembly, candidate: 이용선, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 손영택, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 박철성, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김명시, party: 국가혁명배당금당, camp: other }
+  # seoul_gangseo_gap (서울 강서구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 강선우, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 구상찬, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 노경휘, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 김범태, party: 무소속, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 백철, party: 무소속, camp: other }
+  # seoul_gangseo_eul (서울 강서구을)
+  - { election: 2020-04-15-national_assembly, candidate: 진성준, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김태우, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 박혜영, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 정홍대, party: 국가혁명배당금당, camp: other }
+  # seoul_gangseo_byeong (서울 강서구병)
+  - { election: 2020-04-15-national_assembly, candidate: 한정애, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김철근, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 권혜인, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 도재숙, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 김태윤, party: 무소속, camp: other }
+  # seoul_guro_gap (서울 구로구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 이인영, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김재식, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 이호성, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 황인규, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 유선희, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김장원, party: 국가혁명배당금당, camp: other }
+  # seoul_guro_eul (서울 구로구을)
+  - { election: 2020-04-15-national_assembly, candidate: 윤건영, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김용태, party: 미래통합당, camp: conservative, district: "서울 구로구을" }
+  - { election: 2020-04-15-national_assembly, candidate: 권영웅, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 강요식, party: 무소속, camp: other }
+  # seoul_geumcheon (서울 금천구)
+  - { election: 2020-04-15-national_assembly, candidate: 최기상, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 강성만, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 박창래, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 차성수, party: 무소속, camp: other }
+  # seoul_yeongdeungpo_gap (서울 영등포구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 김영주, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 문병호, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 정재민, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 안성우, party: 국가혁명배당금당, camp: other }
+  # seoul_yeongdeungpo_eul (서울 영등포구을)
+  - { election: 2020-04-15-national_assembly, candidate: 김민석, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 박용찬, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김지향, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 이상륜, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 이정현, party: 무소속, camp: other }
+  # seoul_dongjak_gap (서울 동작구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 김병기, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 장진영, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 윤헌주, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이서은, party: 국가혁명배당금당, camp: other }
+  # seoul_dongjak_eul (서울 동작구을)
+  - { election: 2020-04-15-national_assembly, candidate: 이수진, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 나경원, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 이호영, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 최서현, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 조현숙, party: 국가혁명배당금당, camp: other }
+  # seoul_gwanak_gap (서울 관악구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 유기홍, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 이승한, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 이동영, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 권미성, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 송명숙, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김용태, party: 국가혁명배당금당, camp: other, district: "서울 관악구갑" }
+  - { election: 2020-04-15-national_assembly, candidate: 김성식, party: 무소속, camp: other }
+  # seoul_gwanak_eul (서울 관악구을)
+  - { election: 2020-04-15-national_assembly, candidate: 정태호, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 오신환, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 한인수, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 박현성, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김한영, party: 민중당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 서희성, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 류현선, party: 무소속, camp: other }
+  # seoul_seocho_gap (서울 서초구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 이정근, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 윤희숙, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 신방호, party: 국가혁명배당금당, camp: other }
+  # seoul_seocho_eul (서울 서초구을)
+  - { election: 2020-04-15-national_assembly, candidate: 박경미, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 박성중, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 이정호, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 이진호, party: 국가혁명배당금당, camp: other }
+  # seoul_gangnam_gap (서울 강남구갑)
+  - { election: 2020-04-15-national_assembly, candidate: 김성곤, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 태구민, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 정동희, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 김정훈, party: 국가혁명배당금당, camp: other }
+  # seoul_gangnam_byeong (서울 강남구병)
+  - { election: 2020-04-15-national_assembly, candidate: 김한규, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 유경준, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 전태열, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 도여정, party: 친박신당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 고안성, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 양한별, party: 새누리당, camp: conservative }
+  # seoul_songpa_eul (서울 송파구을)
+  - { election: 2020-04-15-national_assembly, candidate: 최재성, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 배현진, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 안숙현, party: 정의당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 권주, party: 우리공화당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 김주연, party: 국가혁명배당금당, camp: other }
+  # seoul_songpa_byeong (서울 송파구병)
+  - { election: 2020-04-15-national_assembly, candidate: 남인순, party: 더불어민주당, camp: progressive }
+  - { election: 2020-04-15-national_assembly, candidate: 김근식, party: 미래통합당, camp: conservative }
+  - { election: 2020-04-15-national_assembly, candidate: 최조웅, party: 민생당, camp: centrist }
+  - { election: 2020-04-15-national_assembly, candidate: 강덕수, party: 국가혁명배당금당, camp: other }
+  - { election: 2020-04-15-national_assembly, candidate: 이종식, party: 무소속, camp: other }
