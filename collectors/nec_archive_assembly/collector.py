@@ -54,6 +54,7 @@ class Collector(BaseCollector):
                 "선관위 개표자료를 data/raw/nec_archive_assembly/ 옆에 두어야 한다"
             )
         for election in self.config["elections"]:
+            election = self._resolve(election)
             selector = election["selector"]
             path = base / selector["file"]
             if not path.is_file():
@@ -144,18 +145,48 @@ class Collector(BaseCollector):
         """
         for election in self.config["elections"]:
             if election["id"] == election_id:
-                if election.get("district_match") == "{auto}":
-                    election = {**election, **self._auto_district_match()}
-                return election
+                return self._resolve(election)
         return None
 
-    def _auto_district_match(self) -> dict[str, str]:
-        """22대(2024) 전국 파일의 선거구명 표기를 districts.yaml 의 name 에서 유도한다.
+    def _resolve(self, election: dict[str, Any]) -> dict[str, Any]:
+        """district_match == "{auto}" 인 항목의 표기를 이 선거구 값으로 채운다.
 
-        이 파일이 곧 districts.yaml 의 출처다(docs/SETUP.md §3, "제22대 국회의원선거
-        개표결과(지역구) 전국 xlsx 에서 프로그램으로 추출") — 그래서 안전하게 유도된다.
-        "서울 강남구 갑" -> "강남구갑". 다른 회차는 선거구 획정이 지금과 다를 수 있어
-        이렇게 하지 않는다(18~21대는 selector.file 자체가 선거구 전용 파일).
+        22대(전국 단일 파일)뿐 아니라 19~21대(선거구별 파일)도 파일명에
+        **같은 표기**("강남구갑" 등)를 그대로 쓴다는 게 실측으로 확인됐다(D-004)
+        — 그래서 selector.file/sheet 안의 "{auto}" 도 같이 치환한다. 18대는
+        이 템플릿을 안 쓴다(아래 _auto_district_match 참조) — 이 함수는 그
+        회차의 config 자체가 없는 선거구에는 호출되지 않는다.
+        """
+        if election.get("district_match") != "{auto}":
+            return election
+        auto = self._auto_district_match()
+        token = auto["district_match"]
+        selector = dict(election["selector"])
+        if "{auto}" in selector.get("file", ""):
+            selector["file"] = selector["file"].format(auto=token)
+        sheet = selector.get("sheet")
+        if isinstance(sheet, str) and "{auto}" in sheet:
+            selector["sheet"] = sheet.format(auto=token)
+        return {**election, **auto, "selector": selector}
+
+    def _auto_district_match(self) -> dict[str, str]:
+        """이 선거구의 districts.yaml name 에서 파일/시트/텍스트 표기를 유도한다.
+
+        22대 전국 파일은 이 표기가 곧 districts.yaml 의 출처다(docs/SETUP.md §3,
+        "제22대 국회의원선거 개표결과(지역구) 전국 xlsx 에서 프로그램으로 추출").
+        19~21대(선거구별 파일)도 파일명이 같은 표기 규칙을 따른다는 것을 실측으로
+        확인했다(D-004). **18대(2008)는 이 템플릿을 쓰지 않는다** — 파일명은
+        맞아도 그 시절 행정동 자체가 지금과 다른 경우가 흔하다(관악구는 2008년에
+        '봉천제1동'~'봉천제11동'이었고 지금 이름으로 남은 동이 거의 없다 — 개명
+        이력을 모르면 추정이 된다). 송파갑만 개별 검증을 거쳐 자기 elections 에
+        18대를 직접 얹어 뒀다.
+        19~21대에서도 파일명은 맞는데 실제 동 구성이 안 맞는 선거구가 있었다
+        (노원구 갑/을, 강동구 갑/을, 강남구 을, 구로구 갑·은평구 갑·송파구 병 일부
+        회차) — 실측으로 걸러 해당 회차를 그 선거구의 elections 목록에서 뺐다
+        (meta.yaml 의 districts.<id> override). 이유가 다른 3종(중구성동구 갑/을,
+        강남구병·강서구병)도 마찬가지로 해당 회차를 아예 뺐다. 어느 쪽이든
+        코드는 이 값을 유도만 할 뿐 추정하지 않는다 — 판단은 meta.yaml 에 있다.
+        "서울 강남구 갑" -> "강남구갑".
         """
         name = resolve_district(self.config["district"]).name
         match = name.removeprefix("서울 ").replace(" ", "")
