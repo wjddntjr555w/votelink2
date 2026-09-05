@@ -16,79 +16,145 @@ proposal: docs/proposals/C-005-nec-archive-assembly.md
 # 격리 0. 산술 불변식(득표합=계, 계+무효=투표, 투표<=선거인) 전부 통과.
 # 1위 후보·투표율이 실제 결과와 일치(교차확인): 2008 박영아(42.3%) · 2012 박인숙(57.1%)
 # · 2016 박인숙(60.2%) · 2020 김웅(70.5%) · 2024 박정훈(69.9%).
+#
+# 2026-09-05 (D-002): 22대(2024)만 47개 선거구로 확장. 22대 전국 단일 파일은
+# districts.yaml 의 출처 그 자체다(docs/SETUP.md §3) — 그래서 district_match
+# 를 코드가 그 선거구의 districts.yaml name 에서 그대로 유도한다("{auto}" 마커,
+# collector.py::_auto_district_match). 18~21대는 선거구마다 **다른 파일**이라
+# 이렇게 못 한다 — 자동화하지 않고 송파갑 것만 그대로 남긴다(districts.<id> override).
 verified: true
 
 config:
   archive_dir: "data/raw/nec_archive/02_국회의원선거(총선,재보궐선거)"
 
-  # --district 없이 실행하면 default_district 를 쓴다. 총선은 선거구 획정이
-  # 회차마다 바뀌므로, 다른 선거구를 넣으려면 elections[] 의 selector.sheet·
-  # district_match·district_name 을 그 선거구 기준으로 다시 정해야 한다.
+  # --district 없이 실행하면 default_district 를 쓴다. 대부분의 선거구는 아래
+  # 공용 elections(22대만)를 그대로 쓴다. 18~21대까지 원하는 선거구는 송파갑처럼
+  # districts.<id>.elections 로 그 선거구 전용 파일 목록을 통째로 얹어야 한다
+  # (파일 자체가 선거구별로 다르므로 자동화할 수 없다).
   default_district: seoul_songpa_gap
   districts:
-    seoul_songpa_gap: {}
+    seoul_songpa_gap:
+      elections:
+        - id: 2008-04-09-national_assembly
+          name: 제18대 국회의원선거
+          date: "2008-04-09"
+          district_match: "송파구갑"
+          district_name: "서울 송파구갑"
+          selector:
+            file: "제18대 국회의원선거/제18대 국회의원선거(지역구)/서울.xls"
+            sheet: "송파구갑"
+          # 읍면동명 열이 직접 있다(정규식 불필요). 정당행(1)에 '계'가 있고
+          # 후보명은 그 다음 줄(2)이다 — candidate_name_row_offset=1.
+          layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
+                   label_row: 1, candidate_name_row_offset: 1, data_from: 3}
 
-  # 회차별 지역구 선택 방법과 격자 배치. 7종 파일 구조 중 5개(18~22대)만 다룬다.
-  # 16·17대는 후보명이 투표구 텍스트에 섞여 있어(`풍납제1동제1투`) 다른 추출
-  # 방식이 필요하다 — C-005 §제약과 위험, 별도 작업으로 미룬다.
+        - id: 2012-04-11-national_assembly
+          name: 제19대 국회의원선거
+          date: "2012-04-11"
+          district_match: "송파구갑"
+          district_name: "서울 송파구갑"
+          # 파일명 자체가 오타다('국희의원'). 출처의 실수를 고치지 않고 그대로 쓴다 —
+          # 다음에 파일이 바뀔 때 우리가 "고친" 이름이 매칭을 깨뜨리지 않게.
+          selector:
+            file: "제19대 국회의원선거/제19대 국회의원선거(지역구)/01_서울/국희의원_서울_송파구갑.xls"
+          # '정당\n후보' 가 한 칸에 병합돼 있다(candidate_name_row_offset 불필요).
+          layout: {emd: 1, precinct: 2, eligible: 3, votes: 4, candidate_from: 5,
+                   label_row: 4, data_from: 5}
+
+        - id: 2016-04-13-national_assembly
+          name: 제20대 국회의원선거
+          date: "2016-04-13"
+          district_match: "송파구갑"
+          district_name: "서울 송파구갑"
+          selector:
+            file: "제20대 국회의원선거/지역구/1서울/개표상황(투표구별)_송파구갑.xlsx"
+          layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
+                   label_row: 4, data_from: 5}
+
+        - id: 2020-04-15-national_assembly
+          name: 제21대 국회의원선거
+          date: "2020-04-15"
+          district_match: "송파구갑"
+          district_name: "서울 송파구갑"
+          selector:
+            file: "제21대 국회의원선거/지역구/1서울/개표상황(투표구별)_송파구갑.xlsx"
+          layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
+                   label_row: 4, data_from: 5}
+
+        - id: 2024-04-10-national_assembly
+          name: 제22대 국회의원선거
+          date: "2024-04-10"
+          district_match: "송파구갑"
+          district_name: "서울 송파구갑"
+          selector:
+            file: "제22대 국회의원선거/1. 개표단위별 개표결과(지역구) -전국.xlsx"
+          layout: {emd: 3, precinct: 4, eligible: 5, votes: 6, candidate_from: 7,
+                   label_row: 3, data_from: 4, district_col: 1,
+                   candidate_from_block_start: true}
+    seoul_jongno: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_gwangjin_gap: {}
+    seoul_gwangjin_eul: {}
+    seoul_dongdaemun_gap: {}
+    seoul_dongdaemun_eul: {}
+    seoul_jungnang_gap: {}
+    seoul_jungnang_eul: {}
+    seoul_seongbuk_gap: {}
+    seoul_seongbuk_eul: {}
+    seoul_gangbuk_gap: {}
+    seoul_gangbuk_eul: {}
+    seoul_dobong_gap: {}
+    seoul_dobong_eul: {}
+    seoul_nowon_gap: {}
+    seoul_nowon_eul: {}
+    seoul_eunpyeong_gap: {}
+    seoul_eunpyeong_eul: {}
+    seoul_seodaemun_gap: {}
+    seoul_seodaemun_eul: {}
+    seoul_mapo_gap: {}
+    seoul_mapo_eul: {}
+    seoul_yangcheon_gap: {}
+    seoul_yangcheon_eul: {}
+    seoul_gangseo_gap: {}
+    seoul_gangseo_eul: {}
+    seoul_gangseo_byeong: {}
+    seoul_guro_gap: {}
+    seoul_guro_eul: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_yeongdeungpo_eul: {}
+    seoul_dongjak_gap: {}
+    seoul_dongjak_eul: {}
+    seoul_gwanak_gap: {}
+    seoul_gwanak_eul: {}
+    seoul_seocho_gap: {}
+    seoul_seocho_eul: {}
+    seoul_gangnam_gap: {}
+    seoul_gangnam_eul: {}
+    seoul_gangnam_byeong: {}
+    seoul_songpa_eul: {}
+    seoul_songpa_byeong: {}
+    seoul_gangdong_gap: {}
+    seoul_gangdong_eul: {}
+
+  # 공용 목록 — 위 districts.<id> 가 자기만의 elections 를 얹지 않으면 이걸 쓴다
+  # (`votelink.districtcfg` 는 키 단위로 얕게 override 한다). 지금은 22대뿐이다.
   #
   #   selector.file/sheet : fetch 가 읽을 위치. sheet 가 있으면 그 파일이 이미
-  #                          지역구 하나로 좁혀진 것이다(18~21대)
-  #   district_match       : 파일 안에서 이 지역구를 찾을 때 대조할 원문 텍스트
-  #   district_name        : payload.district_name 에 쓰는 표시용 값
+  #                          지역구 하나로 좁혀진 것이다(18~21대, 송파갑 전용)
+  #   district_match       : 파일 안에서 이 지역구를 찾을 때 대조할 원문 텍스트.
+  #                          "{auto}" 는 실행 시 그 선거구의 districts.yaml name
+  #                          에서 유도한다(예: "서울 강남구 갑" -> "강남구갑")
+  #   district_name        : payload.district_name 에 쓰는 표시용 값. "{auto}" 규칙 같음
   #   layout.district_col  : 있으면(22대) grid 전체가 전국이라 이 열로 걸러낸다
   elections:
-    - id: 2008-04-09-national_assembly
-      name: 제18대 국회의원선거
-      date: "2008-04-09"
-      district_match: "송파구갑"
-      district_name: "서울 송파구갑"
-      selector:
-        file: "제18대 국회의원선거/제18대 국회의원선거(지역구)/서울.xls"
-        sheet: "송파구갑"
-      # 읍면동명 열이 직접 있다(정규식 불필요). 정당행(1)에 '계'가 있고
-      # 후보명은 그 다음 줄(2)이다 — candidate_name_row_offset=1.
-      layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
-               label_row: 1, candidate_name_row_offset: 1, data_from: 3}
-
-    - id: 2012-04-11-national_assembly
-      name: 제19대 국회의원선거
-      date: "2012-04-11"
-      district_match: "송파구갑"
-      district_name: "서울 송파구갑"
-      # 파일명 자체가 오타다('국희의원'). 출처의 실수를 고치지 않고 그대로 쓴다 —
-      # 다음에 파일이 바뀔 때 우리가 "고친" 이름이 매칭을 깨뜨리지 않게.
-      selector:
-        file: "제19대 국회의원선거/제19대 국회의원선거(지역구)/01_서울/국희의원_서울_송파구갑.xls"
-      # '정당\n후보' 가 한 칸에 병합돼 있다(candidate_name_row_offset 불필요).
-      layout: {emd: 1, precinct: 2, eligible: 3, votes: 4, candidate_from: 5,
-               label_row: 4, data_from: 5}
-
-    - id: 2016-04-13-national_assembly
-      name: 제20대 국회의원선거
-      date: "2016-04-13"
-      district_match: "송파구갑"
-      district_name: "서울 송파구갑"
-      selector:
-        file: "제20대 국회의원선거/지역구/1서울/개표상황(투표구별)_송파구갑.xlsx"
-      layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
-               label_row: 4, data_from: 5}
-
-    - id: 2020-04-15-national_assembly
-      name: 제21대 국회의원선거
-      date: "2020-04-15"
-      district_match: "송파구갑"
-      district_name: "서울 송파구갑"
-      selector:
-        file: "제21대 국회의원선거/지역구/1서울/개표상황(투표구별)_송파구갑.xlsx"
-      layout: {emd: 0, precinct: 1, eligible: 2, votes: 3, candidate_from: 4,
-               label_row: 4, data_from: 5}
-
     - id: 2024-04-10-national_assembly
       name: 제22대 국회의원선거
       date: "2024-04-10"
-      district_match: "송파구갑"
-      district_name: "서울 송파구갑"
+      district_match: "{auto}"
+      district_name: "{auto}"
       selector:
         file: "제22대 국회의원선거/1. 개표단위별 개표결과(지역구) -전국.xlsx"
       # 전국 단일 파일. district_col(선거구명, 1열)로 걸러낸다. '계' 위치는

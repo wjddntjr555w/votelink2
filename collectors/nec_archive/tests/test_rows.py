@@ -11,6 +11,7 @@ from ..rows import (
     check_arithmetic,
     iter_emd_rows,
     normalize_emd,
+    strip_disambiguation,
     to_int,
 )
 
@@ -127,6 +128,40 @@ class TestNormalizeEmd:
     def test_only_trailing_form_changes(self):
         # '제'가 동 번호 앞이 아닌 곳에 있으면 건드리지 않는다.
         assert normalize_emd("제주동") == "제주동"
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("종로1·2·3·4가동", "종로1.2.3.4가동"),
+            ("종로1.2.3.4가동", "종로1.2.3.4가동"),
+            ("금호2·3가동", "금호2.3가동"),
+        ],
+    )
+    def test_middle_dot_and_period_normalize_the_same(self, raw, expected):
+        # D-001 로 districts.yaml 이 '.'(MOIS 표기)로 정정됐는데 선관위 원본은
+        # '·' 를 쓴다. 둘 다 같은 값으로 접혀야 한다 — 어느 쪽도 '표준'으로
+        # 가정하지 않는다.
+        assert normalize_emd(raw) == expected
+
+    def test_je_dong_and_dot_normalize_together(self):
+        # districts.yaml(MOIS 표기)이 '창신제1동' 인데 선관위 원본은 '창신1동' 이다.
+        assert normalize_emd("창신제1동") == normalize_emd("창신1동") == "창신1동"
+
+
+class TestStripDisambiguation:
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("중구(서울)", "중구"),
+            ("송파구", "송파구"),  # 전국에 하나뿐인 이름은 괄호가 안 붙는다
+            ("강서구(부산)", "강서구"),
+        ],
+    )
+    def test_strips_trailing_parenthetical(self, raw, expected):
+        # 2002년(16대) 파일은 전국에 겹치는 시군구명(중구 등)에 '(시도명)'을 붙여
+        # 구분한다 — 송파구처럼 유일한 이름에서는 나타나지 않아 47개 선거구로
+        # 넓히기 전까지 드러나지 않았다 (D-002).
+        assert strip_disambiguation(raw) == expected
 
 
 class TestToInt:

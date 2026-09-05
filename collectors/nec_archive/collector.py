@@ -8,6 +8,7 @@ parse: 격자 -> election_result 레코드 (네트워크 금지, 순수 함수)
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime
 from functools import cached_property
@@ -28,6 +29,7 @@ from .rows import (
     iter_baseline_rows,
     iter_emd_rows,
     merge_baseline_rows,
+    normalize_emd,
 )
 
 
@@ -86,21 +88,41 @@ class Collector(BaseCollector):
         rows = iter_emd_rows(
             grid,
             layout,
-            sigungu_match=self.config["sigungu_match"],
+            sigungu_match=self._sigungu_match(),
             emd_names=self._emd_names,
             total_markers=tuple(self.config["precinct_total_markers"]),
         )
         yield from self.map_items(rows, lambda row: self._to_record(row, election))
 
-        # 기준선(전국·서울시·송파구). 동별 득표율은 '무엇 대비'가 있어야 지표가 된다.
+        # 기준선(전국·서울시·해당 자치구). 동별 득표율은 '무엇 대비'가 있어야 지표가 된다.
         # 규칙은 선거마다 다르므로 meta.yaml 에 두었고, 없는 회차는 그냥 건너뛴다
         # (2002년은 시도 열이 없어 서울시를 못 만든다).
+        # sgg/sgg_prefix 의 "{sigungu}" 자리는 이 선거구의 자치구명으로 치환한다
+        # (D-002 — 47개 선거구로 확장하며 송파구 하드코딩을 없앴다).
         # YAML 은 리스트를 주지만 규칙은 frozen 이라 튜플로 맞춘다.
+        sigungu_name = resolve_district(self.config["district"]).sigungu
         rules = [
-            BaselineRule(**{**rule, "emd": tuple(rule.get("emd", ()))})
+            BaselineRule(
+                **{
+                    **rule,
+                    "emd": tuple(rule.get("emd", ())),
+                    "sgg": self._fmt_sigungu(rule.get("sgg"), sigungu_name),
+                    "sgg_prefix": self._fmt_sigungu(rule.get("sgg_prefix"), sigungu_name),
+                }
+            )
             for rule in election.get("baselines", [])
         ]
-        baseline_rows = list(iter_baseline_rows(grid, layout, rules)) if rules else []
+        # sigungu 규칙만 "행이 없음"을 관대하게 본다 — 그 자치구가 이 회차 시점에
+        # 아직 없었을 수 있다(예: 금천구·강북구는 1995년 분구, 1992년 파일엔 없다).
+        # nation/sido 규칙은 그대로 크게 실패한다 — 그건 회차마다 항상 있어야 하고,
+        # 없으면 baselines 조건이 이 파일 표기와 안 맞는다는 신호다.
+        baseline_rows: list[BaselineRow] = []
+        for rule in rules:
+            try:
+                baseline_rows.extend(iter_baseline_rows(grid, layout, [rule]))
+            except ValueError:
+                if rule.level != "sigungu":
+                    raise
 
         # 17대(2007)는 서울 파일 하나로는 전국을 만들 수 없다. 나머지 15개 시도
         # 파일의 자체 총계(구 합계의 합)를 서울 몫과 더한다.
@@ -133,7 +155,11 @@ class Collector(BaseCollector):
     def _to_record(self, row: Any, election: dict[str, Any]) -> Record:
         check_arithmetic(row)
         district = resolve_district(self.config["district"])
-        code = next((e.code for e in district.emd if e.name == row.emd_name), None)
+        # row.emd_name 은 이미 normalize_emd() 를 거친 값(§ iter_emd_rows) 이므로
+        # districts.yaml 쪽도 같은 정규화를 거쳐 비교한다 — 표기가 서로 다를 수 있다.
+        code = next(
+            (e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None
+        )
         if not code:
             raise ValueError(
                 f"{row.emd_name}: districts.yaml 에 행정동코드가 없다. "
@@ -176,7 +202,7 @@ class Collector(BaseCollector):
         그래서 분석기는 이걸 특별 취급하지 않고 geo_level 로만 분기하면 된다.
         """
         check_baseline_arithmetic(row)
-        geo = self.config["baseline_geo"][row.level]
+        geo = self._baseline_geo[row.level]
         return Record(
             kind="election_result",
             collector_id=self.id,
@@ -219,5 +245,53 @@ class Collector(BaseCollector):
 
     @cached_property
     def _emd_names(self) -> set[str]:
-        """수집 대상 행정동. districts.yaml 이 단일 진실이다."""
-        return {emd.name for emd in resolve_district(self.config["district"]).emd}
+        """수집 대상 행정동. districts.yaml 이 단일 진실이다.
+
+        normalize_emd() 를 거쳐서 비교한다 — 파일 쪽 이름도 같은 정규화를 거치므로
+        (§iter_emd_rows) '창신제1동'(districts.yaml) 과 '창신1동'(선관위 원본 표기)
+        같은 표기 차이가 매칭 실패로 이어지지 않는다.
+        """
+        return {normalize_emd(emd.name) for emd in resolve_district(self.config["district"]).emd}
+
+    def _sigungu_match(self) -> str:
+        """동 필터에 쓸 자치구명 부분 문자열. districts.yaml 의 sigungu 에서 유도한다.
+
+        '구'를 뗀다 — 원본 파일의 표기 흔들림('송파구' 든 다른 접미사든)에 substring
+        매칭으로 잡히게 하기 위해서다(기존 송파구 설정의 관례를 그대로 따른다).
+        """
+        return resolve_district(self.config["district"]).sigungu.removesuffix("구")
+
+    @cached_property
+    def _baseline_geo(self) -> dict[str, dict[str, str | None]]:
+        """전국·서울시·해당 자치구의 지리 식별자. districts.yaml 에서 유도한다(D-002).
+
+        sigungu 코드는 그 선거구 행정동코드(admmCd)들의 공통 4자리 접두사 + '000000'
+        이다 — mois_population 이 실측한 sigungu_admm_code 와 같은 규칙
+        (docs/SETUP.md §2). 접두사가 하나로 안 모이면(선거구가 두 시군구에 걸친
+        경우, 예: 중구성동구 을) 더 많은 동이 속한 접두사를 쓴다 — district.sigungu
+        가 가리키는 그 자치구다(D-001 §제약과 위험에 같은 한계가 적혀 있다).
+        """
+        district = resolve_district(self.config["district"])
+        if district.sido != "서울특별시":
+            raise ValueError(
+                f"{district.id}: 서울 밖 선거구의 기준선은 아직 지원하지 않는다 "
+                f"(sido={district.sido!r}). SEOUL_SIDO 상수를 일반화해야 한다"
+            )
+        codes = district.emd_codes
+        if not codes:
+            raise ValueError(
+                f"{district.id}: 확인된 행정동코드가 없다 — "
+                "먼저 `votelink district backfill-codes` 를 돌려라 (D-001)"
+            )
+        prefix, _ = Counter(c[:4] for c in codes).most_common(1)[0]
+        return {
+            "nation": {"code": None, "name": "전국"},
+            "sido": {"code": "1100000000", "name": "서울특별시"},
+            "sigungu": {"code": f"{prefix}000000", "name": district.sigungu},
+        }
+
+    @staticmethod
+    def _fmt_sigungu(value: str | None, sigungu_name: str) -> str | None:
+        if value is None:
+            return None
+        return value.format(sigungu=sigungu_name)

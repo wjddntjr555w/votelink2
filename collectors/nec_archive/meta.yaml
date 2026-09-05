@@ -37,22 +37,60 @@ config:
   # 16·17대 '소계', 19대 '합계', 18·20·21대 빈칸. 14·15대는 투표구 열 자체가 없다.
   precinct_total_markers: ["", "소계", "합계"]
 
-  # --district 없이 실행하면 default_district 를 쓴다. 대선은 선거구 획정과
-  # 무관하지만, 대상 자치구(sigungu_match)와 기준선 지리는 선거구마다 다르다.
-  # 아래 elections[].baselines 는 아직 송파 기준으로 튜닝돼 있다 — 다른 구의
-  # 대선 이력을 넣으려면 그 구의 baselines(sgg_prefix·expect)를 함께 정해야 한다.
+  # --district 없이 실행하면 default_district 를 쓴다. 대상 자치구(sigungu_match)와
+  # 기준선 지리(baseline_geo)는 이제 여기 적지 않는다 — collector.py 가
+  # districts.yaml 에서 그때그때 유도한다(D-002, `_sigungu_match`/`_baseline_geo`).
+  # 그래서 districts 는 '이 선거구를 쓸 수 있다'는 등록 표시일 뿐이다.
   default_district: seoul_songpa_gap
   districts:
-    seoul_songpa_gap:
-      sigungu_match: "송파"      # 구시군명(또는 위원회명)에 이 문자열이 있으면 대상
-      # 기준선(상위 행정단위) 레코드의 지리 정보.
-      # 동별 득표율은 그 자체로 의미가 없다 — "무엇 대비"가 있어야 지표가 된다.
-      # nation 은 계약상 geo_code 를 가질 수 없다(§3). sido/sigungu 코드는 검증된
-      # admmCd(1171051000 등)의 접두사 규칙에서 나온 값이다.
-      baseline_geo:
-        nation:  { code: null,         name: "전국" }
-        sido:    { code: "1100000000", name: "서울특별시" }
-        sigungu: { code: "1171000000", name: "송파구" }
+    seoul_songpa_gap: {}
+    seoul_jongno: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_gwangjin_gap: {}
+    seoul_gwangjin_eul: {}
+    seoul_dongdaemun_gap: {}
+    seoul_dongdaemun_eul: {}
+    seoul_jungnang_gap: {}
+    seoul_jungnang_eul: {}
+    seoul_seongbuk_gap: {}
+    seoul_seongbuk_eul: {}
+    seoul_gangbuk_gap: {}
+    seoul_gangbuk_eul: {}
+    seoul_dobong_gap: {}
+    seoul_dobong_eul: {}
+    seoul_nowon_gap: {}
+    seoul_nowon_eul: {}
+    seoul_eunpyeong_gap: {}
+    seoul_eunpyeong_eul: {}
+    seoul_seodaemun_gap: {}
+    seoul_seodaemun_eul: {}
+    seoul_mapo_gap: {}
+    seoul_mapo_eul: {}
+    seoul_yangcheon_gap: {}
+    seoul_yangcheon_eul: {}
+    seoul_gangseo_gap: {}
+    seoul_gangseo_eul: {}
+    seoul_gangseo_byeong: {}
+    seoul_guro_gap: {}
+    seoul_guro_eul: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_yeongdeungpo_eul: {}
+    seoul_dongjak_gap: {}
+    seoul_dongjak_eul: {}
+    seoul_gwanak_gap: {}
+    seoul_gwanak_eul: {}
+    seoul_seocho_gap: {}
+    seoul_seocho_eul: {}
+    seoul_gangnam_gap: {}
+    seoul_gangnam_eul: {}
+    seoul_gangnam_byeong: {}
+    seoul_songpa_eul: {}
+    seoul_songpa_byeong: {}
+    seoul_gangdong_gap: {}
+    seoul_gangdong_eul: {}
 
   # 선거별 레이아웃. 33년치가 서로 다르므로 코드가 아니라 여기 데이터로 둔다.
   #   sgg/emd/eligible/votes/candidate_from/total/invalid : 열 인덱스 (0부터)
@@ -71,7 +109,7 @@ config:
       baselines:
         - {level: nation,  sido: "전국", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
-        - {level: sigungu, sgg_prefix: "송파구", emd: ["소계"], expect: 2}
+        - {level: sigungu, sgg_prefix: "{sigungu}", emd: ["소계"], expect: null}
 
     - id: 1997-12-18-presidential
       name: 제15대 대통령선거
@@ -84,7 +122,7 @@ config:
       baselines:
         - {level: nation,  sido: "전국", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
-        - {level: sigungu, sgg_prefix: "송파구", emd: ["소계"], expect: 3}
+        - {level: sigungu, sgg_prefix: "{sigungu}", emd: ["소계"], expect: null}
 
     # 위원회명이 '[송파구]' 형태다. 대괄호는 파서가 벗긴다.
     - id: 2002-12-19-presidential
@@ -101,7 +139,7 @@ config:
         # 244 = 이 파일에 든 시군구 위원회 수. 합산 결과가 실제 전국 집계와
         # 일치하는 것으로 확인했다 (선거인수 34,991,529 · 투표율 70.8%).
         - {level: nation,  emd: ["합계"], expect: 244}
-        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["합계"], expect: null}
 
     # 시도별 16개 파일로 쪼개져 있다. 서울 파일만 쓴다.
     - id: 2007-12-19-presidential
@@ -135,7 +173,7 @@ config:
       # 합산하면 전국 (parse() 가 처리한다). 송파구는 서울 파일 안의 구 하나.
       baselines:
         - {level: sido,    emd: ["합계"], expect: 25}
-        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["합계"], expect: null}
 
     # A열이 통째로 비어 있어 모든 열이 1씩 밀려 있다.
     - id: 2012-12-19-presidential
@@ -151,7 +189,7 @@ config:
       baselines:
         - {level: nation,  sido: "전국", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
-        - {level: sigungu, sgg: "송파구", emd: ["소계"], expect: 2, take_first: true}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["소계"], expect: null, take_first: true}
 
     # 동 단위 행의 투표구명이 '합계'다 (다른 선거는 빈칸이나 '소계').
     - id: 2017-05-09-presidential
@@ -165,7 +203,7 @@ config:
       baselines:
         - {level: nation,  sido: "전국", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg: "합계", expect: 1}
-        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["합계"], expect: null}
 
     - id: 2022-03-09-presidential
       name: 제20대 대통령선거
@@ -178,7 +216,7 @@ config:
       baselines:
         - {level: nation,  sido: "전국", sgg: "합계", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg_prefix: "합계", expect: 1}
-        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["합계"], expect: null}
 
     - id: 2025-06-03-presidential
       name: 제21대 대통령선거
@@ -190,4 +228,4 @@ config:
       baselines:
         - {level: nation,  sido: "전국", sgg: "합계", expect: 1}
         - {level: sido,    sido_prefix: "서울", sgg_prefix: "합계", expect: 1}
-        - {level: sigungu, sgg: "송파구", emd: ["합계"], expect: 1}
+        - {level: sigungu, sgg: "{sigungu}", emd: ["합계"], expect: null}

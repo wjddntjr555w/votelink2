@@ -24,7 +24,13 @@ from votelink.contract.models import Record
 from votelink.reference.districts import resolve_district
 
 from .excel import read_grid
-from .rows import DEFAULT_TOTAL_MARKERS, Layout, check_arithmetic, iter_district_rows
+from .rows import (
+    DEFAULT_TOTAL_MARKERS,
+    Layout,
+    check_arithmetic,
+    iter_district_rows,
+    normalize_emd,
+)
 
 
 class Collector(BaseCollector):
@@ -79,7 +85,11 @@ class Collector(BaseCollector):
     def _to_record(self, row: Any, election: dict[str, Any]) -> Record:
         check_arithmetic(row)
         district = resolve_district(self.config["district"])
-        code = next((e.code for e in district.emd if e.name == row.emd_name), None)
+        # row.emd_name 은 이미 normalize_emd() 를 거친 값이므로 districts.yaml 쪽도
+        # 같은 정규화를 거쳐 비교한다 — 표기가 서로 다를 수 있다(D-001).
+        code = next(
+            (e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None
+        )
         if not code:
             raise ValueError(
                 f"{row.emd_name}: districts.yaml 에 행정동코드가 없다. "
@@ -120,12 +130,30 @@ class Collector(BaseCollector):
     def _election(self, election_id: str) -> dict[str, Any]:
         for election in self.config["elections"]:
             if election["id"] == election_id:
+                if election.get("district_match") == "{auto}":
+                    election = {**election, **self._auto_district_match()}
                 return election
         raise ValueError(
             f"meta.yaml 에 없는 선거다: {election_id}. raw 는 있는데 설정에서 지워졌을 수 있다"
         )
 
+    def _auto_district_match(self) -> dict[str, str]:
+        """22대(2024) 전국 파일의 선거구명 표기를 districts.yaml 의 name 에서 유도한다.
+
+        이 파일이 곧 districts.yaml 의 출처다(docs/SETUP.md §3, "제22대 국회의원선거
+        개표결과(지역구) 전국 xlsx 에서 프로그램으로 추출") — 그래서 안전하게 유도된다.
+        "서울 강남구 갑" -> "강남구갑". 다른 회차는 선거구 획정이 지금과 다를 수 있어
+        이렇게 하지 않는다(18~21대는 selector.file 자체가 선거구 전용 파일).
+        """
+        name = resolve_district(self.config["district"]).name
+        match = name.removeprefix("서울 ").replace(" ", "")
+        return {"district_match": match, "district_name": f"서울 {match}"}
+
     @cached_property
     def _emd_names(self) -> set[str]:
-        """수집 대상 행정동. districts.yaml 이 단일 진실이다 (현재=2024 기준)."""
-        return {emd.name for emd in resolve_district(self.config["district"]).emd}
+        """수집 대상 행정동. districts.yaml 이 단일 진실이다 (현재=2024 기준).
+
+        normalize_emd() 를 거쳐서 비교한다 — 파일 쪽 이름도 같은 정규화를 거치므로
+        (§iter_district_rows) 표기 차이가 매칭 실패로 이어지지 않는다(D-001).
+        """
+        return {normalize_emd(emd.name) for emd in resolve_district(self.config["district"]).emd}

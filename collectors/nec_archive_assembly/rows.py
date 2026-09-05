@@ -20,6 +20,11 @@ Grid = list[list[str]]
 # 코드를 공유하지 않으므로 별도로 둔다.
 _JE_DONG_RE = re.compile(r"제(\d+)동$")
 
+# 가운뎃점(·, 선관위 원본 표기)과 마침표(., mois_population 실제 admmCd 표기)가
+# 같은 동을 다르게 쓴다 — 예: '종로1·2·3·4가동' vs '종로1.2.3.4가동' (D-001,
+# districts.yaml 을 admmCd 백필 과정에서 MOIS 표기로 정정했다).
+_DOT_RE = re.compile(r"[·.]")
+
 DEFAULT_TOTAL_MARKERS = ("소계",)
 
 AGGREGATE_LABELS = frozenset(
@@ -28,7 +33,10 @@ AGGREGATE_LABELS = frozenset(
 
 
 def normalize_emd(name: str) -> str:
-    return _JE_DONG_RE.sub(r"\1동", (name or "").strip())
+    """양쪽(파일 · districts.yaml) 모두에 적용해서 비교한다 — 어느 쪽이 '표준'인지
+    가정하지 않는다. 한쪽만 정규화하면 그 가정이 always 맞지는 않는다(D-001)."""
+    text = _JE_DONG_RE.sub(r"\1동", (name or "").strip())
+    return _DOT_RE.sub(".", text)
 
 
 def to_int(value: str) -> int:

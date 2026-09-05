@@ -158,6 +158,14 @@ class TestNormalizeEmd:
     def test_already_normalized(self):
         assert normalize_emd("잠실6동") == "잠실6동"
 
+    def test_middle_dot_and_period_normalize_the_same(self):
+        # D-001 로 districts.yaml 이 '.'(MOIS 표기)로 정정됐는데 선관위 원본은
+        # '·' 를 쓴다 — 둘 다 같은 값으로 접혀야 어느 쪽을 봐도 매칭된다.
+        assert normalize_emd("종로1·2·3·4가동") == normalize_emd("종로1.2.3.4가동")
+
+    def test_je_dong_and_dot_normalize_together(self):
+        assert normalize_emd("창신제1동") == normalize_emd("창신1동") == "창신1동"
+
 
 class TestCheckArithmetic:
     def test_valid_row_passes(self):

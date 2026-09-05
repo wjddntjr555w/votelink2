@@ -18,6 +18,12 @@ Grid = list[list[str]]
 # 1992년은 '풍납제1동', 지금은 '풍납1동'. 33년치를 한 이름 체계로 맞추는 유일한 규칙이다.
 _JE_DONG_RE = re.compile(r"제(\d+)동$")
 
+# 가운뎃점(·, districts.yaml 의 원 출처 표기)과 마침표(., mois_population 실제
+# admmCd 표기) 가 같은 동을 다르게 쓴다 — 예: '종로1·2·3·4가동' vs '종로1.2.3.4가동'
+# (D-001, districts.yaml 을 admmCd 백필 과정에서 MOIS 표기로 정정했다). 이 파일은
+# districts.yaml 을 직접 조회하므로(§_emd_names) 이 차이를 흡수해야 한다.
+_DOT_RE = re.compile(r"[·.]")
+
 # 동 단위 합계 행의 투표구명. 선거마다 다르다 —
 # 16·17대는 '소계', 19대는 '합계', 18·20·21대는 빈칸이다.
 DEFAULT_TOTAL_MARKERS = ("", "소계", "합계")
@@ -31,8 +37,26 @@ AGGREGATE_LABELS = frozenset(
 
 
 def normalize_emd(name: str) -> str:
-    """'풍납제1동' -> '풍납1동'. districts.yaml 의 표기에 맞춘다."""
-    return _JE_DONG_RE.sub(r"\1동", (name or "").strip())
+    """'풍납제1동' -> '풍납1동', '·' -> '.'. 대조하는 양쪽 모두에 적용해야 한다.
+
+    districts.yaml 의 표기가 출처마다(선관위 원본 vs MOIS 백필) 다를 수 있으므로
+    이 함수를 파일 쪽과 districts.yaml 쪽 양쪽에 똑같이 적용해서 비교한다
+    (한쪽만 정규화하면 어느 쪽이 '표준'인지 가정하게 되는데 그 가정이 always
+    맞지는 않는다 — D-001 로 실제로 어긋난 사례가 나왔다).
+    """
+    text = _JE_DONG_RE.sub(r"\1동", (name or "").strip())
+    return _DOT_RE.sub(".", text)
+
+
+# 시군구명이 전국에서 겹치면(중구·강서구 등 여러 시도에 같은 이름) 원본이 '중구(서울)'
+# 처럼 시도명을 괄호로 붙여 구분한다. 송파구처럼 전국에 하나뿐인 이름에는 안 붙어서
+# 지금까지(송파구 하나만 쓸 때) 드러나지 않았다 — 47개 선거구로 넓히며 발견했다
+# (D-002, 2002년 중구 기준선).
+_DISAMBIGUATION_RE = re.compile(r"\([^)]*\)$")
+
+
+def strip_disambiguation(sgg: str) -> str:
+    return _DISAMBIGUATION_RE.sub("", sgg).strip()
 
 
 def to_int(value: str) -> int:
@@ -130,7 +154,7 @@ def iter_emd_rows(
     for row in grid[layout.data_from :]:
         # 신형 파일은 구시군명이 블록 첫 행에만 있다(병합셀). 앞의 값을 이어 쓴다.
         if cell(row, layout.sgg):
-            sigungu = cell(row, layout.sgg).strip("[]")
+            sigungu = strip_disambiguation(cell(row, layout.sgg).strip("[]"))
         if sigungu_match not in sigungu:
             continue
         name = normalize_emd(cell(row, layout.emd))
@@ -228,7 +252,7 @@ def iter_baseline_rows(
             if layout.sido is not None and cell(row, layout.sido):
                 sido = cell(row, layout.sido)
             if cell(row, layout.sgg):
-                sgg = cell(row, layout.sgg).strip("[]")
+                sgg = strip_disambiguation(cell(row, layout.sgg).strip("[]"))
             if rule.matches(sido, sgg, cell(row, layout.emd)):
                 hits.append(row)
 
