@@ -29,6 +29,7 @@ from votelink.web.loader import (
     NationProfiles,
     NewsDiagnostics,
     NewsItem,
+    NewsPulse,
     SkippedDistrict,
 )
 from votelink.web.shapes import ShapeSet
@@ -1029,6 +1030,90 @@ def build_news_view(
         date_to=dates[-1] if dates else "",
         # 모든 기사가 같은 kind(news_article)라 판정이 동일하다. 첫 건으로 대표한다.
         verdict=review_with(policy, news.items[0].record) if news.items else None,
+    )
+
+
+# --- 뉴스 펄스 카드 (대시보드) ------------------------------------------------
+#
+# news_pulse 레코드 1건 → 카드 한 장. 주별 기사량 막대 + 최근 주 급증 여부 +
+# 상위 언론사·지명. spike 판정은 news_pulse 가 계산한 값을 그대로 쓴다 —
+# L3 는 L2 임계값을 다시 읽지 않는다 (계층 무지).
+
+
+class PulseBar(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    week_start: str
+    count: int
+    district_specific: int
+    height_pct: float
+    """창 내 최대 주 대비 높이 %. 0건이면 0 — 막대를 아예 안 그린다."""
+    spike: bool
+    title: str
+
+
+class PulseCard(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    as_of: str
+    window_weeks: int
+    total_articles: int
+    bars: list[PulseBar]
+    latest_count: int
+    latest_district_specific: int
+    latest_spike: bool
+    latest_z_text: str
+    """ "z +2.8" 또는 "판정 불가" (히스토리 부족)."""
+    spike_weeks: int
+    backfill_distorted: bool
+    top_publishers: list[tuple[str, int]] = Field(default_factory=list)
+    top_places: list[tuple[str, int]] = Field(default_factory=list)
+    top_persons: list[tuple[str, int]] = Field(default_factory=list)
+    verdict: Verdict | None = None
+
+    @property
+    def latest_week(self) -> str:
+        return self.bars[-1].week_start if self.bars else UNKNOWN_TEXT
+
+
+def build_pulse_card(pulse: NewsPulse | None, policy: Policy) -> PulseCard | None:
+    if pulse is None:
+        return None
+    p = pulse.payload
+    weekly = p.weekly
+    peak = max((w.article_count for w in weekly), default=0) or 1
+
+    bars = [
+        PulseBar(
+            week_start=w.week_start,
+            count=w.article_count,
+            district_specific=w.district_specific_count,
+            height_pct=round(w.article_count / peak * 100, 1),
+            spike=w.spike,
+            title=(
+                f"{w.week_start} — {w.article_count}건"
+                f" (동·지명 직접 {w.district_specific_count})"
+                + (f" · 급증 z{w.spike_z:+.1f}" if w.spike and w.spike_z is not None else "")
+            ),
+        )
+        for w in weekly
+    ]
+    last = weekly[-1]
+    return PulseCard(
+        as_of=p.as_of,
+        window_weeks=p.window_weeks,
+        total_articles=p.total_articles,
+        bars=bars,
+        latest_count=last.article_count,
+        latest_district_specific=last.district_specific_count,
+        latest_spike=last.spike,
+        latest_z_text=(f"z {last.spike_z:+.1f}" if last.spike_z is not None else "판정 불가"),
+        spike_weeks=sum(1 for w in weekly if w.spike),
+        backfill_distorted=p.backfill_distorted,
+        top_publishers=[(t.term, t.count) for t in p.top_publishers],
+        top_places=[(t.term, t.count) for t in p.top_places],
+        top_persons=[(t.term, t.count) for t in p.top_persons],
+        verdict=review_with(policy, pulse.record),
     )
 
 

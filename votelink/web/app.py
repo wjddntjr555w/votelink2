@@ -30,6 +30,7 @@ from votelink.web.loader import (
     load_all_emd,
     load_comparison,
     load_news,
+    load_news_pulse,
     load_profiles,
 )
 from votelink.web.settings import WebSettings
@@ -40,6 +41,7 @@ from votelink.web.viewmodel import (
     build_map,
     build_nation_view,
     build_news_view,
+    build_pulse_card,
     build_view,
     election_type_choices,
     resolve_election_type,
@@ -84,9 +86,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         sort: str = "code",
         election_type: str = "presidential",
     ) -> Response:
+        settings: WebSettings = request.app.state.settings
         et = resolve_election_type(election_type)
         view = _view(request, district_id, sort=sort, election_type=et)
-        return _render(request, "dashboard.html", _ctx(request, district_id, view=view))
+        policy = load_policy(settings.policy_path)
+        pulse = build_pulse_card(load_news_pulse(settings, district_id), policy)
+        return _render(
+            request, "dashboard.html", _ctx(request, district_id, view=view, pulse=pulse)
+        )
 
     @app.get("/d/{district_id}/map", response_class=Response)
     def map_screen(

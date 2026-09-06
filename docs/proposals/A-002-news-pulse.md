@@ -1,6 +1,9 @@
 # A-002: 뉴스 펄스 (news_pulse)
 
-> 상태: **제안 (2026-09-06)**. 미구현.
+> 상태: **구현 완료 · 미검증 (2026-09-06)**. `analyzers/news_pulse/`.
+> 계약에 `news_pulse` payload 추가(사용자 승인). 입력 8,229 → 산출 1 · 격리 0 · 멱등.
+> `verified: false` — naver 검색 API 상한이 첫 백필의 최근 주를 부풀려 spike 판정을
+> 아직 신뢰할 수 없다. `backfill_distorted` 가 이를 표시하고, 증분 수집이 쌓이면 올린다.
 > 접두사 `A-` = analyzer. 착수 순서 2번 (뉴스 수집기 위에 올리는 L2/L3 중 LLM 없는 것 먼저).
 > 선행: A-001 과 같은 방식으로 `news_pulse` payload 모델을 계약에 추가해야 한다
 > (`RecordKind` 에는 없음 — 아래 §계약 변경). **사용자 승인 필요.**
@@ -51,13 +54,14 @@ class NewsWeekPoint(_Payload):
 
 
 class NewsPulsePayload(_Payload):
-    as_of: str                 # 분석 실행 기준일 "2026-09-06"
+    as_of: str                 # 가장 최근 기사의 연-월 "2026-09" (순수성 — now() 안 씀)
     window_weeks: int          # 접은 주 수
-    weekly: list[NewsWeekPoint]  # 오래된 주 순
+    weekly: list[NewsWeekPoint]  # 오래된 주 순. total_articles 는 이 합과 일치(불변식)
     total_articles: int
-    top_places: list[tuple[str, int]]   # 누적 상위, (지명, 건수)
-    top_persons: list[tuple[str, int]]
-    top_publishers: list[tuple[str, int]]
+    top_places: list[TermCount]     # 누적 상위 (term, count)
+    top_persons: list[TermCount]
+    top_publishers: list[TermCount]
+    backfill_distorted: bool   # 검색 API 상한으로 최근 주가 부풀었으면 True
 ```
 
 **봉투 쪽:**

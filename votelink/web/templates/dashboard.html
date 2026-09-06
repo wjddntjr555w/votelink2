@@ -62,6 +62,51 @@
   {% endif %}
 </section>
 
+{% if pulse %}
+  {% call output(pulse.verdict) %}
+    <section class="pulse">
+      <div class="pulse__head">
+        <h2>뉴스 펄스 <span class="muted small">· {{ pulse.as_of }} 기준 · 최근 {{ pulse.window_weeks }}주</span></h2>
+        <p class="pulse__latest">
+          최근 주({{ pulse.latest_week }}) <strong>{{ pulse.latest_count }}건</strong>
+          <span class="muted">(동·지명 직접 {{ pulse.latest_district_specific }})</span>
+          {% if pulse.latest_spike %}
+            <span class="badge badge--strong">급증 {{ pulse.latest_z_text }}</span>
+          {% else %}
+            <span class="badge">평상 {{ pulse.latest_z_text }}</span>
+          {% endif %}
+        </p>
+      </div>
+
+      {% if pulse.backfill_distorted %}
+      <p class="warn-text small">
+        첫 백필의 검색 API 상한(검색어당 1,000건) 때문에 최근으로 갈수록 기사량이
+        부풀어 있다. 증분 수집이 여러 주 쌓이기 전까지 급증 판정을 신뢰하지 않는다.
+      </p>
+      {% endif %}
+
+      <div class="pulse__bars" role="img"
+           aria-label="주별 기사 수 막대. 최근 {{ pulse.window_weeks }}주.">
+        {% for b in pulse.bars %}
+        <span class="pulse__bar {{ 'pulse__bar--spike' if b.spike }}"
+              style="height: {{ b.height_pct }}%" title="{{ b.title }}"></span>
+        {% endfor %}
+      </div>
+      <p class="muted small">
+        창 합계 {{ pulse.total_articles }}건 · 급증 주 {{ pulse.spike_weeks }}
+        {%- if pulse.top_publishers %} · 언론사 {% for name, n in pulse.top_publishers[:5] %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}{% endif %}
+      </p>
+      {% if pulse.top_places %}
+      <p class="muted small">지명 {% for name, n in pulse.top_places[:8] %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}</p>
+      {% endif %}
+      {% if pulse.top_persons %}
+      <p class="muted small">인물 {% for name, n in pulse.top_persons[:8] %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}</p>
+      {% endif %}
+      <p class="muted small"><a href="/d/{{ district_id }}/news">원문 목록 보기 &rarr;</a></p>
+    </section>
+  {% endcall %}
+{% endif %}
+
 {% if not view.is_empty %}
   {% call output(view.verdict) %}
     {% if view.summary_card %}

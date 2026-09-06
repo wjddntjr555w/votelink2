@@ -45,6 +45,21 @@ outputs:
       투표 마감)에 이 화면을 외부로 내보내면 위반 소지가 있다. election_day 가
       설정되면 그 판정을 붙인다.
 
+  - kind: news_pulse
+    risk: low
+    derived: true
+    distribution: internal_only
+    ai_generated: false
+    status: unreviewed
+    reviewed_by: ""
+    reviewed_at: ""
+    note: >-
+      news_article(네이버 검색 API 메타)를 주 단위로 접은 파생 집계다. 기사 본문도
+      개인 식별 정보도 없고 최소 단위는 시군구다. spike 는 급증 여부일 뿐 이슈
+      분류가 아니다. 첫 백필은 API 상한 때문에 최근 주가 부풀어 있어
+      backfill_distorted=true 로 표시되며, 그 상태의 급증 판정은 신뢰 대상이 아니다.
+      이 화면을 외부로 내보내면 사전선거운동 기간 판정 대상이 된다.
+
   - kind: segment_profile
     risk: low
     derived: true

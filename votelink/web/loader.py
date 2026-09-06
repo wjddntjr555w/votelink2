@@ -19,7 +19,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
-from votelink.contract.payloads import NewsArticlePayload, SegmentProfilePayload
+from votelink.contract.payloads import (
+    NewsArticlePayload,
+    NewsPulsePayload,
+    SegmentProfilePayload,
+)
 from votelink.reference.districts import District, load_districts, resolve_district
 from votelink.store import iter_records
 from votelink.web.settings import WebSettings
@@ -357,3 +361,33 @@ def load_news(settings: WebSettings, district_id: str | None = None) -> District
             shown=len(items),
         ),
     )
+
+
+# --- 뉴스 펄스 (news_pulse, L2 파생) ----------------------------------------
+#
+# 선거구당 레코드 1건. as_of(연-월)가 여럿이면 최신 하나만 — segment_profile 의
+# as_of dedup 과 같은 정신이되 축이 (geo_code) 하나뿐이라 훨씬 짧다.
+
+
+class NewsPulse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    record: Record
+    payload: NewsPulsePayload
+
+
+def load_news_pulse(settings: WebSettings, district_id: str | None = None) -> NewsPulse | None:
+    district = pick_district(settings, district_id)
+    wanted = _sigungu_codes(district)
+
+    best: NewsPulse | None = None
+    for record in iter_records([RecordKind.NEWS_PULSE], root=settings.records_root):
+        if record.geo_code not in wanted:
+            continue
+        try:
+            payload = NewsPulsePayload.model_validate(record.payload)
+        except ValidationError:
+            continue
+        if best is None or payload.as_of > best.payload.as_of:
+            best = NewsPulse(record=record, payload=payload)
+    return best
