@@ -60,6 +60,23 @@ outputs:
       backfill_distorted=true 로 표시되며, 그 상태의 급증 판정은 신뢰 대상이 아니다.
       이 화면을 외부로 내보내면 사전선거운동 기간 판정 대상이 된다.
 
+  - kind: local_issue
+    risk: low
+    derived: true
+    distribution: internal_only
+    ai_generated: false
+    status: unreviewed
+    reviewed_by: ""
+    reviewed_at: ""
+    note: >-
+      news_article(네이버 검색 API 메타)를 어휘집(issue_lexicon.yaml)으로 분류해 언급
+      빈도·최근성으로 세운 파생 랭킹이다. LLM 을 쓰지 않는다 — 순수 substring 매칭이라
+      재현 가능하다. 기사 본문도 개인 식별 정보도 없고 최소 단위는 시군구다.
+      sample_headlines 는 이미 news_article 에 저장된 원문 제목 최대 3개이며 본문은
+      없다. 감성·유불리는 판정하지 않는다. 어휘집이 곧 편집 판단이므로 lexicon_version
+      을 payload 에 박아 재현 가능하게 했다. 이 화면을 외부로 내보내면 사전선거운동
+      기간 판정 대상이 된다.
+
   - kind: segment_profile
     risk: low
     derived: true

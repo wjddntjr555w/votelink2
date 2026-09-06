@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
 from votelink.contract.payloads import (
+    LocalIssuePayload,
     NewsArticlePayload,
     NewsPulsePayload,
     SegmentProfilePayload,
@@ -390,4 +391,33 @@ def load_news_pulse(settings: WebSettings, district_id: str | None = None) -> Ne
             continue
         if best is None or payload.as_of > best.payload.as_of:
             best = NewsPulse(record=record, payload=payload)
+    return best
+
+
+# --- 이슈 보드 (local_issue, L2 파생) -------------------------------------------
+#
+# 선거구당 레코드 1건. as_of(연-월)가 여럿이면 최신 하나만 — load_news_pulse 와 동형.
+
+
+class LocalIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    record: Record
+    payload: LocalIssuePayload
+
+
+def load_local_issue(settings: WebSettings, district_id: str | None = None) -> LocalIssue | None:
+    district = pick_district(settings, district_id)
+    wanted = _sigungu_codes(district)
+
+    best: LocalIssue | None = None
+    for record in iter_records([RecordKind.LOCAL_ISSUE], root=settings.records_root):
+        if record.geo_code not in wanted:
+            continue
+        try:
+            payload = LocalIssuePayload.model_validate(record.payload)
+        except ValidationError:
+            continue
+        if best is None or payload.as_of > best.payload.as_of:
+            best = LocalIssue(record=record, payload=payload)
     return best

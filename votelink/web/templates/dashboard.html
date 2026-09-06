@@ -107,6 +107,65 @@
   {% endcall %}
 {% endif %}
 
+{% if issue_board %}
+  {% call output(issue_board.verdict) %}
+    <section class="issues">
+      <div class="issues__head">
+        <h2>이슈 보드
+          <span class="muted small">· {{ issue_board.as_of }} 기준 · 최근 {{ issue_board.window_weeks }}주 · 어휘집 {{ issue_board.lexicon_version }}</span>
+        </h2>
+        <p class="muted small">
+          창 합계 {{ issue_board.total_articles }}건 · 무엇에 대해 뉴스가 돌았는가 (감성·유불리 판정 아님)
+        </p>
+      </div>
+
+      <p class="warn-text small">
+        표본은 '{{ view.district_name }}' 지명 검색분이라 스포츠·행사·타지역 국가뉴스가
+        많이 섞인다 ({{ '%.0f'|format(issue_board.unclassified_pct) }}%가 분류 불가).
+        카테고리 랭킹·추세는 방향 참고용이다.
+      </p>
+
+      {% if issue_board.backfill_distorted %}
+      <p class="warn-text small">
+        첫 백필의 검색 API 상한 때문에 최근 주가 부풀어 있다. 카테고리 최근성·추세는
+        증분 수집이 여러 주 쌓이기 전까지 참고만 한다.
+      </p>
+      {% endif %}
+
+      <ol class="issues__list">
+        {% for b in issue_board.bars %}
+        <li class="issues__row">
+          <div class="issues__label">
+            <span class="issues__name">{{ b.label }}</span>
+            <span class="trend trend--{{ b.trend.value }}">{{ b.trend_label }}</span>
+            <span class="muted small">{{ b.article_count }}건 · {{ '%.0f'|format(b.share) }}%</span>
+          </div>
+          <svg class="issues__bar" viewBox="0 0 100 6" preserveAspectRatio="none"
+               role="img" aria-label="{{ b.title }}">
+            <rect x="0" y="0" width="{{ b.width_pct }}" height="6"><title>{{ b.title }}</title></rect>
+          </svg>
+          {% if b.headlines %}
+          <ul class="issues__headlines">
+            {% for h in b.headlines %}<li>{{ h }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+          {% if b.places %}
+          <p class="issues__places">{% for name, n in b.places %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}</p>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+
+      <p class="muted small">
+        분류 안 됨 <strong>{{ issue_board.unclassified_count }}건</strong>
+        ({{ '%.0f'|format(issue_board.unclassified_pct) }}%)
+        {%- if issue_board.unclassified_pct >= 50 %} — <span class="warn-text">어휘집 보강 신호</span>{% endif %}
+      </p>
+      <p class="muted small"><a href="/d/{{ district_id }}/news">원문 목록 보기 &rarr;</a></p>
+    </section>
+  {% endcall %}
+{% endif %}
+
 {% if not view.is_empty %}
   {% call output(view.verdict) %}
     {% if view.summary_card %}

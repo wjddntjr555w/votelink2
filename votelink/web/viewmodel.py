@@ -16,7 +16,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from votelink.contract.enums import AgeBand, Camp, ElectionType, Trend
+from votelink.contract.enums import AgeBand, Camp, ElectionType, IssueTrend, Trend
 from votelink.contract.payloads import LeanPoint
 from votelink.reference.compliance import Policy, ReviewStatus, Verdict, review_with
 from votelink.reference.districts import District
@@ -26,6 +26,7 @@ from votelink.web.loader import (
     DistrictProfiles,
     EmdProfile,
     LoadDiagnostics,
+    LocalIssue,
     NationProfiles,
     NewsDiagnostics,
     NewsItem,
@@ -1114,6 +1115,95 @@ def build_pulse_card(pulse: NewsPulse | None, policy: Policy) -> PulseCard | Non
         top_places=[(t.term, t.count) for t in p.top_places],
         top_persons=[(t.term, t.count) for t in p.top_persons],
         verdict=review_with(policy, pulse.record),
+    )
+
+
+# --- 이슈 보드 카드 (대시보드) ------------------------------------------------
+#
+# local_issue 레코드 1건 → 카드 한 장. 상위 카테고리를 recency_score 막대로,
+# trend 는 issue_ranker 가 계산한 값을 그대로 쓴다 (L3 는 L2 임계값을 다시 읽지 않는다).
+# unclassified 를 숨기지 않는다 — 비율이 크면 어휘집 보강 신호다.
+
+ISSUE_TREND_LABELS = {
+    IssueTrend.RISING: "↑ 뜨는",
+    IssueTrend.FLAT: "→ 유지",
+    IssueTrend.FALLING: "↓ 지는",
+}
+
+ISSUE_BOARD_TOP_N = 6
+"""카드에 세우는 카테고리 수. payload 는 이미 recency_score 내림차순이다."""
+
+
+class IssueBar(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    category: str
+    label: str
+    article_count: int
+    share: float
+    recency_score: float
+    trend: IssueTrend
+    trend_label: str
+    width_pct: float
+    """창 내 최대 recency_score 대비 막대 폭 %."""
+    headlines: list[str]
+    places: list[tuple[str, int]]
+    title: str
+    """막대 hover 텍스트."""
+
+
+class IssueBoardCard(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    as_of: str
+    window_weeks: int
+    total_articles: int
+    unclassified_count: int
+    unclassified_pct: float
+    lexicon_version: str
+    backfill_distorted: bool
+    bars: list[IssueBar]
+    verdict: Verdict | None = None
+
+
+def build_issue_board(issue: LocalIssue | None, policy: Policy) -> IssueBoardCard | None:
+    if issue is None:
+        return None
+    p = issue.payload
+    top = p.issues[:ISSUE_BOARD_TOP_N]
+    peak = max((i.recency_score for i in top), default=0.0) or 1.0
+
+    bars = [
+        IssueBar(
+            category=i.category,
+            label=i.label,
+            article_count=i.article_count,
+            share=i.share,
+            recency_score=i.recency_score,
+            trend=i.trend,
+            trend_label=ISSUE_TREND_LABELS[i.trend],
+            width_pct=round(i.recency_score / peak * 100, 1),
+            headlines=list(i.sample_headlines),
+            places=[(t.term, t.count) for t in i.top_places],
+            title=(
+                f"{i.label} — 기사 {i.article_count}건 · 분류분의 {i.share:.0f}% · "
+                f"{ISSUE_TREND_LABELS[i.trend]}"
+            ),
+        )
+        for i in top
+    ]
+    return IssueBoardCard(
+        as_of=p.as_of,
+        window_weeks=p.window_weeks,
+        total_articles=p.total_articles,
+        unclassified_count=p.unclassified_count,
+        unclassified_pct=(
+            round(p.unclassified_count * 100.0 / p.total_articles, 1) if p.total_articles else 0.0
+        ),
+        lexicon_version=p.lexicon_version,
+        backfill_distorted=p.backfill_distorted,
+        bars=bars,
+        verdict=review_with(policy, issue.record),
     )
 
 

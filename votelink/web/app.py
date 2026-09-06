@@ -29,6 +29,7 @@ from votelink.web.loader import (
     available_districts,
     load_all_emd,
     load_comparison,
+    load_local_issue,
     load_news,
     load_news_pulse,
     load_profiles,
@@ -38,6 +39,7 @@ from votelink.web.shapes import ShapeError, shapes_for
 from votelink.web.viewmodel import (
     DEFAULT_METRIC,
     build_comparison,
+    build_issue_board,
     build_map,
     build_nation_view,
     build_news_view,
@@ -91,8 +93,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         view = _view(request, district_id, sort=sort, election_type=et)
         policy = load_policy(settings.policy_path)
         pulse = build_pulse_card(load_news_pulse(settings, district_id), policy)
+        issue_board = build_issue_board(load_local_issue(settings, district_id), policy)
         return _render(
-            request, "dashboard.html", _ctx(request, district_id, view=view, pulse=pulse)
+            request,
+            "dashboard.html",
+            _ctx(request, district_id, view=view, pulse=pulse, issue_board=issue_board),
         )
 
     @app.get("/d/{district_id}/map", response_class=Response)
