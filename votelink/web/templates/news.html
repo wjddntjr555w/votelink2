@@ -49,15 +49,31 @@
       {% for name, n in view.top_persons %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}
     </p>
     {% endif %}
+    <form class="news-search" method="get" action="/d/{{ district_id }}/news">
+      <input type="hidden" name="sort" value="{{ view.sort }}">
+      <input type="hidden" name="scope" value="{{ view.scope }}">
+      <input type="search" name="q" value="{{ view.query }}"
+             placeholder="제목·요약·언론사·언급 지명/인물 검색" aria-label="기사 검색">
+      <button type="submit">검색</button>
+      {% if view.query %}
+      <a class="news-search__clear" href="/d/{{ district_id }}/news?sort={{ view.sort }}&scope={{ view.scope }}">지우기</a>
+      {% endif %}
+    </form>
+    {% if view.query %}
+    <p class="muted small">
+      「{{ view.query }}」 검색 — {{ view.shown_text }}
+    </p>
+    {% endif %}
+
     <nav class="sorts">
       {% for key, label in view.scopes.items() %}
-      <a href="/d/{{ district_id }}/news?scope={{ key }}&sort={{ view.sort }}"
+      <a href="/d/{{ district_id }}/news?scope={{ key }}&sort={{ view.sort }}&q={{ view.query|urlencode }}"
          class="{{ 'on' if view.scope == key }}">{{ label }}</a>
       {% endfor %}
     </nav>
     <nav class="sorts">
       {% for key, label in view.sorts.items() %}
-      <a href="/d/{{ district_id }}/news?scope={{ view.scope }}&sort={{ key }}"
+      <a href="/d/{{ district_id }}/news?scope={{ view.scope }}&sort={{ key }}&q={{ view.query|urlencode }}"
          class="{{ 'on' if view.sort == key }}">{{ label }}</a>
       {% endfor %}
     </nav>
@@ -67,7 +83,11 @@
 {% if not view.nothing_collected %}
   {% call output(view.verdict) %}
     {% if view.is_empty %}
+      {% if view.query %}
+      <p class="muted">「{{ view.query }}」 에 걸리는 기사가 없다. 검색어를 지우거나 바꿔 본다.</p>
+      {% else %}
       <p class="muted">이 스코프에 해당하는 기사가 없다. 스코프를 넓혀 본다.</p>
+      {% endif %}
     {% else %}
     <table class="news-table">
       <thead>

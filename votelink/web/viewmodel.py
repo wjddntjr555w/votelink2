@@ -849,6 +849,7 @@ def build_nation_view(nation: NationProfiles, policy: Policy, *, sort: str = "co
 
 NEWS_SORTS = {
     "date": "최신순",
+    "oldest": "오래된순",
     "publisher": "언론사순",
     "confidence": "지역 관련도순",
 }
@@ -878,6 +879,9 @@ class NewsRow(BaseModel):
     date_label: str
     """ "2026-09-06 14:15". 사람이 읽는 표기."""
     url: str
+    summary: str
+    """출처가 준 3문장 스니펫. 표에는 안 그리지만 키워드 검색이 여기까지 훑는다 —
+    지명·현안어가 제목보다 요약에 더 자주 있다 (예: "트램"은 제목 0건·요약 수백 건)."""
     places: list[str]
     persons: list[str]
     confidence: float
@@ -903,6 +907,7 @@ def _news_row(item: NewsItem) -> NewsRow:
         published_at=p.published_at,
         date_label=_date_label(p.published_at),
         url=p.url,
+        summary=p.summary,
         places=list(p.mentioned_places),
         persons=list(p.mentioned_persons),
         confidence=conf,
@@ -912,11 +917,22 @@ def _news_row(item: NewsItem) -> NewsRow:
 
 def _sort_news(rows: Sequence[NewsRow], key: str) -> list[NewsRow]:
     """모르는 키는 최신순으로 떨어뜨린다."""
+    if key == "oldest":
+        return sorted(rows, key=lambda r: r.published_at)
     if key == "publisher":
         return sorted(rows, key=lambda r: (r.publisher, _neg_time(r.published_at)))
     if key == "confidence":
         return sorted(rows, key=lambda r: (-r.confidence, _neg_time(r.published_at)))
     return sorted(rows, key=lambda r: _neg_time(r.published_at))
+
+
+def _news_matches(row: NewsRow, needle: str) -> bool:
+    """제목·언론사·언급 지명·인물 어디든 부분 문자열로 들어 있으면 참.
+    형태소 분석이 아니라 substring 이다 (naver_news/text.py:match_terms 와 같은 정신)."""
+    if not needle:
+        return True
+    hay = " ".join([row.title, row.summary, row.publisher, *row.places, *row.persons])
+    return needle in hay
 
 
 def _neg_time(published_at: str) -> str:
@@ -943,14 +959,17 @@ class NewsView(BaseModel):
     sorts: dict[str, str] = Field(default_factory=lambda: dict(NEWS_SORTS))
     scope: str = "all"
     scopes: dict[str, str] = Field(default_factory=lambda: dict(NEWS_SCOPES))
+    query: str = ""
+    """키워드 검색어 (있으면). 제목·언론사·언급 지명·인물에 substring 매칭."""
 
     matched: int = 0
-    """스코프를 적용한 뒤, 상한을 적용하기 전 건수."""
+    """검색·스코프를 적용한 뒤, 상한을 적용하기 전 건수."""
     limit: int = NEWS_LIMIT
     district_specific_count: int = 0
-    """행정동·통칭을 직접 언급한 기사 수 (confidence >= 0.9). **스코프와 무관하게 전체 기준.**"""
+    """행정동·통칭을 직접 언급한 기사 수 (confidence >= 0.9). 검색어를 적용한 뒤,
+    **스코프와는 무관한** 전체 기준 (스코프를 좁혀도 분모가 흔들리지 않게)."""
     sigungu_only_count: int = 0
-    """구 단위 매칭만 된 기사 수. **스코프와 무관하게 전체 기준.**"""
+    """구 단위 매칭만 된 기사 수. 검색어 적용 뒤, **스코프와는 무관한** 전체 기준."""
     top_publishers: list[tuple[str, int]] = Field(default_factory=list)
     top_places: list[tuple[str, int]] = Field(default_factory=list)
     top_persons: list[tuple[str, int]] = Field(default_factory=list)
@@ -1001,13 +1020,18 @@ def build_news_view(
     *,
     sort: str = "date",
     scope: str = "all",
+    query: str = "",
     limit: int = NEWS_LIMIT,
 ) -> NewsView:
     sort = sort if sort in NEWS_SORTS else "date"
     scope = scope if scope in NEWS_SCOPES else "all"
+    query = query.strip()
     limit = max(1, limit)
 
-    rows = [_news_row(it) for it in news.items]
+    all_rows = [_news_row(it) for it in news.items]
+    # 검색어 먼저. 그 다음 스코프. 요약 집계·분모는 '검색 결과' 기준으로 본다 —
+    # 검색은 스코프보다 앞선 필터이고, 무엇을 찾는 중인지가 화면의 주제가 되기 때문이다.
+    rows = [r for r in all_rows if _news_matches(r, query)]
     dates = sorted(r.date_label for r in rows)
 
     scoped = [r for r in rows if r.is_district_specific] if scope == "district" else rows
@@ -1019,9 +1043,10 @@ def build_news_view(
         diagnostics=news.diagnostics,
         sort=sort,
         scope=scope,
+        query=query,
         matched=len(scoped),
         limit=limit,
-        # 관련도 요약은 스코프와 무관하게 항상 전체 기준 — 스코프를 걸어도 분모가 흔들리지 않게.
+        # 관련도 요약은 (검색 뒤) 스코프와 무관하게 — 스코프를 걸어도 분모가 흔들리지 않게.
         district_specific_count=sum(1 for r in rows if r.is_district_specific),
         sigungu_only_count=sum(1 for r in rows if not r.is_district_specific),
         top_publishers=_tally([r.publisher for r in scoped], top=8),

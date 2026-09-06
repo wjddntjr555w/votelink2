@@ -130,13 +130,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         district_id: str,
         sort: str = "date",
         scope: str = "all",
+        q: str = "",
     ) -> Response:
         """수집한 지역 기사 목록. 분석기 없이 L1 레코드를 그대로 표로 낸다.
+        `?q=` 로 제목·언론사·언급어를 부분 문자열 검색한다.
         `?election_type=` 축이 없다 — 기사는 선거 계열에 속하지 않는다."""
         settings: WebSettings = request.app.state.settings
         news = load_news(settings, district_id)
         policy = load_policy(settings.policy_path)
-        view = build_news_view(news, policy, sort=sort, scope=scope)
+        view = build_news_view(news, policy, sort=sort, scope=scope, query=q)
         return _render(request, "news.html", _ctx(request, district_id, view=view))
 
     @app.get("/compare", response_class=Response)
