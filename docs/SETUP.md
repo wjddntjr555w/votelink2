@@ -404,22 +404,27 @@ uv run votelink collect nec_election_result             # 실제 수집
 | 집계 항목명이 다르다 | `config.aggregate_items` |
 | 파일을 못 찾는다 | `elections[].file_match` |
 
-## 5. 네이버 검색 API 키 (`naver_news`) — ⏸ **보류 중. 지금 안 해도 된다**
+## 5. 네이버 검색 API 키 (`naver_news`) — ✅ **검증 완료 (2026-09-06)**
 
-> **2026-09-02 결정: 뉴스 수집은 보류하고 분석기를 먼저 만든다.**
-> 네이버가 검색 API를 네이버클라우드 계정 기반으로 이관했고 그 경로를 쓰지
-> 않기로 했다. 무료·즉시인 대안(구글 뉴스 RSS, 구청 보도자료 등)은 전부
-> robots.txt 에 막혔다 — 조사 결과는 `docs/proposals/C-003-naver-news.md`
-> 상단에 정리돼 있으니 **다시 조사하지 말 것.**
+> **2026-09-06 결정: 네이버로 간다.** 사용량이 무료 한도(월 775,000회)의
+> 0.4% 수준이라 유료 전환 리스크가 낮다고 판단했다. NAVER API HUB 키로
+> 실제 응답을 받아 검증했고 `meta.verified: true`. 첫 수집 배치 90 · 유효
+> 8229 · 격리 0.
 >
-> MVP 분석 2종 중 '유권자 프로파일'은 뉴스가 필요 없어서 진행에 지장이 없다.
-> '지역 이슈 랭킹'만 출처가 정해질 때까지 대기다. 재개할 때 첫 후보는 **BIGKINDS**.
->
-> 아래 절차는 **마음이 바뀌어 네이버로 갈 경우에만** 따르면 된다.
-> 코드는 이미 완성돼 있어 키만 넣으면 돈다.
+> 무료·즉시인 대안(구글 뉴스 RSS, 구청 보도자료 등)은 전부 robots.txt 에
+> 막혀 있다 — 조사 결과는 `docs/proposals/C-003-naver-news.md` 상단에 정리돼
+> 있으니 **다시 조사하지 말 것.** 과거 기사 대량 백필이 필요해지면 그때
+> BIGKINDS 를 별도 수집기로 붙인다(네이버 검색 API 는 검색어당 1,000건 상한).
 
-`naver_news` 수집기는 구현됐지만 **키가 없어 아직 한 번도 실행되지 않았다**
-(`verified: false`).
+### 키 재발급이 필요할 때 (HUB)
+
+`.env` 에 아래 두 줄. `votelink` 실행 시 자동으로 읽는다(§비밀값 관리).
+
+```bash
+# .env
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
+```
 
 ### ⚠️ developers.naver.com 에서는 이제 발급되지 않는다
 
@@ -512,8 +517,8 @@ uv run votelink collect naver_news --dry-run           # 저장 없이 계약 �
 uv run votelink collect naver_news                     # 실제 수집
 ```
 
-fixture 가 없는 동안 `test_parse.py` 4개는 **skip 된다.** 정상이다 —
-합성 데이터로 대신하지 않는다는 뜻이고, "아직 미검증"이라는 정직한 신호다.
+> **2026-09-06 완료.** fixture 를 받아 `test_parse.py` 4개가 skip 해제됐고
+> 전부 통과했다. 위 순서를 다시 밟을 일은 키를 재발급할 때뿐이다.
 
 ### 5-4. 알아둘 제약
 
@@ -529,15 +534,16 @@ fixture 가 없는 동안 `test_parse.py` 4개는 **skip 된다.** 정상이다 
 
 ### 5-5. 응답이 예상과 다르면
 
-이 수집기는 **fixture 없이 구현했다.** 특히 이관 직후라 확실하지 않은 부분이 있다.
+**2026-09-06 실제 호출로 아래가 전부 확인됐다.** HUB 응답이 레거시와 동일해
+추측으로 짠 코드가 그대로 통과했다.
 
 | 항목 | 확인 상태 |
 |---|---|
-| 뉴스 검색이 HUB 에 포함됨 | ✅ 네이버클라우드 공식 문서 (`뉴스 검색 결과 조회`) |
-| 인증 헤더 `X-NCP-APIGW-API-KEY-ID` / `X-NCP-APIGW-API-KEY` | ✅ 네이버클라우드 공식 문서 |
-| 베이스 URL `https://naverapihub.apigw.ntruss.com` | ✅ 네이버클라우드 공식 문서 |
-| 뒤쪽 경로 `/search/v1/news` | ⚠️ **2차 출처. 미확인** |
-| 응답 필드명 (`items`/`title`/`originallink`/`pubDate` …) | ⚠️ 레거시 기준. HUB 에서 동일한지 미확인 |
+| 뉴스 검색이 HUB 에 포함됨 | ✅ 실측 |
+| 인증 헤더 `X-NCP-APIGW-API-KEY-ID` / `X-NCP-APIGW-API-KEY` | ✅ 실측 (HTTP 200) |
+| 베이스 URL `https://naverapihub.apigw.ntruss.com` | ✅ 실측 |
+| 뒤쪽 경로 `/search/v1/news` | ✅ 실측 |
+| 응답 필드명 (`items`/`title`/`originallink`/`link`/`description`/`pubDate`) | ✅ 실측. 레거시와 완전히 동일 |
 
 | 증상 | 고칠 곳 |
 |---|---|

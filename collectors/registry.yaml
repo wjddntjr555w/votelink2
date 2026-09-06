@@ -21,7 +21,7 @@ collectors:
   access: api
   schedule: 0 6 * * *
   geo_level: sigungu
-  verified: false
+  verified: true
   requires_secrets:
   - NAVER_CLIENT_ID
   - NAVER_CLIENT_SECRET

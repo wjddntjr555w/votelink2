@@ -12,20 +12,25 @@ requires_secrets: [NAVER_CLIENT_ID, NAVER_CLIENT_SECRET]
 rate_limit_rps: 2
 proposal: docs/proposals/C-003-naver-news.md
 
-# 아직 실제 응답으로 검증하지 않았다. API 키가 없어 fixture 를 받지 못했고,
-# 응답 형식을 추측해 fixture 를 지어내지 않았다.
-# 키 발급 후: uv run votelink collect naver_news --capture-fixture
-verified: false
+# 2026-09-06: NAVER API HUB 키로 실제 응답 검증 완료.
+#   - 엔드포인트 /search/v1/news 가 맞았다(2차 출처였는데 정확했다).
+#   - HUB 응답이 레거시와 **완전히 동일**하다: 봉투(lastBuildDate/total/start/
+#     display/items), 필드명(title/originallink/link/description/pubDate),
+#     pubDate 포맷(RFC 1123) 전부. F_* 상수·parse 로직 그대로 통과.
+#   - 첫 수집(since=None, 검색어 9개 × 최대 10페이지): 배치 90 · 유효 8229 ·
+#     격리 0 (0.0%). confidence 0.9(동/지명 직접) 3819 / 0.7(구 단위만) 4410.
+#     geo_level 전부 sigungu, geo_code 1171000000, 전문 저장 0.
+#   - 스포츠·연예 기사가 섞인다('송파'=잠실운동장·올림픽공원 지명 매칭). 계약
+#     위반이 아니라 대상 판별이 L2(issue_ranker/local_issue)의 일이다(제안서).
+verified: true
 
 config:
   # 2026년 네이버가 검색 API 를 NAVER API HUB(네이버클라우드플랫폼)로 이관했다.
   #   2026-06-25  HUB 정식 오픈
   #   2026-07-31  구 developers.naver.com 신규 등록 종료
   #   2027-06-30  구 인증정보(X-Naver-*) 지원 종료
-  # 베이스 URL(https://naverapihub.apigw.ntruss.com)과 헤더 이름은 네이버클라우드
-  # 공식 문서로 확인했다. 뉴스 검색이 HUB 에 포함된다는 것도 확인했다.
-  # ⚠️ 다만 뒤쪽 경로(/search/v1/news)는 2차 출처라 아직 미확인이다.
-  #    키를 받으면 --capture-fixture 로 확인하고 틀리면 여기만 고친다.
+  # 베이스 URL(https://naverapihub.apigw.ntruss.com), 헤더 이름, 뒤쪽 경로
+  # (/search/v1/news) 전부 2026-09-06 실제 호출로 확인했다(HTTP 200).
   endpoint: "https://naverapihub.apigw.ntruss.com/search/v1/news"
 
   auth:
