@@ -26,7 +26,7 @@ from votelink.contract.payloads import (
     SegmentProfilePayload,
 )
 from votelink.reference.districts import District, load_districts, resolve_district
-from votelink.store import iter_records
+from votelink.store import count_records, iter_records
 from votelink.web.settings import WebSettings
 
 DEFAULT_ELECTION_TYPE = ElectionType.PRESIDENTIAL
@@ -323,22 +323,24 @@ class DistrictNews(BaseModel):
 
 
 def _sigungu_codes(district: District) -> set[str]:
-    return {f"{code[:4]}000000" for code in district.emd_codes}
+    return set(district.sigungu_codes)
 
 
 def load_news(settings: WebSettings, district_id: str | None = None) -> DistrictNews:
     district = pick_district(settings, district_id)
     wanted = _sigungu_codes(district)
 
-    read = outside = rejected = duplicate = 0
+    total = count_records([RecordKind.NEWS_ARTICLE], root=settings.records_root)
+    rejected = duplicate = 0
     seen: set[str] = set()
     items: list[NewsItem] = []
 
-    for record in iter_records([RecordKind.NEWS_ARTICLE], root=settings.records_root):
-        read += 1
-        if record.geo_code not in wanted:
-            outside += 1
-            continue
+    # geo 필터를 iter_records 로 밀어 넣는다 — 관심 밖 시군구 기사를 Record 로
+    # 만들기 전에 부분문자열로 쳐낸다 (naver_news.jsonl 은 수만 줄이다). 남는
+    # 것만 여기서 계약 검증한다.
+    for record in iter_records(
+        [RecordKind.NEWS_ARTICLE], geo_codes=wanted, root=settings.records_root
+    ):
         if record.record_id in seen:
             duplicate += 1
             continue
@@ -355,8 +357,9 @@ def load_news(settings: WebSettings, district_id: str | None = None) -> District
         district=district,
         items=items,
         diagnostics=NewsDiagnostics(
-            read=read,
-            outside_district=outside,
+            read=total,
+            # 전체에서 이 선거구 것(표시·중복·격리)을 뺀 나머지가 '선거구 밖'이다.
+            outside_district=total - len(items) - duplicate - rejected,
             rejected=rejected,
             duplicate=duplicate,
             shown=len(items),

@@ -86,6 +86,19 @@ class TestFailurePhilosophy:
         assert report.accepted == 1
         assert store.existing_record_ids("fake_analyzer") == set()
 
+    def test_injected_records_bypass_load(self, data_root):
+        """records= 를 주면 analyzer.load() 를 부르지 않는다 — analyze --all 이
+        같은 kind 를 조합마다 다시 읽지 않도록 한 번 읽어 공유하는 통로다."""
+
+        class Exploding(FakeAnalyzer):
+            def load(self):
+                raise AssertionError("load() 가 불렸다 — records= 를 무시했다")
+
+        report = runner.run(Exploding(), records=[make_record(10)])
+        assert not report.failed
+        assert report.inputs == 1
+        assert report.accepted == 1
+
 
 class TestUpsert:
     """분석 결과는 append 가 아니라 upsert 다. 수집기와 다른 유일한 지점."""

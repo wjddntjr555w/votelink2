@@ -141,3 +141,178 @@ def test_collect_with_an_unknown_district_fails_cleanly(monkeypatch, capsys):
     rc = cli.main(["collect", "layered_x", "--district", "seoul_gangnam_gap", "--dry-run"])
     assert rc == 1
     assert "선거구 설정 오류" in capsys.readouterr().err
+
+
+def test_collect_all_districts_runs_every_registered_block(monkeypatch, capsys):
+    """--all-districts 는 meta.yaml 의 config.districts 를 전부 순회하고 합산을 낸다."""
+    from tests.conftest import FakeCollector, make_meta
+    from votelink.collect import registry
+
+    layered = make_meta(
+        id="multi_x",
+        verified=True,
+        config={
+            "common": {},
+            "districts": {"seoul_songpa_gap": {}, "seoul_gangnam_gap": {}},
+        },
+    )
+    seen = []
+
+    def fake_load(collector_id, **kw):
+        seen.append(kw.get("district_id"))
+        c = FakeCollector([{"n": 1}], meta=layered)
+        c.district_id = kw.get("district_id")
+        c._config = None
+        return c
+
+    monkeypatch.setattr(registry, "load", fake_load)
+
+    rc = cli.main(["collect", "multi_x", "--all-districts", "--dry-run"])
+    assert rc == 0
+    # base 로딩 1회(district_id=None) + 등록된 선거구마다 1회
+    assert seen == [None, "seoul_songpa_gap", "seoul_gangnam_gap"]
+    assert "[합계] 선거구 2/2" in capsys.readouterr().out
+
+
+def test_collect_district_and_all_districts_are_mutually_exclusive():
+    """둘을 같이 주면 argparse 가 파싱 단계에서 막는다."""
+    with pytest.raises(SystemExit):
+        cli.main(["collect", "x", "--district", "seoul_songpa_gap", "--all-districts"])
+
+
+def test_collect_all_districts_needs_district_blocks(monkeypatch, capsys):
+    from tests.conftest import FakeCollector, make_meta
+    from votelink.collect import registry
+
+    flat = make_meta(id="flat_x", verified=True)  # config.districts 없음
+    monkeypatch.setattr(registry, "load", lambda cid, **kw: FakeCollector([], meta=flat))
+
+    assert cli.main(["collect", "flat_x", "--all-districts"]) == 1
+    assert "config.districts 가 없다" in capsys.readouterr().err
+
+
+def test_analyze_all_districts_runs_every_registered_block(monkeypatch, capsys):
+    from collections.abc import Iterator
+
+    from tests.conftest import make_record
+    from votelink.analyze import registry as analyze_registry
+    from votelink.analyze.base import BaseAnalyzer
+    from votelink.analyze.meta import AnalyzerMeta
+    from votelink.contract.enums import RecordKind
+    from votelink.contract.models import Record, Rejected
+
+    ameta = AnalyzerMeta(
+        id="multi_a",
+        name="시험 분석기",
+        inputs=[RecordKind.ELECTION_RESULT],
+        outputs=[RecordKind.SEGMENT_PROFILE],
+        geo_level="emd",
+        config={"common": {}, "districts": {"seoul_songpa_gap": {}, "seoul_gangnam_gap": {}}},
+    )
+
+    class FakeAnalyzer(BaseAnalyzer):
+        id = "multi_a"
+
+        def __init__(self, meta=None, district_id=None):
+            super().__init__(meta=meta or ameta)
+            self.district_id = district_id
+
+        def load(self) -> list[Record]:
+            return [make_record(1)]
+
+        def compute(self, records: list[Record]) -> Iterator[Record | Rejected]:
+            yield make_record(10)
+
+    seen = []
+
+    def fake_load(analyzer_id, **kw):
+        seen.append(kw.get("district_id"))
+        return FakeAnalyzer(district_id=kw.get("district_id"))
+
+    monkeypatch.setattr(analyze_registry, "load", fake_load)
+
+    rc = cli.main(["analyze", "multi_a", "--all-districts", "--dry-run"])
+    assert rc == 0
+    assert seen == [None, "seoul_songpa_gap", "seoul_gangnam_gap"]
+    assert "[합계] 선거구 2/2" in capsys.readouterr().out
+
+
+def test_analyze_all_runs_every_analyzer_over_its_districts(monkeypatch, capsys):
+    """--all 은 등록된 전 분석기를 각자의 config.districts 로 돌리고,
+    입력 kind 는 한 번만 읽어 전 실행에 공유한다."""
+    from collections.abc import Iterator
+
+    from tests.conftest import make_record
+    from votelink.analyze import registry as analyze_registry
+    from votelink.analyze.base import BaseAnalyzer
+    from votelink.analyze.meta import AnalyzerMeta
+    from votelink.contract.enums import RecordKind
+    from votelink.contract.models import Record, Rejected
+
+    def ameta(aid, districts):
+        return AnalyzerMeta(
+            id=aid,
+            name=f"시험 {aid}",
+            inputs=[RecordKind.NEWS_ARTICLE],
+            outputs=[RecordKind.NEWS_PULSE],
+            geo_level="sigungu",
+            config={"common": {}, "districts": {d: {} for d in districts}},
+        )
+
+    metas = {
+        "a_one": ameta("a_one", ["seoul_songpa_gap", "seoul_gangnam_gap"]),
+        "a_two": ameta("a_two", ["seoul_jongno"]),
+    }
+
+    class FakeAnalyzer(BaseAnalyzer):
+        def __init__(self, aid, meta, district_id):
+            self.id = aid
+            super().__init__(meta=meta)
+            self.district_id = district_id
+
+        def load(self) -> list[Record]:
+            raise AssertionError("--all 은 records= 로 입력을 주입한다")
+
+        def compute(self, records: list[Record]) -> Iterator[Record | Rejected]:
+            assert records, "공유 입력이 이 분석기 kind 로 걸러져 넘어와야 한다"
+            yield make_record(10)
+
+    ran: list[tuple[str, str]] = []
+    load_calls = []
+
+    monkeypatch.setattr(analyze_registry, "discover", lambda **kw: metas)
+    monkeypatch.setattr(
+        analyze_registry,
+        "load",
+        lambda aid, **kw: FakeAnalyzer(aid, metas[aid], kw.get("district_id")),
+    )
+
+    def spy_load_records(kinds, **kw):
+        load_calls.append(list(kinds))
+        return [make_record(1)]  # news_article
+
+    monkeypatch.setattr(cli.store, "load_records", spy_load_records)
+
+    orig_run = cli.analyze_runner.run
+
+    def traced_run(analyzer, **kw):
+        ran.append((analyzer.id, analyzer.district_id))
+        return orig_run(analyzer, **kw)
+
+    monkeypatch.setattr(cli.analyze_runner, "run", traced_run)
+
+    rc = cli.main(["analyze", "--all", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert ran == [
+        ("a_one", "seoul_songpa_gap"),
+        ("a_one", "seoul_gangnam_gap"),
+        ("a_two", "seoul_jongno"),
+    ]
+    assert len(load_calls) == 1, "입력을 조합마다 다시 읽었다"
+    assert "[합계] 실행 3" in out
+
+
+def test_analyze_all_and_district_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        cli.main(["analyze", "x", "--all", "--district", "seoul_songpa_gap"])

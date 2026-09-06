@@ -92,6 +92,27 @@ def test_unknown_district_lists_known_ones():
         resolve_district("없는선거구")
 
 
+def test_sigungu_codes_use_five_digit_prefix():
+    """시군구 코드는 행정동코드 앞 5자리 + "00000" 이다.
+
+    앞 4자리로 자르면 5번째 자리가 0이 아닌 구 — 서울 광진(11215)·강북(11305)·
+    금천(11545) — 에서 틀린다. 송파(11710)는 5번째가 0이라 [:4] 로도 우연히 맞았고,
+    그래서 이 버그가 여태 안 드러났다. naver_news 가 실제로 저장한 geo_code 와 대조.
+    """
+    assert resolve_district("seoul_gwangjin_gap").sigungu_codes == ["1121500000"]
+    assert resolve_district("seoul_gangbuk_gap").sigungu_codes == ["1130500000"]
+    assert resolve_district("seoul_geumcheon").sigungu_codes == ["1154500000"]
+    assert resolve_district("seoul_songpa_gap").sigungu_codes == ["1171000000"]
+
+
+def test_sigungu_codes_span_two_sigungu_when_district_does():
+    """중구·성동구 을은 두 자치구에 걸친다 — 코드도 둘 다, 오름차순으로."""
+    assert resolve_district("seoul_jung_seongdong_eul").sigungu_codes == [
+        "1114000000",
+        "1120000000",
+    ]
+
+
 # --- 모델 규칙 -----------------------------------------------------------------
 
 

@@ -31,7 +31,7 @@ class Analyzer(BaseAnalyzer):
             raise AnalyzeError("입력 레코드가 0건이다. 먼저 naver_news 를 돌려라")
 
         district = resolve_district(self.config["district"])
-        sigungu_codes = {f"{c[:4]}000000" for c in district.emd_codes}
+        sigungu_codes = set(district.sigungu_codes)
         if not sigungu_codes:
             raise AnalyzeError(
                 f"{district.id}: districts.yaml 의 emd[].code 가 비어 시군구 코드를 못 만든다"

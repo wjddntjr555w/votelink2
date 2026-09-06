@@ -81,6 +81,15 @@ class District(BaseModel):
         return [e.code for e in self.emd if e.code]
 
     @property
+    def sigungu_codes(self) -> list[str]:
+        """이 선거구가 걸친 시군구 코드(행정동코드 앞 5자리 + "00000"), 오름차순.
+
+        앞 4자리로 자르면 5번째 자리가 0이 아닌 구 — 서울 광진(11215)·강북(11305)·
+        금천(11545) — 에서 틀린다. 두 시군구에 걸친 선거구(중구·성동구 을)면 둘 다 든다.
+        """
+        return sorted({f"{c[:5]}00000" for c in self.emd_codes})
+
+    @property
     def pending(self) -> list[Emd]:
         """내부 표준 코드를 아직 모르는 행정동."""
         return [e for e in self.emd if not e.resolved]

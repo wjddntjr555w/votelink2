@@ -16,9 +16,35 @@ verified: false
 
 config:
   default_district: seoul_songpa_gap
-  # naver_news 가 수집한 선거구만. 새 선거구로 수집이 확장되면 여기 블록을 추가한다.
+  # naver_news 가 수집한 시군구(서울 25개 자치구)마다 대표 선거구 하나. 같은 구의
+  # 다른 선거구는 시군구 코드가 같아 산출이 동일하므로 여기 넣지 않는다 —
+  # collectors/naver_news/meta.yaml 의 config.districts 와 같은 목록이다.
   districts:
     seoul_songpa_gap: {}
+    seoul_jongno: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_gwangjin_gap: {}
+    seoul_dongdaemun_gap: {}
+    seoul_jungnang_gap: {}
+    seoul_seongbuk_gap: {}
+    seoul_gangbuk_gap: {}
+    seoul_dobong_gap: {}
+    seoul_nowon_gap: {}
+    seoul_eunpyeong_gap: {}
+    seoul_seodaemun_gap: {}
+    seoul_mapo_gap: {}
+    seoul_yangcheon_gap: {}
+    seoul_gangseo_gap: {}
+    seoul_guro_gap: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_dongjak_gap: {}
+    seoul_gwanak_gap: {}
+    seoul_seocho_gap: {}
+    seoul_gangnam_gap: {}
+    seoul_gangdong_gap: {}
 
   common:
     # 봉투 confidence 하한. 0.7 = 구 단위 이상(~8,229건). 0.9(동·지명 직접)만 쓰면

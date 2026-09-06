@@ -54,14 +54,22 @@ class AnalysisReport:
         return head
 
 
-def run(analyzer: BaseAnalyzer, *, dry_run: bool = False) -> AnalysisReport:
+def run(
+    analyzer: BaseAnalyzer,
+    *,
+    dry_run: bool = False,
+    records: list[Record] | None = None,
+) -> AnalysisReport:
     """분석 1회 실행.
 
     dry_run: 아무것도 저장하지 않고 계약 검증만 한다
+    records: 주어지면 `analyzer.load()` 대신 이 리스트를 입력으로 쓴다. `analyze --all`
+        이 같은 kind 를 분석기·선거구 조합마다 다시 읽지 않도록 한 번 읽어 공유하는
+        통로다. 호출자는 `analyzer.meta.inputs` 에 해당하는 kind 만 넘길 책임이 있다.
     """
     report = AnalysisReport(analyzer_id=analyzer.id, started_at=datetime.now(KST))
 
-    records = analyzer.load()
+    records = analyzer.load() if records is None else records
     report.inputs = len(records)
 
     # 입력 0건은 성공이 아니라 실패다. 조용히 0건을 내면 '분석이 돌았는데 결과가

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from votelink import store
 from votelink.analyze import registry as analyze_registry
 from votelink.analyze import runner as analyze_runner
 from votelink.analyze.base import AnalyzeError
@@ -35,6 +36,11 @@ def _parse_since(value: str | None) -> datetime | None:
     return dt if dt.tzinfo else dt.replace(tzinfo=KST)
 
 
+def _district_ids(config: dict) -> list[str]:
+    """meta.yaml 의 config.districts 에 등록된 선거구 id 목록. --all-districts 가 이걸 돈다."""
+    return list((config.get("districts") or {}).keys())
+
+
 def _pick_column(header: list[str], explicit: str | None, candidates: tuple[str, ...]) -> str:
     if explicit:
         if explicit not in header:
@@ -53,6 +59,9 @@ def _pick_column(header: list[str], explicit: str | None, candidates: tuple[str,
 
 
 def cmd_collect(args: argparse.Namespace) -> int:
+    if args.all_districts:
+        return _collect_all_districts(args)
+
     collector = registry.load(args.collector_id, district_id=args.district)
 
     try:
@@ -107,6 +116,63 @@ def _capture_fixture(collector) -> int:
     print(f"{target} 저장 ({size:,} bytes)")
     print(f"다음: uv run pytest {collector.package_dir}/")
     return 0
+
+
+def _collect_all_districts(args: argparse.Namespace) -> int:
+    """meta.yaml 의 config.districts 에 등록된 모든 선거구를 차례로 수집한다.
+
+    선거구마다 registry.load 로 **새 인스턴스**를 만든다 — BaseCollector 는 첫
+    config 해석 결과를 캐시하므로(base.py) 인스턴스를 재사용하면 안 된다. 한
+    선거구가 실패해도 나머지는 계속 돌고, 하나라도 실패하면 종료코드 1.
+    """
+    if args.capture_fixture:
+        print("--all-districts 와 --capture-fixture 는 함께 쓸 수 없다", file=sys.stderr)
+        return 1
+
+    base = registry.load(args.collector_id)
+    ids = _district_ids(base.meta.config)
+    if not ids:
+        print(
+            f"{args.collector_id}: meta.yaml 에 config.districts 가 없다. "
+            "--all-districts 는 선거구 블록이 여럿일 때 쓴다",
+            file=sys.stderr,
+        )
+        return 1
+    if not base.meta.verified:
+        print(f"[주의] {base.id} 는 실제 응답으로 검증되지 않았다 (meta.verified=false).")
+
+    since = _parse_since(args.since)
+    reports = []
+    failures: list[str] = []
+    for did in ids:
+        print(f"[{did}]")
+        collector = registry.load(args.collector_id, district_id=did)
+        try:
+            _ = collector.config  # 선거구 설정을 지금 해석해 문제를 빨리 드러낸다
+        except KeyError as exc:
+            print(f"[{did}] 선거구 설정 오류: {exc}", file=sys.stderr)
+            failures.append(did)
+            continue
+        try:
+            report = runner.run(collector, since=since, dry_run=args.dry_run, reparse=args.reparse)
+        except FetchError as exc:
+            print(f"[{did}] 수집 실패: {exc}", file=sys.stderr)
+            failures.append(did)
+            continue
+        print(report.summary())
+        reports.append(report)
+        if report.failed:
+            failures.append(did)
+
+    print(
+        f"[합계] 선거구 {len(reports)}/{len(ids)} · "
+        f"유효 {sum(r.accepted for r in reports)} · 저장 {sum(r.written for r in reports)} · "
+        f"격리 {sum(r.rejected for r in reports)} · 중복 {sum(r.duplicates for r in reports)}"
+        + (f"\n실패 {len(failures)}: {', '.join(failures)}" if failures else "")
+    )
+    if args.dry_run:
+        print("(dry-run: 아무것도 저장하지 않았다)")
+    return 1 if failures else 0
 
 
 def cmd_registry_sync(args: argparse.Namespace) -> int:
@@ -224,6 +290,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"{path} 갱신 · 분석기 {len(metas)}개")
         return 0
 
+    if args.all:
+        return _analyze_all(args)
+
     if not args.analyzer_id:
         metas = analyze_registry.discover()
         if not metas:
@@ -234,6 +303,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             inputs = ", ".join(str(k) for k in meta.inputs)
             print(f"{mark} {meta.id:<20} {meta.name}\n    입력: {inputs}")
         return 0
+
+    if args.all_districts:
+        return _analyze_all_districts(args)
 
     analyzer = analyze_registry.load(args.analyzer_id, district_id=args.district)
     try:
@@ -256,6 +328,118 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     if args.dry_run:
         print("(dry-run: 아무것도 저장하지 않았다)")
     return 1 if report.failed else 0
+
+
+def _analyze_all_districts(args: argparse.Namespace) -> int:
+    """meta.yaml 의 config.districts 에 등록된 모든 선거구를 차례로 분석한다.
+    _collect_all_districts 와 같은 규칙 — 선거구마다 새 인스턴스, 부분 실패 허용."""
+    base = analyze_registry.load(args.analyzer_id)
+    ids = _district_ids(base.meta.config)
+    if not ids:
+        print(
+            f"{args.analyzer_id}: meta.yaml 에 config.districts 가 없다. "
+            "--all-districts 는 선거구 블록이 여럿일 때 쓴다",
+            file=sys.stderr,
+        )
+        return 1
+    if not base.meta.verified:
+        print(f"[주의] {base.id} 는 실제 입력으로 검증되지 않았다 (meta.verified=false).")
+
+    reports = []
+    failures: list[str] = []
+    for did in ids:
+        print(f"[{did}]")
+        analyzer = analyze_registry.load(args.analyzer_id, district_id=did)
+        try:
+            _ = analyzer.config
+        except KeyError as exc:
+            print(f"[{did}] 선거구 설정 오류: {exc}", file=sys.stderr)
+            failures.append(did)
+            continue
+        try:
+            report = analyze_runner.run(analyzer, dry_run=args.dry_run)
+        except AnalyzeError as exc:
+            print(f"[{did}] 분석 실패: {exc}", file=sys.stderr)
+            failures.append(did)
+            continue
+        print(report.summary())
+        reports.append(report)
+        if report.failed:
+            failures.append(did)
+
+    print(
+        f"[합계] 선거구 {len(reports)}/{len(ids)} · "
+        f"산출 {sum(r.computed for r in reports)} · 유효 {sum(r.accepted for r in reports)} · "
+        f"격리 {sum(r.rejected for r in reports)} · 교체 {sum(r.replaced for r in reports)} · "
+        f"신규 {sum(r.added for r in reports)}"
+        + (f"\n실패 {len(failures)}: {', '.join(failures)}" if failures else "")
+    )
+    if args.dry_run:
+        print("(dry-run: 아무것도 저장하지 않았다)")
+    return 1 if failures else 0
+
+
+def _analyze_all(args: argparse.Namespace) -> int:
+    """등록된 모든 분석기를, 각 분석기 meta.config.districts 의 모든 선거구로 돌린다.
+
+    입력 레코드는 kind 별로 **한 번만** 읽어 전 실행에 공유한다 — naver_news 는
+    수만 줄이라, 분석기·선거구 조합마다 다시 읽으면 수 분이 걸린다. 현재 어떤
+    분석기도 다른 분석기의 산출 kind 를 입력으로 먹지 않으므로 (news_article·
+    election_result·population 은 전부 L1) 공유 로드가 안전하다.
+    """
+    metas = analyze_registry.discover()
+    if not metas:
+        print("등록된 분석기가 없다. analyzers/<id>/meta.yaml 을 만들어라", file=sys.stderr)
+        return 2
+
+    wanted_kinds = sorted({k for m in metas.values() for k in m.inputs}, key=str)
+    print(f"입력 로드: {', '.join(str(k) for k in wanted_kinds)} …")
+    shared = store.load_records(wanted_kinds)
+    by_kind: dict = {}
+    for r in shared:
+        by_kind.setdefault(r.kind, []).append(r)
+    print(f"  {len(shared)}건")
+
+    reports = []
+    failures: list[str] = []
+    for aid, meta in metas.items():
+        ids = _district_ids(meta.config)
+        if not ids:
+            print(f"[{aid}] config.districts 가 비어 건너뛴다")
+            continue
+        if not meta.verified:
+            print(f"[주의] {aid} 는 실제 입력으로 검증되지 않았다 (meta.verified=false).")
+        subset = [r for k in meta.inputs for r in by_kind.get(k, [])]
+        for did in ids:
+            tag = f"{aid}/{did}"
+            print(f"[{tag}]")
+            analyzer = analyze_registry.load(aid, district_id=did)
+            try:
+                _ = analyzer.config
+            except KeyError as exc:
+                print(f"[{tag}] 선거구 설정 오류: {exc}", file=sys.stderr)
+                failures.append(tag)
+                continue
+            try:
+                report = analyze_runner.run(analyzer, dry_run=args.dry_run, records=subset)
+            except AnalyzeError as exc:
+                print(f"[{tag}] 분석 실패: {exc}", file=sys.stderr)
+                failures.append(tag)
+                continue
+            print(report.summary())
+            reports.append(report)
+            if report.failed:
+                failures.append(tag)
+
+    print(
+        f"\n[합계] 실행 {len(reports)} · 산출 {sum(r.computed for r in reports)} · "
+        f"유효 {sum(r.accepted for r in reports)} · 격리 {sum(r.rejected for r in reports)} · "
+        f"교체 {sum(r.replaced for r in reports)} · 신규 {sum(r.added for r in reports)}"
+        + (f"\n실패 {len(failures)}: {', '.join(failures)}" if failures else "")
+    )
+    if args.dry_run:
+        print("(dry-run: 아무것도 저장하지 않았다)")
+    return 1 if failures else 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -316,9 +500,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_collect = sub.add_parser("collect", help="수집기 실행")
     p_collect.add_argument("collector_id")
-    p_collect.add_argument(
+    g_collect = p_collect.add_mutually_exclusive_group()
+    g_collect.add_argument(
         "--district",
         help="어느 선거구로 수집할지. 생략하면 meta.yaml 의 config.default_district",
+    )
+    g_collect.add_argument(
+        "--all-districts",
+        action="store_true",
+        help="meta.yaml 의 config.districts 에 등록된 모든 선거구를 차례로 수집한다",
     )
     p_collect.add_argument("--since", help="ISO 8601. 증분 수집 시작 시점")
     p_collect.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
@@ -369,9 +559,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_analyze = sub.add_parser("analyze", help="분석기 실행 (L2)")
     p_analyze.add_argument("analyzer_id", nargs="?", help="생략하면 등록된 분석기 목록")
-    p_analyze.add_argument(
+    g_analyze = p_analyze.add_mutually_exclusive_group()
+    g_analyze.add_argument(
         "--district",
         help="어느 선거구로 분석할지. 생략하면 meta.yaml 의 config.default_district",
+    )
+    g_analyze.add_argument(
+        "--all-districts",
+        action="store_true",
+        help="meta.yaml 의 config.districts 에 등록된 모든 선거구를 차례로 분석한다",
+    )
+    g_analyze.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "등록된 모든 분석기를 각자의 config.districts 전체 선거구로 돌린다. "
+            "입력 kind 는 한 번만 읽어 공유한다 (analyzer_id 생략)"
+        ),
     )
     p_analyze.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
