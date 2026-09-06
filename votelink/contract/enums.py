@@ -104,3 +104,16 @@ class Trend(StrEnum):
     CONSERVATIVE_SHIFT = "conservative_shift"
     STABLE = "stable"
     PROGRESSIVE_SHIFT = "progressive_shift"
+
+
+class IssueTrend(StrEnum):
+    """이슈 언급량의 방향. 창 안에서 최근 절반 합 vs 이전 절반 합의 비로 판정한다.
+
+    절대 언급량이 아니라 창 안 상대 변화다. 모든 카테고리가 같은 값이면 정보량이
+    0이므로(docs/30-analysis-spec.md §9) 임계값은 issue_ranker 의 meta.yaml config 에
+    두고 구현 시 실측으로 민감도를 확인한다.
+    """
+
+    RISING = "rising"
+    FLAT = "flat"
+    FALLING = "falling"

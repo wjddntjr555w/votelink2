@@ -142,7 +142,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `poi` | 지점 (전통시장, 역, 아파트단지, 학교) | 지도 API, 공공데이터 | |
 | `foot_traffic` | 시간대별 유동인구 | 통신사·카드사 공공데이터 | |
 | `candidate` | 후보자 정보·공약·전과·재산 | 선관위 후보자정보 | |
-| `local_issue` | 지역 현안 (파생) | 뉴스·민원에서 추출 | |
+| `local_issue` | 지역 현안 랭킹 (파생, 어휘집 분류, 선거구당 1레코드) | 분석 산출 (`issue_ranker`) | ✓ |
 | `segment_profile` | 유권자 세그먼트 프로파일 (파생, `election_type` 별 1레코드) | 분석 산출 | ✓ |
 | `news_pulse` | 선거구 뉴스량·분포 (파생, 주 단위, 선거구당 1레코드) | 분석 산출 (`news_pulse`) | ✓ |
 
@@ -228,6 +228,35 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 `geo_level: sigungu`, `geo_code` = 선거구의 시군구 코드. 두 시군구에 걸친 선거구는
 사전순 첫 코드로 대표한다 (기사가 구 단위라 더 쪼갤 수 없다). `spike` 는
 급증 판정이지 이슈 분류가 아니다 — 무엇이 급증했는지는 `local_issue` 가 답한다.
+
+### 5.5 `local_issue` (파생)
+```jsonc
+{
+  "as_of": "2026-09",              // 가장 최근 기사의 연-월. 분석 실행 시각이 아니다
+  "window_weeks": 12,
+  "total_articles": 512,           // window 안 · confidence 임계 이상의 분류 대상 기사 수
+  "issues": [                      // recency_score 내림차순, 동점은 category 오름차순
+    {
+      "category": "redevelopment", // issue_lexicon.yaml 의 key
+      "label": "재건축·재개발",
+      "article_count": 180,
+      "share": 41.2,               // 분류된 기사 중 비중 %. 비배타 분류라 합 > 100 가능
+      "recency_score": 96.4,       // 주별 기사 수 × 지수감쇠 합
+      "trend": "rising",           // rising / flat / falling (최근 절반 합 / 이전 절반 합)
+      "top_places": [{"term": "잠실", "count": 60}],
+      "sample_headlines": ["...", "...", "..."]   // 원문 title 최대 3 (본문 아님)
+    }
+  ],
+  "unclassified_count": 120,       // 어느 카테고리에도 안 걸린 기사 수. 크면 어휘집 보강 신호
+  "lexicon_version": "2026-09-06", // 사용한 issue_lexicon.yaml 의 version (재현성)
+  "backfill_distorted": true       // news_pulse 와 같은 플래그
+}
+```
+`geo_level: sigungu`, `geo_code` = 선거구의 시군구 코드 (기사와 같은 레벨). 두 시군구에
+걸친 선거구는 사전순 첫 코드로 대표한다. **불변식**: `sum(issues[].article_count) +
+unclassified_count >= total_articles` (한 기사가 여러 카테고리에 걸리므로 등호가 아니라
+`>=`). 이슈 분류는 어휘집 substring 매칭이며 LLM 을 쓰지 않는다. 감성·유불리는
+판정하지 않는다 — 그건 별도 분석기의 몫이다.
 
 ## 6. 레코드 수명
 

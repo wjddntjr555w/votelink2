@@ -1,0 +1,52 @@
+id: issue_ranker
+name: 선거구 이슈 랭커 — 뉴스를 어휘집으로 분류해 언급 빈도·최근성으로 랭킹
+inputs: [news_article]
+outputs: [local_issue]
+geo_level: sigungu
+proposal: docs/proposals/A-003-issue-ranker.md
+
+# 미검증 (2026-09-06). 분석기 자체는 실측 통과: 입력 8,229 → 산출 1 · 격리 0 ·
+#   재실행 시 교체 1·신규 0(멱등) · 불변식 성립 · trend 비중 기반이라 백필 왜곡
+#   속에서도 변별력 5 falling / 5 rising.
+#   verified 를 올리지 않는 이유는 **표본**이다: naver_news 의 "송파" 검색분은
+#   스포츠·행사·인사·부고가 70%+ 이고(미분류 83%), 분류분에도 송파를 스쳐 언급한
+#   국가 뉴스(선관위 특검 등)가 섞인다. issue_lexicon.yaml 은 draft 이고 카드에
+#   표본 편향 경고를 상시 노출한다. 깨끗한 지역 뉴스 수집기가 생기면 재평가한다.
+verified: false
+
+config:
+  default_district: seoul_songpa_gap
+  # naver_news 가 수집한 선거구만. 새 선거구로 수집이 확장되면 여기 블록을 추가한다.
+  districts:
+    seoul_songpa_gap: {}
+
+  common:
+    # 봉투 confidence 하한. 0.7 = 구 단위 이상(~8,229건). 0.9(동·지명 직접)만 쓰면
+    # 표본이 절반 이하로 줄어 카테고리별 기사 수가 무의미해진다. 사용자 승인값.
+    min_confidence: 0.7
+
+    # 접은 주 수. A-002(news_pulse)와 같은 12. 길면 첫 백필의 성긴 꼬리(2020~2023 은
+    # 주당 한두 건)가 최근성·추세 통계에 섞여 평균이 무의미해진다.
+    window_weeks: 12
+
+    # recency_score 지수감쇠 반감기(주). 4 = 최근 4주가 8주 전의 2배 무게.
+    # 1~2 면 최근 주 하나에 순위가 휘둘리고, 12+ 면 감쇠가 사실상 사라진다.
+    half_life_weeks: 4
+
+    # trend: 최근 절반 합 / 이전 절반 합. 이 값 이상이면 rising. 1.3 = "30%+ 증가".
+    # 구현 시 실측 민감도를 확인한다 — 전 카테고리가 같은 trend 면(정보량 0)
+    # 1.2·1.5 로 바꿔보고 분포가 갈리는지 본 뒤 조정한다 (docs/30-analysis-spec.md §9).
+    trend_rising_ratio: 1.3
+
+    # 이 값 이하이면 falling. 1/1.3 ≈ 0.77 로 rising 과 대칭.
+    trend_falling_ratio: 0.77
+
+    # 최근 주가 창 중앙값의 이 배를 넘으면 backfill_distorted=true. A-002 와 동일.
+    # 첫 백필에서 켜지는 것이 정상이며, 증분 수집이 쌓이면 자연히 꺼진다.
+    backfill_distortion_ratio: 3.0
+
+    # 카테고리별 top_places 에 남길 지명 수. 카드 칩이 그 이상 늘어지면 읽기 어렵다.
+    top_places_n: 5
+
+    # 카테고리별 대표 헤드라인 수. 계약 상한이 3이다 (payload.sample_headlines).
+    sample_headlines_limit: 3

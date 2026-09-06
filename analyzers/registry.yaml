@@ -1,7 +1,15 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink analyze --sync`
 generated_by: votelink analyze registry sync
-count: 2
+count: 3
 analyzers:
+- id: issue_ranker
+  name: 선거구 이슈 랭커 — 뉴스를 어휘집으로 분류해 언급 빈도·최근성으로 랭킹
+  inputs:
+  - news_article
+  outputs:
+  - local_issue
+  geo_level: sigungu
+  verified: false
 - id: news_pulse
   name: 선거구 뉴스 펄스 — 주 단위 기사량·언론사 분포·급증 플래그
   inputs:

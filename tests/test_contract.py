@@ -254,3 +254,91 @@ def test_load_record_accepts_current():
 def test_make_record_id_rejects_empty_natural_key():
     with pytest.raises(ValueError, match="natural_key"):
         make_record_id("news_article", "c", "")
+
+
+# --- local_issue (§5.5, 파생) ------------------------------------------------
+
+
+def local_issue(issues, *, total=10, unclassified=2, **over):
+    base = dict(
+        kind="local_issue",
+        collector_id="issue_ranker",
+        source_name="votelink 분석 (naver_news + issue_lexicon)",
+        source_url=None,
+        source_license="api_tos",
+        observed_at=datetime(2026, 9, 1, tzinfo=KST),
+        observed_precision="day",
+        ingested_at=NOW,
+        geo_level="sigungu",
+        geo_code="1171000000",
+        geo_name="서울 송파구",
+        confidence=0.5,
+        derived_from=["a" * 16],
+        natural_key="local_issue|1171000000|2026-09",
+        payload={
+            "as_of": "2026-09",
+            "window_weeks": 12,
+            "total_articles": total,
+            "issues": issues,
+            "unclassified_count": unclassified,
+            "lexicon_version": "2026-09-06",
+            "backfill_distorted": False,
+        },
+    )
+    base.update(over)
+    base["payload"].update(over.get("payload", {}))
+    return base
+
+
+def _rank(category, recency_score, *, article_count=3, share=30.0, trend="flat"):
+    return {
+        "category": category,
+        "label": category.upper(),
+        "article_count": article_count,
+        "share": share,
+        "recency_score": recency_score,
+        "trend": trend,
+    }
+
+
+def test_local_issue_invariant_holds():
+    issues = [_rank("transit", 9.0, article_count=6), _rank("redev", 4.0, article_count=5)]
+    # 6 + 5 + unclassified 2 >= total 10
+    assert Record(**local_issue(issues, total=10, unclassified=2))
+
+
+def test_local_issue_rejects_broken_invariant():
+    issues = [_rank("transit", 9.0, article_count=2)]
+    with pytest.raises(ValidationError, match="기사가 샜다"):
+        Record(**local_issue(issues, total=10, unclassified=1))
+
+
+def test_local_issue_rejects_unsorted_issues():
+    issues = [_rank("a", 3.0), _rank("b", 9.0)]  # recency_score 오름차순 — 계약 위반
+    with pytest.raises(ValidationError, match="정렬은 계약"):
+        Record(**local_issue(issues, total=1, unclassified=1))
+
+
+def test_local_issue_share_may_exceed_100():
+    issues = [_rank("transit", 9.0, share=80.0), _rank("redev", 4.0, share=70.0)]
+    assert Record(**local_issue(issues, total=1, unclassified=1))
+
+
+def test_local_issue_rejects_duplicate_category():
+    issues = [_rank("transit", 9.0), _rank("transit", 4.0)]
+    with pytest.raises(ValidationError, match="category 가 두 번"):
+        Record(**local_issue(issues, total=1, unclassified=1))
+
+
+def test_local_issue_rejects_more_than_3_headlines():
+    issues = [_rank("transit", 9.0)]
+    issues[0]["sample_headlines"] = ["a", "b", "c", "d"]
+    with pytest.raises(ValidationError):
+        Record(**local_issue(issues, total=1, unclassified=1))
+
+
+def test_payload_models_has_local_issue():
+    from votelink.contract.enums import RecordKind
+    from votelink.contract.payloads import PAYLOAD_MODELS, LocalIssuePayload
+
+    assert PAYLOAD_MODELS[RecordKind.LOCAL_ISSUE] is LocalIssuePayload

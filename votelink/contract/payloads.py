@@ -9,7 +9,15 @@ extra="forbid": 정의되지 않은 키를 거부한다. 수집기가 임의 필
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from votelink.contract.enums import AgeBand, Camp, ElectionType, RecordKind, Sex, Trend
+from votelink.contract.enums import (
+    AgeBand,
+    Camp,
+    ElectionType,
+    IssueTrend,
+    RecordKind,
+    Sex,
+    Trend,
+)
 
 
 class _Payload(BaseModel):
@@ -295,11 +303,94 @@ class NewsPulsePayload(_Payload):
         return self
 
 
+# --- local_issue (L2 파생) --------------------------------------------------
+#
+# news_article 을 어휘집(data/reference/issue_lexicon.yaml)으로 분류해 언급 빈도·
+# 최근성으로 세운 지역 현안 랭킹. news_pulse 가 "얼마나"를 답한다면 이건 "무엇을".
+# LLM 을 쓰지 않는다 — 순수 substring 매칭이라 재현 가능하다. 감성·유불리는
+# 판정하지 않는다 (그건 별도 분석기). 선거구당 레코드 1건, geo_level 은 sigungu 고정.
+# 제안서: docs/proposals/A-003-issue-ranker.md
+
+
+class IssueRank(_Payload):
+    """이슈 카테고리 한 줄. issues 는 recency_score 내림차순, 동점은 category 오름차순."""
+
+    category: str = Field(min_length=1, description="issue_lexicon.yaml 의 key")
+    label: str = Field(min_length=1, description="사람이 읽는 이름")
+    article_count: int = Field(ge=0, description="window 안에서 이 카테고리로 분류된 기사 수")
+    share: float = Field(
+        ge=0.0,
+        description="분류된 기사 중 비중 %. 한 기사가 여러 카테고리에 걸리므로(비배타) "
+        "합이 100 을 넘을 수 있다 — le 제약을 두지 않는다",
+    )
+    recency_score: float = Field(ge=0.0, description="주별 기사 수 × 지수감쇠 합")
+    trend: IssueTrend
+    top_places: list[TermCount] = Field(default_factory=list)
+    sample_headlines: list[str] = Field(
+        default_factory=list,
+        max_length=3,
+        description="대표 헤드라인 최대 3 (published_at 내림차순, 원문 title). 본문 아님",
+    )
+
+
+class LocalIssuePayload(_Payload):
+    """선거구 이슈 랭킹 — news_article 을 어휘집으로 분류한 파생 집계.
+    어떤 기사가 우리에게 유리/불리한지는 판정하지 않는다."""
+
+    as_of: str = Field(
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+        description="가장 최근 기사의 연-월. 분석 실행 시각이 아니다",
+    )
+    window_weeks: int = Field(ge=1, description="접은 주 수")
+    total_articles: int = Field(
+        ge=0, description="window 안 · confidence 임계 이상의 분류 대상 기사 수"
+    )
+    issues: list[IssueRank] = Field(
+        default_factory=list, description="recency_score 내림차순, 동점 category 오름차순"
+    )
+    unclassified_count: int = Field(
+        ge=0, description="어느 카테고리에도 안 걸린 기사 수. 크면 어휘집 보강 신호 (투명성 지표)"
+    )
+    lexicon_version: str = Field(
+        min_length=1,
+        description="사용한 issue_lexicon.yaml 의 version. 어휘집이 곧 편집 판단이라 재현성용",
+    )
+    backfill_distorted: bool = Field(
+        default=False,
+        description="첫 백필의 검색 API 상한 때문에 최근 주가 부풀어 있으면 True. "
+        "이때 최근성·추세는 신뢰하지 않는다 (news_pulse 와 같은 플래그)",
+    )
+
+    @model_validator(mode="after")
+    def _check_invariant(self):
+        summed = sum(i.article_count for i in self.issues)
+        # 비배타 분류라 중복이 있어 등호가 아니라 >=. 미달이면 창 자르기·분류에서 기사가 샜다.
+        if summed + self.unclassified_count < self.total_articles:
+            raise ValueError(
+                f"sum(article_count)={summed} + unclassified={self.unclassified_count} < "
+                f"total_articles={self.total_articles}. 창 자르기·분류에서 기사가 샜다"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_order_and_uniqueness(self):
+        cats = [i.category for i in self.issues]
+        if len(cats) != len(set(cats)):
+            raise ValueError(f"issues 에 같은 category 가 두 번 있다: {cats}")
+        keys = [(-i.recency_score, i.category) for i in self.issues]
+        if keys != sorted(keys):
+            raise ValueError(
+                "issues 가 recency_score 내림차순·category 오름차순이 아니다. 정렬은 계약이다"
+            )
+        return self
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
     RecordKind.NEWS_ARTICLE: NewsArticlePayload,
     RecordKind.SEGMENT_PROFILE: SegmentProfilePayload,
     RecordKind.NEWS_PULSE: NewsPulsePayload,
+    RecordKind.LOCAL_ISSUE: LocalIssuePayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""

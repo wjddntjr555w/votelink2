@@ -1,0 +1,137 @@
+# 이슈 카테고리 ↔ 키워드. **지역적·정치적 편집 판단이다.** party_lineage.yaml·districts.yaml 과
+# 같은 원칙으로 코드에 박지 않고 파일로 노출한다 (docs/30-analysis-spec.md §8).
+# 이견이 있으면 이 파일만 고치고 `uv run votelink analyze issue_ranker` 를 다시 돌린다.
+#
+# 매칭은 형태소 분석도 개체명 인식도 아니다 — 기사 title + summary 에 keyword 가
+# substring 으로 등장하면 그 카테고리로 센다 (collectors/naver_news/text.py:match_terms 와
+# 같은 방식). 한 기사가 여러 카테고리에 걸리면 전부 센다 (share 합 > 100 가능).
+#
+# **표본이 약하다.** naver_news 의 "송파" 검색분은 스포츠(잠실야구장)·행사(석촌호수
+# 서울패션위크)·금융사 인사·부고가 70% 이상이고, 분류되는 기사에도 "송파를 스쳐
+# 언급한 국가 뉴스"(선관위 특검, 강남 재건축 비교)가 섞인다. substring 매칭으로는
+# 그 둘을 못 가른다. 그래서 키워드는 넓게 잡지 않고 **고유명·복합어 위주로 좁게**
+# 잡는다 — 놓치는 편이 국가뉴스를 지역 현안으로 잘못 세우는 것보다 낫다.
+# 스포츠·연예 포괄 카테고리는 두지 않는다. 그런 기사는 unclassified 로 떨어져야 하고,
+# 그 비율이 크면(현재 ~80%) 더 나은 지역 뉴스 수집기가 필요하다는 신호다.
+#
+# 상태: **초안 (draft-2026-09-06)**. 사용자 검수 전이며 issue_ranker meta.verified 는
+# false 다. version 은 payload.lexicon_version 에 박힌다.
+
+version: "draft-2026-09-06"
+
+categories:
+  - key: redevelopment
+    label: 재건축·재개발
+    keywords:
+      - 재건축
+      - 재개발
+      - 정비사업
+      - 리모델링 사업
+      - 안전진단
+      - 신속통합기획
+      - 신통기획
+      - 모아타운
+      - 가락시영
+      - 잠실주공
+      - 장미아파트
+
+  - key: housing
+    label: 부동산·집값
+    keywords:
+      - 집값
+      - 전셋값
+      - 전세값
+      - 공시지가
+      - 표준지 공시
+      - 토지거래허가
+      - 실거래가
+      - 아파트값
+      - 갭투자
+
+  - key: greenbelt
+    label: 그린벨트·개발제한
+    keywords:
+      - 그린벨트
+      - 개발제한구역
+
+  - key: transit
+    label: 교통
+    keywords:
+      - 위례신사선
+      - 위례선
+      - 트램
+      - 교통체증
+      - 상습정체
+      - 주차난
+      - 송파대로
+      - 복정역 환승
+
+  - key: education
+    label: 교육
+    keywords:
+      - 과밀학급
+      - 학교 신설
+      - 통학로
+      - 돌봄교실
+      - 특목고
+
+  - key: environment
+    label: 생활환경
+    keywords:
+      - 미세먼지
+      - 소음 민원
+      - 악취
+      - 무단투기
+      - 종량제
+      - 침수 피해
+      - 하수도
+      - 수질
+      - 녹조
+      - 탄천
+      - 성내천
+
+  - key: safety
+    label: 안전·치안
+    keywords:
+      - 지반침하
+      - 땅꺼짐
+      - 싱크홀
+      - 붕괴 사고
+      - 어린이보호구역
+      - 스쿨존
+      - 전세사기
+      - 보이스피싱
+
+  - key: welfare_health
+    label: 복지·의료
+    keywords:
+      - 경로당
+      - 노인복지
+      - 보건소
+      - 요양원
+      - 장애인 복지
+      - 복지관
+      - 돌봄센터
+      - 무더위쉼터
+
+  - key: commerce
+    label: 상권·경제
+    keywords:
+      - 전통시장
+      - 소상공인
+      - 상가 공실
+      - 골목상권
+      - 가락시장 현대화
+      - 자영업자
+
+  - key: local_politics
+    label: 정치·선거
+    keywords:
+      - 재검표
+      - 개표소
+      - 선거소송
+      - 당선무효
+      - 예비후보
+      - 구의회
+      - 시의회 행정사무감사
+      - 조례안
