@@ -18,6 +18,7 @@
       {% if district_id %}
       <a href="/d/{{ district_id }}/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
       <a href="/d/{{ district_id }}/map" class="{{ 'on' if active == 'map' }}">지도</a>
+      <a href="/d/{{ district_id }}/news" class="{{ 'on' if active == 'news' }}">뉴스</a>
       {% endif %}
       <a href="/compare" class="{{ 'on' if active == 'compare' }}">선거구 비교</a>
       <a href="/nation" class="{{ 'on' if active == 'nation' }}">전국 동</a>

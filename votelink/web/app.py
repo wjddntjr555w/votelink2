@@ -29,6 +29,7 @@ from votelink.web.loader import (
     available_districts,
     load_all_emd,
     load_comparison,
+    load_news,
     load_profiles,
 )
 from votelink.web.settings import WebSettings
@@ -38,6 +39,7 @@ from votelink.web.viewmodel import (
     build_comparison,
     build_map,
     build_nation_view,
+    build_news_view,
     build_view,
     election_type_choices,
     resolve_election_type,
@@ -109,6 +111,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 map=build_map(view, shapes, metric_key=metric),
             ),
         )
+
+    @app.get("/d/{district_id}/news", response_class=Response)
+    def news_screen(
+        request: Request,
+        district_id: str,
+        sort: str = "date",
+        scope: str = "all",
+    ) -> Response:
+        """수집한 지역 기사 목록. 분석기 없이 L1 레코드를 그대로 표로 낸다.
+        `?election_type=` 축이 없다 — 기사는 선거 계열에 속하지 않는다."""
+        settings: WebSettings = request.app.state.settings
+        news = load_news(settings, district_id)
+        policy = load_policy(settings.policy_path)
+        view = build_news_view(news, policy, sort=sort, scope=scope)
+        return _render(request, "news.html", _ctx(request, district_id, view=view))
 
     @app.get("/compare", response_class=Response)
     def compare(

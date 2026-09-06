@@ -29,6 +29,22 @@ outputs:
   # fail-closed 라서 적지 않아도 unreviewed 로 보호되고, 미리 적으면 집행되지 않는
   # 규칙이 파일에만 쌓인다 (docs/90-compliance.md §6 · §11).
 
+  - kind: news_article
+    risk: low
+    derived: false
+    distribution: internal_only
+    ai_generated: false
+    status: unreviewed
+    reviewed_by: ""
+    reviewed_at: ""
+    note: >-
+      네이버 검색 API 가 준 기사 메타(제목·언론사·발행시각·링크·스니펫)뿐이다.
+      본문 전문은 저장하지 않고(계약이 막는다) 화면은 원문 링크로만 연결한다.
+      geo_level 은 sigungu 고정 — 기사를 행정동에 귀속시키지 않는다.
+      여론조사를 인용한 기사가 섞일 수 있으므로, 공표 금지기간(선거일 6일 전~
+      투표 마감)에 이 화면을 외부로 내보내면 위반 소지가 있다. election_day 가
+      설정되면 그 판정을 붙인다.
+
   - kind: segment_profile
     risk: low
     derived: true

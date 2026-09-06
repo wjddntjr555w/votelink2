@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
-from votelink.contract.payloads import SegmentProfilePayload
+from votelink.contract.payloads import NewsArticlePayload, SegmentProfilePayload
 from votelink.reference.districts import District, load_districts, resolve_district
 from votelink.store import iter_records
 from votelink.web.settings import WebSettings
@@ -273,5 +273,87 @@ def load_all_emd(
             loaded=len(profiles),
             # 전국은 "있어야 할 수"의 분모가 없다. 표시 N곳이 곧 전부다.
             expected=len(profiles),
+        ),
+    )
+
+
+# --- 뉴스 (news_article) -----------------------------------------------------
+#
+# `segment_profile` 과 다른 점 둘: (1) election_type 축이 없다 — 기사는 선거
+# 계열에 속하지 않는다. (2) `as_of` dedup 이 없다 — L1 이 정규화한 URL 을
+# natural_key 로 써서 record_id 가 이미 유일하다. 그래서 로더가 훨씬 짧다.
+#
+# 선거구 소속 필터: 기사의 geo_level 은 sigungu(예: 1171000000)라 emd 코드
+# 목록으로 매칭하는 `District.contains` 가 안 잡는다. 대신 그 선거구 행정동
+# 코드들의 시군구 코드(<4자리>000000)와 대조한다 — 두 시군구에 걸친 선거구
+# (중구성동구 을)면 양쪽 다 받는다.
+
+
+class NewsItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    record: Record
+    payload: NewsArticlePayload
+
+
+class NewsDiagnostics(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    read: int = 0
+    outside_district: int = 0
+    rejected: int = 0
+    """본문이 계약을 위반해 건너뛴 건수. 정상이면 0."""
+    duplicate: int = 0
+    """같은 record_id 가 두 번 — 저장이 정상이면 0."""
+    shown: int = 0
+
+
+class DistrictNews(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    district: District
+    items: list[NewsItem]
+    """`observed_at` 내림차순 (최신 먼저)."""
+    diagnostics: NewsDiagnostics
+
+
+def _sigungu_codes(district: District) -> set[str]:
+    return {f"{code[:4]}000000" for code in district.emd_codes}
+
+
+def load_news(settings: WebSettings, district_id: str | None = None) -> DistrictNews:
+    district = pick_district(settings, district_id)
+    wanted = _sigungu_codes(district)
+
+    read = outside = rejected = duplicate = 0
+    seen: set[str] = set()
+    items: list[NewsItem] = []
+
+    for record in iter_records([RecordKind.NEWS_ARTICLE], root=settings.records_root):
+        read += 1
+        if record.geo_code not in wanted:
+            outside += 1
+            continue
+        if record.record_id in seen:
+            duplicate += 1
+            continue
+        try:
+            payload = NewsArticlePayload.model_validate(record.payload)
+        except ValidationError:
+            rejected += 1
+            continue
+        seen.add(record.record_id)
+        items.append(NewsItem(record=record, payload=payload))
+
+    items.sort(key=lambda it: it.record.observed_at, reverse=True)
+    return DistrictNews(
+        district=district,
+        items=items,
+        diagnostics=NewsDiagnostics(
+            read=read,
+            outside_district=outside,
+            rejected=rejected,
+            duplicate=duplicate,
+            shown=len(items),
         ),
     )

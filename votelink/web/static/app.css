@@ -237,3 +237,24 @@ table.compare th { font-size: 12px; color: var(--muted); font-weight: 600; }
 .skipped { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
 .skipped li { border-left: 3px solid var(--line); padding-left: 10px; }
 .skipped p { margin: 2px 0 0; }
+
+/* --- 뉴스 원문 목록 --- */
+
+.chip {
+  display: inline-block; margin: 0 4px 4px 0;
+  font-size: 12px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+}
+table.news-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.news-table th, table.news-table td {
+  text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.news-table th { font-size: 12px; color: var(--muted); font-weight: 600; }
+table.news-table td.nowrap { white-space: nowrap; }
+table.news-table a { color: var(--ink); }
+.news-table .badge {
+  display: inline-block; font-size: 11px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; white-space: nowrap;
+}
+.news-table .badge--strong { color: var(--ink); border-color: var(--ink); font-weight: 600; }

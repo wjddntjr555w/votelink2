@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_output.html" import output %}
+{% set active = 'news' %}
+{% block title %}{{ view.district_name }} 뉴스 — votelink{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>{{ view.district_name }} 뉴스 <span class="muted">· 수집한 지역 기사</span></h1>
+
+  {% if view.nothing_collected %}
+    <div class="banner banner--warn">
+      <strong>수집된 기사가 없다</strong>
+      <p class="mono">uv run votelink collect naver_news --district {{ district_id }}</p>
+    </div>
+  {% else %}
+    <dl class="summary">
+      <div><dt>표시</dt><dd>{{ view.shown_text }}</dd></div>
+      <div><dt>지역 관련도</dt><dd>{{ view.coverage_text }}</dd></div>
+      <div><dt>기간</dt><dd>{{ view.date_range_text }}</dd></div>
+      <div><dt>언론사</dt><dd>{{ view.top_publishers|length }}곳</dd></div>
+    </dl>
+    <p class="muted small">
+      읽음 {{ view.diagnostics.read }}건 · 선거구 밖 {{ view.diagnostics.outside_district }}건 제외
+      {%- if view.diagnostics.duplicate %}
+        · 중복 {{ view.diagnostics.duplicate }}건{% endif %}
+      {%- if view.diagnostics.rejected %}
+        · <span class="warn-text">계약 위반 {{ view.diagnostics.rejected }}건 격리</span>{% endif %}
+    </p>
+    {% if view.truncated %}
+    <p class="muted small">
+      최신 {{ view.rows|length }}건만 그린다 (스코프 적용 후 {{ view.matched }}건).
+      정렬을 바꾸면 그 순서의 상위 {{ view.rows|length }}건을 본다.
+    </p>
+    {% endif %}
+    <p class="muted small">
+      기사는 행정동이 아니라 구 단위(<code>{{ view.district_name }}</code>)에 귀속한다.
+      본문 전문은 저장하지 않는다 — 제목을 누르면 원문으로 나간다.
+      구 단위 매칭만 된 기사에는 스포츠·연예가 섞인다.
+    </p>
+    {% if view.top_places %}
+    <p class="muted small">
+      자주 언급된 지명:
+      {% for name, n in view.top_places %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}
+    </p>
+    {% endif %}
+    {% if view.top_persons %}
+    <p class="muted small">
+      자주 언급된 인물:
+      {% for name, n in view.top_persons %}<span class="chip">{{ name }} {{ n }}</span>{% endfor %}
+    </p>
+    {% endif %}
+    <nav class="sorts">
+      {% for key, label in view.scopes.items() %}
+      <a href="/d/{{ district_id }}/news?scope={{ key }}&sort={{ view.sort }}"
+         class="{{ 'on' if view.scope == key }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <nav class="sorts">
+      {% for key, label in view.sorts.items() %}
+      <a href="/d/{{ district_id }}/news?scope={{ view.scope }}&sort={{ key }}"
+         class="{{ 'on' if view.sort == key }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+</section>
+
+{% if not view.nothing_collected %}
+  {% call output(view.verdict) %}
+    {% if view.is_empty %}
+      <p class="muted">이 스코프에 해당하는 기사가 없다. 스코프를 넓혀 본다.</p>
+    {% else %}
+    <table class="news-table">
+      <thead>
+        <tr>
+          <th>발행시각</th>
+          <th>언론사</th>
+          <th>제목</th>
+          <th>지역 관련</th>
+          <th>언급 지명·인물</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in view.rows %}
+        <tr>
+          <td class="mono nowrap">{{ row.date_label }}</td>
+          <td>{{ row.publisher }}</td>
+          <td>
+            <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ row.title }}</a>
+          </td>
+          <td>
+            {% if row.is_district_specific %}
+              <span class="badge badge--strong">동·지명 직접</span>
+            {% else %}
+              <span class="badge">구 단위</span>
+            {% endif %}
+          </td>
+          <td class="muted small">
+            {{ (row.places + row.persons)|join(' · ') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endcall %}
+{% endif %}
+{% endblock %}

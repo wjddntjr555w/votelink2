@@ -22,10 +22,13 @@ from votelink.reference.compliance import Policy, ReviewStatus, Verdict, review_
 from votelink.reference.districts import District
 from votelink.web.loader import (
     ComparisonProfiles,
+    DistrictNews,
     DistrictProfiles,
     EmdProfile,
     LoadDiagnostics,
     NationProfiles,
+    NewsDiagnostics,
+    NewsItem,
     SkippedDistrict,
 )
 from votelink.web.shapes import ShapeSet
@@ -832,6 +835,200 @@ def build_nation_view(nation: NationProfiles, policy: Policy, *, sort: str = "co
         source_names=sorted({p.record.source_name for p in nation.profiles}),
         source_licenses=sorted({p.record.source_license for p in nation.profiles}),
         verdict=worst_verdict([c.verdict for c in cards]),
+    )
+
+
+# --- 뉴스 원문 목록 --------------------------------------------------------------
+#
+# 분석기가 없는 화면이다. L1 이 수집한 `news_article` 레코드를 표로 늘어놓고
+# 원문 링크로만 보낸다 — 본문 전문은 저장하지 않는다(계약). 여기서 하는 "판단"은
+# 정렬과 집계(언론사 분포·지명 빈도)뿐이고, 어떤 기사가 실제로 이 지역구
+# 이슈인지 가려내는 일은 L2(issue_ranker)의 몫이다 (제안서 C-003).
+
+NEWS_SORTS = {
+    "date": "최신순",
+    "publisher": "언론사순",
+    "confidence": "지역 관련도순",
+}
+
+NEWS_SCOPES = {
+    "all": "전체",
+    "district": "동·지명 직접만",
+}
+
+NEWS_LIMIT = 200
+"""한 화면에 그리는 최대 행 수. 첫 수집만으로도 8천 건이라 전부 그리면 페이지가
+수 MB 가 된다. 넘으면 잘라 그리고 몇 건 중 몇 건인지 항상 같이 보여준다 (§8)."""
+
+# 검색어가 행정동·통칭을 직접 때렸을 때 L1 이 매기는 신뢰도. 그 아래는 구 단위
+# 매칭이다. 상수는 collectors/naver_news 의 CONFIDENCE_DISTRICT 와 같은 값이지만
+# L3 가 L1 을 import 하지 않으므로 여기에 다시 적는다 (바뀌면 같이 고친다).
+DISTRICT_CONFIDENCE = 0.9
+
+
+class NewsRow(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    title: str
+    publisher: str
+    published_at: str
+    """원본 ISO 문자열. 정렬·감사용."""
+    date_label: str
+    """ "2026-09-06 14:15". 사람이 읽는 표기."""
+    url: str
+    places: list[str]
+    persons: list[str]
+    confidence: float
+    is_district_specific: bool
+    """행정동·통칭을 직접 언급했는가 (confidence >= 0.9). 구 단위만이면 False."""
+
+
+def _date_label(published_at: str) -> str:
+    """ISO 문자열에서 "YYYY-MM-DD HH:MM" 만. 파싱 실패하면 원본 그대로 (시계를
+    쓰지 않는다 — 순수 함수)."""
+    head = published_at[:16]
+    if len(head) == 16 and head[10] == "T":
+        return head.replace("T", " ")
+    return published_at
+
+
+def _news_row(item: NewsItem) -> NewsRow:
+    p = item.payload
+    conf = item.record.confidence
+    return NewsRow(
+        title=p.title,
+        publisher=p.publisher,
+        published_at=p.published_at,
+        date_label=_date_label(p.published_at),
+        url=p.url,
+        places=list(p.mentioned_places),
+        persons=list(p.mentioned_persons),
+        confidence=conf,
+        is_district_specific=conf >= DISTRICT_CONFIDENCE,
+    )
+
+
+def _sort_news(rows: Sequence[NewsRow], key: str) -> list[NewsRow]:
+    """모르는 키는 최신순으로 떨어뜨린다."""
+    if key == "publisher":
+        return sorted(rows, key=lambda r: (r.publisher, _neg_time(r.published_at)))
+    if key == "confidence":
+        return sorted(rows, key=lambda r: (-r.confidence, _neg_time(r.published_at)))
+    return sorted(rows, key=lambda r: _neg_time(r.published_at))
+
+
+def _neg_time(published_at: str) -> str:
+    """내림차순 정렬용 키. ISO 문자열은 사전순 = 시간순이라 부호를 못 붙인다.
+    각 문자를 뒤집어 역순 문자열을 만든다."""
+    return "".join(chr(0x10FFFF - ord(c)) for c in published_at)
+
+
+def _tally(values: Sequence[str], *, top: int) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for v in values:
+        counts[v] = counts.get(v, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:top]
+
+
+class NewsView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    district_name: str
+    rows: list[NewsRow]
+    """스코프·정렬·상한을 모두 적용한 뒤. 화면에 실제로 그려지는 것."""
+    diagnostics: NewsDiagnostics
+    sort: str
+    sorts: dict[str, str] = Field(default_factory=lambda: dict(NEWS_SORTS))
+    scope: str = "all"
+    scopes: dict[str, str] = Field(default_factory=lambda: dict(NEWS_SCOPES))
+
+    matched: int = 0
+    """스코프를 적용한 뒤, 상한을 적용하기 전 건수."""
+    limit: int = NEWS_LIMIT
+    district_specific_count: int = 0
+    """행정동·통칭을 직접 언급한 기사 수 (confidence >= 0.9). **스코프와 무관하게 전체 기준.**"""
+    sigungu_only_count: int = 0
+    """구 단위 매칭만 된 기사 수. **스코프와 무관하게 전체 기준.**"""
+    top_publishers: list[tuple[str, int]] = Field(default_factory=list)
+    top_places: list[tuple[str, int]] = Field(default_factory=list)
+    top_persons: list[tuple[str, int]] = Field(default_factory=list)
+    date_from: str = ""
+    date_to: str = ""
+    verdict: Verdict | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.rows
+
+    @property
+    def nothing_collected(self) -> bool:
+        """수집 자체가 0건. 스코프를 걸어서 0건인 것과 구분한다."""
+        return self.diagnostics.shown == 0
+
+    @property
+    def truncated(self) -> bool:
+        return self.matched > len(self.rows)
+
+    @property
+    def shown_text(self) -> str:
+        """ "8229건 중 200건 표시". 잘렸으면 잘렸다고 말한다."""
+        if self.truncated:
+            return f"{self.matched}건 중 {len(self.rows)}건 표시"
+        return f"{len(self.rows)}건"
+
+    @property
+    def coverage_text(self) -> str:
+        """ "동·지명 직접 12건 / 구 단위만 30건". 둘을 갈라 보여준다 —
+        구 단위 매칭은 스포츠·연예 기사가 섞인다 (meta.yaml)."""
+        return (
+            f"동·지명 직접 {self.district_specific_count}건 / 구 단위만 {self.sigungu_only_count}건"
+        )
+
+    @property
+    def date_range_text(self) -> str:
+        if not self.date_from:
+            return UNKNOWN_TEXT
+        if self.date_from == self.date_to:
+            return self.date_from
+        return f"{self.date_from} ~ {self.date_to}"
+
+
+def build_news_view(
+    news: DistrictNews,
+    policy: Policy,
+    *,
+    sort: str = "date",
+    scope: str = "all",
+    limit: int = NEWS_LIMIT,
+) -> NewsView:
+    sort = sort if sort in NEWS_SORTS else "date"
+    scope = scope if scope in NEWS_SCOPES else "all"
+    limit = max(1, limit)
+
+    rows = [_news_row(it) for it in news.items]
+    dates = sorted(r.date_label for r in rows)
+
+    scoped = [r for r in rows if r.is_district_specific] if scope == "district" else rows
+    ordered = _sort_news(scoped, sort)[:limit]
+
+    return NewsView(
+        district_name=news.district.name,
+        rows=ordered,
+        diagnostics=news.diagnostics,
+        sort=sort,
+        scope=scope,
+        matched=len(scoped),
+        limit=limit,
+        # 관련도 요약은 스코프와 무관하게 항상 전체 기준 — 스코프를 걸어도 분모가 흔들리지 않게.
+        district_specific_count=sum(1 for r in rows if r.is_district_specific),
+        sigungu_only_count=sum(1 for r in rows if not r.is_district_specific),
+        top_publishers=_tally([r.publisher for r in scoped], top=8),
+        top_places=_tally([pl for r in scoped for pl in r.places], top=10),
+        top_persons=_tally([pn for r in scoped for pn in r.persons], top=10),
+        date_from=dates[0] if dates else "",
+        date_to=dates[-1] if dates else "",
+        # 모든 기사가 같은 kind(news_article)라 판정이 동일하다. 첫 건으로 대표한다.
+        verdict=review_with(policy, news.items[0].record) if news.items else None,
     )
 
 
