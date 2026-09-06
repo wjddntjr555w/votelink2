@@ -18,6 +18,7 @@ class RecordKind(StrEnum):
     CANDIDATE = "candidate"
     LOCAL_ISSUE = "local_issue"
     SEGMENT_PROFILE = "segment_profile"
+    NEWS_PULSE = "news_pulse"
 
 
 class GeoLevel(StrEnum):

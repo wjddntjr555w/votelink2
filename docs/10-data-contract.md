@@ -144,6 +144,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `candidate` | 후보자 정보·공약·전과·재산 | 선관위 후보자정보 | |
 | `local_issue` | 지역 현안 (파생) | 뉴스·민원에서 추출 | |
 | `segment_profile` | 유권자 세그먼트 프로파일 (파생, `election_type` 별 1레코드) | 분석 산출 | ✓ |
+| `news_pulse` | 선거구 뉴스량·분포 (파생, 주 단위, 선거구당 1레코드) | 분석 산출 (`news_pulse`) | ✓ |
 
 ## 5. MVP 3종 payload
 
@@ -200,6 +201,33 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 
 **원칙: 수집기는 판단하지 않는다.** 감성분석·이슈분류 같은 해석은 전부 L2의
 파생 레코드로 만든다. 수집기가 해석을 섞기 시작하면 재분석이 불가능해진다.
+
+### 5.4 `news_pulse` (파생)
+```jsonc
+{
+  "as_of": "2026-09",              // 가장 최근 기사의 연-월. 분석 실행 시각이 아니다
+  "window_weeks": 12,
+  "weekly": [                      // 오래된 주 순, ISO 월요일 시작
+    {
+      "week_start": "2026-06-16",
+      "article_count": 81,
+      "district_specific_count": 34,   // confidence>=0.9
+      "publisher_count": 41,
+      "top_publisher_share": 12.3,     // %
+      "spike": false,
+      "spike_z": 0.4                   // 직전 history 창 대비. 창 부족·표준편차 0 이면 null
+    }
+  ],
+  "total_articles": 812,          // weekly 의 article_count 합과 일치 (불변식)
+  "top_places": [{"term": "잠실", "count": 210}],
+  "top_persons": [],
+  "top_publishers": [{"term": "연합뉴스", "count": 88}],
+  "backfill_distorted": true      // 검색 API 상한 때문에 최근으로 갈수록 부풀었으면 true
+}
+```
+`geo_level: sigungu`, `geo_code` = 선거구의 시군구 코드. 두 시군구에 걸친 선거구는
+사전순 첫 코드로 대표한다 (기사가 구 단위라 더 쪼갤 수 없다). `spike` 는
+급증 판정이지 이슈 분류가 아니다 — 무엇이 급증했는지는 `local_issue` 가 답한다.
 
 ## 6. 레코드 수명
 

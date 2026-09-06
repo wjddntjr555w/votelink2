@@ -213,10 +213,93 @@ class SegmentProfilePayload(_Payload):
         return self
 
 
+# --- news_pulse (L2 파생) ---------------------------------------------------
+#
+# **단위 규약: 비율은 퍼센트(%)다** (segment_profile 과 같다). top_publisher_share
+# 는 0~100. z-score 는 표준편차 배수라 단위가 없다.
+#
+# 기사를 행정동에 귀속시키지 않으므로 geo_level 은 sigungu 고정이고, 선거구당
+# 레코드 1건이다. 제안서: docs/proposals/A-002-news-pulse.md
+
+
+class TermCount(_Payload):
+    """누적 언급 빈도 한 줄. (지명|인물|언론사, 건수)."""
+
+    term: str = Field(min_length=1)
+    count: int = Field(ge=1)
+
+
+class NewsWeekPoint(_Payload):
+    """한 주(ISO 월요일 시작)의 뉴스량 집계."""
+
+    week_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    article_count: int = Field(ge=0)
+    district_specific_count: int = Field(ge=0, description="confidence>=0.9 로 매칭된 기사 수")
+    publisher_count: int = Field(ge=0, description="고유 언론사(도메인) 수")
+    top_publisher_share: float = Field(ge=0.0, le=100.0, description="최다 언론사 비중 %")
+    spike: bool
+    spike_z: float | None = None
+    """직전 history 창 대비 z-score. 창이 min_history_weeks 미만이거나 표준편차 0이면 None.
+    None 을 0 으로 채우지 않는다 — '평상'과 '판정 불가'는 다르다."""
+
+    @model_validator(mode="after")
+    def _check_counts(self):
+        if self.district_specific_count > self.article_count:
+            raise ValueError(
+                f"district_specific_count({self.district_specific_count})이 "
+                f"article_count({self.article_count})보다 크다 ({self.week_start})"
+            )
+        if self.article_count == 0 and self.publisher_count != 0:
+            raise ValueError(
+                f"기사 0인데 언론사 수가 {self.publisher_count} 다 ({self.week_start})"
+            )
+        if self.spike and self.spike_z is None:
+            raise ValueError(f"spike=True 인데 spike_z 가 None 이다 ({self.week_start})")
+        return self
+
+
+class NewsPulsePayload(_Payload):
+    """선거구 뉴스 펄스 — news_article 을 주 단위로 접은 것. 양과 분포만 센다.
+    어떤 기사가 실제 지역 이슈인지 가려내는 일은 별도 분석기(issue_ranker)의 몫이다."""
+
+    as_of: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="가장 최근 기사의 연-월")
+    window_weeks: int = Field(ge=1, description="weekly 에 담은 주 수")
+    weekly: list[NewsWeekPoint] = Field(min_length=1, description="오래된 주 순")
+    total_articles: int = Field(ge=0)
+    top_places: list[TermCount] = Field(default_factory=list)
+    top_persons: list[TermCount] = Field(default_factory=list)
+    top_publishers: list[TermCount] = Field(default_factory=list)
+    backfill_distorted: bool = Field(
+        default=False,
+        description="첫 백필의 API 상한(검색어당 1,000건) 때문에 최근으로 갈수록 "
+        "기사량이 부풀어 있으면 True. 이때 spike 판정은 신뢰하지 않는다",
+    )
+
+    @model_validator(mode="after")
+    def _check_series(self):
+        starts = [w.week_start for w in self.weekly]
+        if starts != sorted(starts):
+            raise ValueError(f"weekly 가 시간순이 아니다: {starts}")
+        if len(starts) != len(set(starts)):
+            raise ValueError(f"weekly 에 같은 주가 두 번 있다: {starts}")
+        if len(self.weekly) > self.window_weeks:
+            raise ValueError(
+                f"weekly 가 {len(self.weekly)}주로 window_weeks({self.window_weeks})를 넘는다"
+            )
+        summed = sum(w.article_count for w in self.weekly)
+        if summed != self.total_articles:
+            raise ValueError(
+                f"total_articles({self.total_articles})가 weekly 합({summed})과 다르다. "
+                "창을 자를 때 total 을 같이 줄이지 않았다"
+            )
+        return self
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
     RecordKind.NEWS_ARTICLE: NewsArticlePayload,
     RecordKind.SEGMENT_PROFILE: SegmentProfilePayload,
+    RecordKind.NEWS_PULSE: NewsPulsePayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""

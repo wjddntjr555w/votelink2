@@ -1,7 +1,15 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink analyze --sync`
 generated_by: votelink analyze registry sync
-count: 1
+count: 2
 analyzers:
+- id: news_pulse
+  name: 선거구 뉴스 펄스 — 주 단위 기사량·언론사 분포·급증 플래그
+  inputs:
+  - news_article
+  outputs:
+  - news_pulse
+  geo_level: sigungu
+  verified: false
 - id: voter_profile
   name: 읍면동 유권자 프로파일 — 진영 성향 시계열 × 인구 구조
   inputs:

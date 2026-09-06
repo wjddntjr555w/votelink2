@@ -1,0 +1,44 @@
+id: news_pulse
+name: 선거구 뉴스 펄스 — 주 단위 기사량·언론사 분포·급증 플래그
+inputs: [news_article]
+outputs: [news_pulse]
+geo_level: sigungu
+proposal: docs/proposals/A-002-news-pulse.md
+
+# 2026-09-06: 미검증. 아래 backfill 왜곡 때문에 지금 데이터로는 spike 판정을
+#   신뢰할 수 없다. 증분 수집(schedule "0 6 * * *")이 여러 주 쌓이면 그때
+#   실측으로 대조하고 올린다.
+#   - naver 검색 API 는 검색어당 1,000건 상한이고 sort=date 라, 첫 백필(8,229건)은
+#     최근으로 갈수록 기사량이 부풀어 있다 (2026-W36 2,445 vs W25 81). 이 계열의
+#     "급증"은 실제 뉴스량이 아니라 상한 아티팩트다. payload.backfill_distorted 가
+#     이를 True 로 표시하고, L3 카드가 경고를 띄운다.
+verified: false
+
+config:
+  default_district: seoul_songpa_gap
+  # naver_news 가 수집한 선거구만. 새 선거구로 수집이 확장되면 여기 블록을 추가한다.
+  districts:
+    seoul_songpa_gap: {}
+
+  common:
+    # weekly 에 남길 주 수. 12주면 최근 분기를 본다. 이보다 길게 잡으면 첫 백필의
+    # 성긴 꼬리(2020~2023 은 주당 한두 건)가 통계에 섞여 평균이 무의미해진다.
+    window_weeks: 12
+
+    # 급증 판정용 직전 창 길이(주). 8주 = 약 두 달. 그보다 짧으면 표준편차가
+    # 한두 이벤트에 휘둘리고, 길면 계절성(예: 매년 4월 총선기)이 평균에 눌려
+    # 실제 급증을 못 잡는다.
+    history_weeks: 8
+
+    # 창이 이 주 수보다 짧으면 z-score 를 내지 않는다 (spike_z=None, spike=False).
+    # 시계열 앞부분에서 근거 없는 급증 판정이 나오는 것을 막는다.
+    min_history_weeks: 8
+
+    # z-score 가 이 값 이상이면 spike=True. 2.0 = 정규 가정에서 상위 ~2.3%.
+    # 1.0 으로 낮추면 평범한 주간 변동도 급증으로 잡혀 플래그가 무의미해진다.
+    spike_z_threshold: 2.0
+
+    # 최근 주 기사량이 창 중앙값의 이 배를 넘으면 backfill_distorted=True.
+    # 3.0 은 "정상 변동으로 보기 어렵다"의 보수적 경계다. 첫 백필에서 이 플래그가
+    # 켜지는 것이 정상이며, 증분 수집이 쌓이면 자연히 꺼진다.
+    backfill_distortion_ratio: 3.0
