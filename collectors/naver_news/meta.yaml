@@ -95,3 +95,373 @@ config:
       # 공인 화이트리스트(현역 의원·출마 예정자 등)만 문자열 매칭한다.
       # 일반인 이름은 넣지 않는다 — 절대규칙 3(개인 식별 정보 수집 금지).
       person_terms: []
+
+    # --- 서울 나머지 24개 자치구 (C-006). 집계 단위는 자치구다: 같은 자치구의
+    # 갑/을/병 선거구는 같은 뉴스를 본다. 블록 키는 그 자치구의 대표 선거구 id.
+    # sigungu_code 는 collectors/mois_population/meta.yaml 에서 그대로 가져왔다.
+    # queries[].id 는 raw 파일명이 되므로 ascii. 행정동명(예 "역삼1동")은
+    # districts.yaml 에서 자동 병합되므로 district_terms 에는 법정동·통칭만 둔다.
+    seoul_jongno:
+      sigungu_code: "1111000000"
+      geo_name: 서울 종로구
+      queries:
+        - { id: jongno-gu, q: "종로구" }
+        - { id: jongno-mp, q: "종로 국회의원" }
+        - { id: gwanghwamun, q: "광화문" }
+        - { id: hyehwa, q: "혜화동" }
+        - { id: buam, q: "부암동" }
+        - { id: pyeongchang, q: "평창동" }
+        - { id: changsin, q: "창신동" }
+      sigungu_terms: [종로구, 종로]
+      district_terms: [광화문, 혜화동, 부암동, 평창동, 창신동, 숭인동, 인사동, 대학로]
+      person_terms: []
+
+    seoul_jung_seongdong_eul:
+      # 중구성동구 을은 중구 15동 + 성동구 4동이 섞인 걸침 선거구다. naver_news 는
+      # sigungu_code 하나만 받으므로 여기는 중구로 두고, 성동구 뉴스는
+      # seoul_jung_seongdong_gap 블록이 담당한다. 웹은 두 시군구 프리픽스를 다 읽는다.
+      sigungu_code: "1114000000"
+      geo_name: 서울 중구
+      queries:
+        - { id: junggu, q: "서울 중구" }
+        - { id: junggu-mp, q: "중구 국회의원" }
+        - { id: myeongdong, q: "명동" }
+        - { id: euljiro, q: "을지로" }
+        - { id: sindang, q: "신당동" }
+        - { id: yaksu, q: "약수동" }
+        - { id: hoehyeon, q: "회현동" }
+      sigungu_terms: [서울 중구, 중구청]
+      district_terms: [명동, 을지로, 신당동, 약수동, 회현동, 광희동, 장충동, 동대문디자인플라자]
+      person_terms: []
+
+    seoul_yongsan:
+      sigungu_code: "1117000000"
+      geo_name: 서울 용산구
+      queries:
+        - { id: yongsan-gu, q: "용산구" }
+        - { id: yongsan-mp, q: "용산 국회의원" }
+        - { id: itaewon, q: "이태원" }
+        - { id: hannam, q: "한남동" }
+        - { id: huam, q: "후암동" }
+        - { id: cheongpa, q: "청파동" }
+        - { id: jeongbichang, q: "용산정비창" }
+      sigungu_terms: [용산구, 용산]
+      district_terms: [이태원, 한남동, 후암동, 청파동, 원효로, 효창공원, 용산공원]
+      person_terms: []
+
+    seoul_jung_seongdong_gap:
+      sigungu_code: "1120000000"
+      geo_name: 서울 성동구
+      queries:
+        - { id: seongdong-gu, q: "성동구" }
+        - { id: seongdong-mp, q: "성동 국회의원" }
+        - { id: seongsu, q: "성수동" }
+        - { id: wangsimni, q: "왕십리" }
+        - { id: geumho, q: "금호동" }
+        - { id: oksu, q: "옥수동" }
+        - { id: seoulforest, q: "서울숲" }
+      sigungu_terms: [성동구, 성동]
+      district_terms: [성수동, 왕십리, 금호동, 옥수동, 행당동, 응봉동, 서울숲, 뚝섬]
+      person_terms: []
+
+    seoul_gwangjin_gap:
+      sigungu_code: "1121500000"
+      geo_name: 서울 광진구
+      queries:
+        - { id: gwangjin-gu, q: "광진구" }
+        - { id: gwangjin-mp, q: "광진 국회의원" }
+        - { id: jayang, q: "자양동" }
+        - { id: guui, q: "구의동" }
+        - { id: hwayang, q: "화양동" }
+        - { id: neung, q: "능동" }
+        - { id: kondae, q: "건대입구" }
+      sigungu_terms: [광진구, 광진]
+      district_terms: [자양동, 구의동, 화양동, 능동, 중곡동, 어린이대공원, 건대입구]
+      person_terms: []
+
+    seoul_dongdaemun_gap:
+      sigungu_code: "1123000000"
+      geo_name: 서울 동대문구
+      queries:
+        - { id: dongdaemun-gu, q: "동대문구" }
+        - { id: dongdaemun-mp, q: "동대문구 국회의원" }
+        - { id: cheongnyangni, q: "청량리" }
+        - { id: hoegi, q: "회기동" }
+        - { id: jeonnong, q: "전농동" }
+        - { id: imun, q: "이문동" }
+        - { id: dapsimni, q: "답십리" }
+      sigungu_terms: [동대문구]
+      district_terms: [청량리, 회기동, 전농동, 이문동, 답십리, 휘경동, 제기동, 경희대]
+      person_terms: []
+
+    seoul_jungnang_gap:
+      sigungu_code: "1126000000"
+      geo_name: 서울 중랑구
+      queries:
+        - { id: jungnang-gu, q: "중랑구" }
+        - { id: jungnang-mp, q: "중랑 국회의원" }
+        - { id: myeonmok, q: "면목동" }
+        - { id: sangbong, q: "상봉동" }
+        - { id: mangu, q: "망우동" }
+        - { id: muk, q: "묵동" }
+        - { id: junghwa, q: "중화동" }
+      sigungu_terms: [중랑구, 중랑]
+      district_terms: [면목동, 상봉동, 망우동, 묵동, 중화동, 신내동, 용마산]
+      person_terms: []
+
+    seoul_seongbuk_gap:
+      sigungu_code: "1129000000"
+      geo_name: 서울 성북구
+      queries:
+        - { id: seongbuk-gu, q: "성북구" }
+        - { id: seongbuk-mp, q: "성북 국회의원" }
+        - { id: jeongneung, q: "정릉동" }
+        - { id: gireum, q: "길음동" }
+        - { id: donam, q: "돈암동" }
+        - { id: anam, q: "안암동" }
+        - { id: jangwi, q: "장위동" }
+      sigungu_terms: [성북구, 성북]
+      district_terms: [정릉동, 길음동, 돈암동, 안암동, 장위동, 석관동, 종암동, 성신여대]
+      person_terms: []
+
+    seoul_gangbuk_gap:
+      sigungu_code: "1130500000"
+      geo_name: 서울 강북구
+      queries:
+        - { id: gangbuk-gu, q: "강북구" }
+        - { id: gangbuk-mp, q: "강북구 국회의원" }
+        - { id: suyu, q: "수유동" }
+        - { id: mia, q: "미아동" }
+        - { id: beon, q: "번동" }
+        - { id: ui, q: "우이동" }
+        - { id: insu, q: "인수동" }
+      sigungu_terms: [강북구]
+      district_terms: [수유동, 미아동, 번동, 우이동, 인수동, 삼양동, 북한산우이]
+      person_terms: []
+
+    seoul_dobong_gap:
+      sigungu_code: "1132000000"
+      geo_name: 서울 도봉구
+      queries:
+        - { id: dobong-gu, q: "도봉구" }
+        - { id: dobong-mp, q: "도봉 국회의원" }
+        - { id: chang, q: "창동" }
+        - { id: ssangmun, q: "쌍문동" }
+        - { id: banghak, q: "방학동" }
+        - { id: dobong-dong, q: "도봉동" }
+        - { id: dobongsan, q: "도봉산" }
+      sigungu_terms: [도봉구, 도봉]
+      district_terms: [창동, 쌍문동, 방학동, 도봉동, 도봉산, 창동역]
+      person_terms: []
+
+    seoul_nowon_gap:
+      sigungu_code: "1135000000"
+      geo_name: 서울 노원구
+      queries:
+        - { id: nowon-gu, q: "노원구" }
+        - { id: nowon-mp, q: "노원 국회의원" }
+        - { id: sanggye, q: "상계동" }
+        - { id: junggye, q: "중계동" }
+        - { id: hagye, q: "하계동" }
+        - { id: gongneung, q: "공릉동" }
+        - { id: madeul, q: "마들" }
+      sigungu_terms: [노원구, 노원]
+      district_terms: [상계동, 중계동, 하계동, 공릉동, 월계동, 마들, 노원역]
+      person_terms: []
+
+    seoul_eunpyeong_gap:
+      sigungu_code: "1138000000"
+      geo_name: 서울 은평구
+      queries:
+        - { id: eunpyeong-gu, q: "은평구" }
+        - { id: eunpyeong-mp, q: "은평 국회의원" }
+        - { id: bulgwang, q: "불광동" }
+        - { id: eungam, q: "응암동" }
+        - { id: yeokchon, q: "역촌동" }
+        - { id: daejo, q: "대조동" }
+        - { id: yeonsinnae, q: "연신내" }
+      sigungu_terms: [은평구, 은평]
+      district_terms: [불광동, 응암동, 역촌동, 대조동, 갈현동, 진관동, 연신내, 은평뉴타운]
+      person_terms: []
+
+    seoul_seodaemun_gap:
+      sigungu_code: "1141000000"
+      geo_name: 서울 서대문구
+      queries:
+        - { id: seodaemun-gu, q: "서대문구" }
+        - { id: seodaemun-mp, q: "서대문 국회의원" }
+        - { id: sinchon, q: "신촌" }
+        - { id: hongje, q: "홍제동" }
+        - { id: namgajwa, q: "남가좌동" }
+        - { id: bukahyeon, q: "북아현동" }
+        - { id: hongeun, q: "홍은동" }
+      sigungu_terms: [서대문구, 서대문]
+      district_terms: [신촌, 홍제동, 남가좌동, 북아현동, 홍은동, 연희동, 창천동, 연세대]
+      person_terms: []
+
+    seoul_mapo_gap:
+      sigungu_code: "1144000000"
+      geo_name: 서울 마포구
+      queries:
+        - { id: mapo-gu, q: "마포구" }
+        - { id: mapo-mp, q: "마포 국회의원" }
+        - { id: hongdae, q: "홍대" }
+        - { id: hapjeong, q: "합정동" }
+        - { id: sangam, q: "상암동" }
+        - { id: gongdeok, q: "공덕동" }
+        - { id: mangwon, q: "망원동" }
+        - { id: yeonnam, q: "연남동" }
+      sigungu_terms: [마포구, 마포]
+      district_terms: [홍대, 합정동, 상암동, 공덕동, 망원동, 연남동, 서교동, 상암DMC]
+      person_terms: []
+
+    seoul_yangcheon_gap:
+      sigungu_code: "1147000000"
+      geo_name: 서울 양천구
+      queries:
+        - { id: yangcheon-gu, q: "양천구" }
+        - { id: yangcheon-mp, q: "양천 국회의원" }
+        - { id: mokdong, q: "목동" }
+        - { id: sinjeong, q: "신정동" }
+        - { id: sinwol, q: "신월동" }
+        - { id: moktown, q: "목동신시가지" }
+        - { id: omokgyo, q: "오목교" }
+      sigungu_terms: [양천구, 양천]
+      district_terms: [목동, 신정동, 신월동, 오목교, 목동운동장, 서울남부지방법원]
+      person_terms: []
+
+    seoul_gangseo_gap:
+      sigungu_code: "1150000000"
+      geo_name: 서울 강서구
+      queries:
+        - { id: gangseo-gu, q: "강서구" }
+        - { id: gangseo-mp, q: "강서 국회의원" }
+        - { id: hwagok, q: "화곡동" }
+        - { id: magok, q: "마곡동" }
+        - { id: balsan, q: "발산동" }
+        - { id: deungchon, q: "등촌동" }
+        - { id: gayang, q: "가양동" }
+      sigungu_terms: [서울 강서구, 강서구청]
+      district_terms: [화곡동, 마곡동, 발산동, 등촌동, 가양동, 방화동, 김포공항, 마곡나루]
+      person_terms: []
+
+    seoul_guro_gap:
+      sigungu_code: "1153000000"
+      geo_name: 서울 구로구
+      queries:
+        - { id: guro-gu, q: "구로구" }
+        - { id: guro-mp, q: "구로 국회의원" }
+        - { id: gurodigital, q: "구로디지털단지" }
+        - { id: sindorim, q: "신도림" }
+        - { id: gaebong, q: "개봉동" }
+        - { id: oryu, q: "오류동" }
+        - { id: gocheok, q: "고척" }
+      sigungu_terms: [구로구, 구로]
+      district_terms: [구로디지털단지, 신도림, 개봉동, 오류동, 고척동, 궁동, 고척돔]
+      person_terms: []
+
+    seoul_geumcheon:
+      sigungu_code: "1154500000"
+      geo_name: 서울 금천구
+      queries:
+        - { id: geumcheon-gu, q: "금천구" }
+        - { id: geumcheon-mp, q: "금천 국회의원" }
+        - { id: gasandigital, q: "가산디지털단지" }
+        - { id: siheung, q: "시흥동" }
+        - { id: doksan, q: "독산동" }
+        - { id: gasan, q: "가산동" }
+      sigungu_terms: [금천구, 금천]
+      district_terms: [가산디지털단지, 시흥동, 독산동, 가산동, 금천구청역]
+      person_terms: []
+
+    seoul_yeongdeungpo_gap:
+      sigungu_code: "1156000000"
+      geo_name: 서울 영등포구
+      queries:
+        - { id: yeongdeungpo-gu, q: "영등포구" }
+        - { id: yeongdeungpo-mp, q: "영등포 국회의원" }
+        - { id: yeouido, q: "여의도" }
+        - { id: dangsan, q: "당산동" }
+        - { id: mullae, q: "문래동" }
+        - { id: singil, q: "신길동" }
+        - { id: ydp-station, q: "영등포역" }
+      sigungu_terms: [영등포구, 영등포]
+      district_terms: [여의도, 당산동, 문래동, 신길동, 대림동, 양평동, 영등포역]
+      person_terms: []
+
+    seoul_dongjak_gap:
+      sigungu_code: "1159000000"
+      geo_name: 서울 동작구
+      queries:
+        - { id: dongjak-gu, q: "동작구" }
+        - { id: dongjak-mp, q: "동작 국회의원" }
+        - { id: noryangjin, q: "노량진" }
+        - { id: sangdo, q: "상도동" }
+        - { id: sadang, q: "사당동" }
+        - { id: heukseok, q: "흑석동" }
+        - { id: daebang, q: "대방동" }
+      sigungu_terms: [동작구, 동작]
+      district_terms: [노량진, 상도동, 사당동, 흑석동, 대방동, 신대방동, 보라매공원]
+      person_terms: []
+
+    seoul_gwanak_gap:
+      sigungu_code: "1162000000"
+      geo_name: 서울 관악구
+      queries:
+        - { id: gwanak-gu, q: "관악구" }
+        - { id: gwanak-mp, q: "관악 국회의원" }
+        - { id: sillim, q: "신림동" }
+        - { id: bongcheon, q: "봉천동" }
+        - { id: snu, q: "서울대입구" }
+        - { id: nakseongdae, q: "낙성대" }
+        - { id: namhyeon, q: "남현동" }
+      sigungu_terms: [관악구, 관악]
+      district_terms: [신림동, 봉천동, 서울대입구, 낙성대, 남현동, 신림역]
+      person_terms: []
+
+    seoul_seocho_gap:
+      sigungu_code: "1165000000"
+      geo_name: 서울 서초구
+      queries:
+        - { id: seocho-gu, q: "서초구" }
+        - { id: seocho-mp, q: "서초 국회의원" }
+        - { id: seocho-dong, q: "서초동" }
+        - { id: banpo, q: "반포동" }
+        - { id: bangbae, q: "방배동" }
+        - { id: yangjae, q: "양재동" }
+        - { id: jamwon, q: "잠원동" }
+      sigungu_terms: [서초구, 서초]
+      district_terms: [서초동, 반포동, 방배동, 양재동, 잠원동, 내곡동, 예술의전당, 고속터미널]
+      person_terms: []
+
+    seoul_gangnam_gap:
+      sigungu_code: "1168000000"
+      geo_name: 서울 강남구
+      queries:
+        - { id: gangnam-gu, q: "강남구" }
+        - { id: gangnam-mp, q: "강남 국회의원" }
+        - { id: yeoksam, q: "역삼동" }
+        - { id: samseong, q: "삼성동" }
+        - { id: daechi, q: "대치동" }
+        - { id: apgujeong, q: "압구정동" }
+        - { id: cheongdam, q: "청담동" }
+        - { id: suseo, q: "수서" }
+      sigungu_terms: [강남구, 강남]
+      district_terms: [역삼동, 삼성동, 대치동, 압구정동, 청담동, 논현동, 개포동, 수서동, 코엑스]
+      person_terms: []
+
+    seoul_gangdong_gap:
+      sigungu_code: "1174000000"
+      geo_name: 서울 강동구
+      queries:
+        - { id: gangdong-gu, q: "강동구" }
+        - { id: gangdong-mp, q: "강동 국회의원" }
+        - { id: cheonho, q: "천호동" }
+        - { id: myeongil, q: "명일동" }
+        - { id: godeok, q: "고덕동" }
+        - { id: dunchon, q: "둔촌동" }
+        - { id: amsa, q: "암사동" }
+        - { id: sangil, q: "상일동" }
+      sigungu_terms: [강동구, 강동]
+      district_terms: [천호동, 명일동, 고덕동, 둔촌동, 암사동, 상일동, 성내동, 길동]
+      person_terms: []

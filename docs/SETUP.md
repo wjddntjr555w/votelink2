@@ -175,6 +175,11 @@ uv run votelink district backfill-codes              # 실제 기록 (재실행�
 uv run votelink district list --emd                  # pending 이 0 이 됐는지 확인
 ```
 
+위 `for` 루프는 `district list` 의 pending 을 훑는 D-001 전용 절차다. 이미
+`meta.yaml` 의 `config.districts` 에 여러 선거구가 등록된 수집기·분석기(예:
+`naver_news` 서울 25개 자치구)는 `--all-districts` 한 줄로 전부 돈다:
+`uv run votelink collect naver_news --all-districts`.
+
 `backfill-codes` 는 `data/raw/mois_population/` 의 원본 응답에서 admmCd 를 읽는다
 (`data/records/mois_population.jsonl` 이 아니다 — jsonl 은 이름이 이미 맞은 동만 있어
 불일치를 진단할 수 없다). **정확히 이름이 일치하는 동만 자동으로 채운다.** 행정동명이
