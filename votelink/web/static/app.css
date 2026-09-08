@@ -483,3 +483,17 @@ button.danger, .danger { color: var(--block-line); }
 .tag--active { background: var(--note-bg); border: 1px solid var(--note-line); }
 .tag--pending { background: var(--warn-bg); border: 1px solid var(--warn-line); }
 .tag--suspended { background: var(--block-bg); border: 1px solid var(--block-line); }
+
+/* 지금 보는 선거 주기. 캠프가 고르는 것이 아니라 선거일이 정한다. */
+.cycle--current { border-color: var(--note-line); background: var(--note-bg); }
+
+.button-link {
+  display: inline-block;
+  padding: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--note-bg);
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+}

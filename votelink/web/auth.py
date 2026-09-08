@@ -117,14 +117,20 @@ def gate(account: acc.Account | None, path: str, *, onboarded: bool) -> str | No
         return None if path in PENDING_PATHS else "/pending"
     if account.is_operator:
         # 운영자는 전 캠프를 본다. **단일 신뢰 지점이다** (P-003 §6).
-        # 다만 캠프 계정용 화면 둘은 갈 곳이 아니다 — 운영자에겐 채울 캠프도,
-        # 기다릴 신청도 없다. `/onboarding` 은 POST 하면 camp_id 가 None 이라 터진다.
-        return "/ops/" if path in ("/onboarding", "/pending") else None
+        # 다만 캠프 계정용 화면들은 갈 곳이 아니다 — 운영자에겐 채울 캠프도, 기다릴
+        # 신청도 없다. `/onboarding` 은 POST 하면 camp_id 가 None 이라 터진다.
+        if path in ("/onboarding", "/pending") or path.startswith("/cycles"):
+            return "/ops/"
+        return None
     if not account.camp_id:
         # 활성 캠프 계정인데 캠프가 없다. 승인이 중간에 끊긴 상태다 (P-002 §6).
         return "/pending" if path != "/pending" else None
     if not onboarded:
         return None if path in ONBOARDING_PATHS else "/onboarding"
+    if path == "/onboarding":
+        # 첫 설정은 끝났다. 다음 선거 주기는 `/cycles/new` 에서 더한다 — 같은 폼이지만
+        # 이미 있는 주기를 보고 나서 더해야 한다. 안 그러면 같은 주기를 두 번 만든다.
+        return "/cycles"
     return None
 
 

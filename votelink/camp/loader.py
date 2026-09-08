@@ -16,9 +16,11 @@ data/camps/<camp_id>/cycles/<cycle_id>/election.yaml
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
 from votelink.camp.models import CampInfo, Cycle, Roster
 from votelink.reference.districts import load_districts
@@ -72,6 +74,50 @@ def list_cycles(camp_id: str, root: Path | None = None) -> list[str]:
     if not base.exists():
         return []
     return sorted(p.name for p in base.iterdir() if p.is_dir() and (p / "election.yaml").exists())
+
+
+def current_cycle_id(
+    camp_id: str,
+    root: Path | None = None,
+    *,
+    today: dt.date | None = None,
+    districts_path: Path | None = None,
+) -> str | None:
+    """지금 준비 중인 선거 주기. 주기가 하나도 없으면 `None`.
+
+    **아직 안 지난 선거 중 가장 가까운 것**을 고른다. 전부 지났으면 가장 최근에 치른
+    것. 캠프는 늘 "다음 선거"를 준비하므로 그게 이 화면들이 봐야 할 주기다.
+
+    **폴더 이름 사전순으로 고르지 않는다.** 예전에는 `list_cycles()[-1]` 이었는데,
+    선거일을 모르는 주기의 이름이 `미정-…` 이라 한글이 숫자보다 뒤로 갔다. 그래서
+    **선거일을 모르는 주기가 언제나 이겼다** — 그 주기가 현재가 되면 공표 금지기간
+    (§108) 판정이 전부 불가로 떨어진다. 주기가 하나뿐일 때는 드러나지 않던 버그다.
+
+    선거일 미정은 마지막 수단으로 남긴다. 언제인지 모르는 선거를 "다음 선거"로 삼는
+    것보다는, 날짜가 있는 주기가 하나라도 있으면 그것을 쓰는 편이 낫다.
+
+    설정이 깨진 주기는 건너뛴다 — 어차피 화면에 뜨지 못한다. 전부 깨져 있으면 `None`
+    이 아니라 그 사실이 `load_cycle` 에서 드러나야 하므로, 남은 것이 없을 때만 `None`.
+    """
+    day = today or dt.date.today()
+    best: tuple[tuple[int, int, str], str] | None = None
+
+    for cid in list_cycles(camp_id, root):
+        try:
+            cycle = load_cycle(camp_id, cid, root, districts_path=districts_path)
+        except (CampConfigError, FileNotFoundError, ValidationError):
+            continue
+        date = cycle.election.date
+        if date is None:
+            key = (2, 0, cid)
+        elif date >= day:
+            key = (0, (date - day).days, cid)  # 가까운 미래가 먼저
+        else:
+            key = (1, (day - date).days, cid)  # 가까운 과거가 먼저
+        if best is None or key < best[0]:
+            best = (key, cid)
+
+    return best[1] if best else None
 
 
 def _read_yaml(path: Path, what: str) -> dict:

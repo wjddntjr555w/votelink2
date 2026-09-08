@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% set active = 'cycles' %}
+{% block title %}선거 주기 — votelink{% endblock %}
+
+{# **캠프는 영속이고 선거가 그 안에서 바뀐다** (P-001 §7).
+
+   지금 보는 주기는 캠프가 고르는 것이 아니라 **선거일이 정한다** — 아직 안 지난
+   선거 중 가장 가까운 것. 고를 것이 없으니 틀릴 여지도 없지만, 무엇을 보고 있는지는
+   알아야 해서 이 화면이 그것을 말한다. #}
+{% block content %}
+<section class="head">
+  <h1>선거 주기</h1>
+  <p class="muted small">
+    화면은 <strong>아직 안 지난 선거 중 가장 가까운 주기</strong>를 봅니다.
+    전부 지났으면 가장 최근에 치른 것을 봅니다. 주기를 더해도 선거일이 더 뒤라면
+    지금 보는 화면은 바뀌지 않습니다.
+  </p>
+</section>
+
+<section class="ops-block">
+  {% for row in rows %}
+  <article class="cycle {{ 'cycle--current' if row.current }}">
+    <header>
+      <strong>{{ row.id }}</strong>
+      {% if row.current %}<span class="tag tag--ours">지금 보는 주기</span>{% endif %}
+    </header>
+
+    {% if row.error %}
+    <div class="banner banner--blocked">
+      <strong>이 주기의 설정이 깨져 있다</strong>
+      <pre class="errdetail">{{ row.error }}</pre>
+      <p class="muted small">
+        고치기 전까지 이 주기는 화면에 뜨지 않습니다. 운영자에게 알리십시오.
+      </p>
+    </div>
+    {% else %}
+    <dl class="kv">
+      <dt>선거</dt>
+      <dd>{{ row.cycle.election.type.value }} · {{ row.cycle.election.office.value }}</dd>
+      <dt>선거일</dt>
+      <dd>
+        {% if row.cycle.election.date %}
+          {{ row.cycle.election.date }}
+          {% if row.cycle.election.date >= today %}
+          <span class="muted small">(예정)</span>
+          {% else %}
+          <span class="muted small">(지난 선거)</span>
+          {% endif %}
+        {% else %}
+          <span class="warn-text">미정</span>
+          <span class="muted small">
+            — 선거일을 모르면 공표 금지기간(§108) 같은 기간 판정을 계산할 수 없어
+            그 산출물들이 전부 미검토로 떨어집니다. 정해지면
+            <code>cycles/{{ row.id }}/election.yaml</code> 을 고치도록 운영자에게 알리십시오.
+          </span>
+        {% endif %}
+      </dd>
+      <dt>진영</dt><dd>{{ row.cycle.lineage.value }}</dd>
+      <dt>관할</dt>
+      <dd>
+        {{ row.cycle.territory.emd_codes|length }}개 동
+        {% if row.cycle.territory.preset %}
+        <span class="muted small">(프리셋 {{ row.cycle.territory.preset }})</span>
+        {% endif %}
+      </dd>
+      <dt>법률 검토자</dt>
+      <dd>
+        {% if row.cycle.legal_reviewer %}{{ row.cycle.legal_reviewer }}
+        {% else %}<span class="muted">미지정</span>{% endif %}
+      </dd>
+    </dl>
+    {% endif %}
+  </article>
+  {% endfor %}
+
+  <p><a class="button-link" href="/cycles/new">다음 선거 주기 추가</a></p>
+  <p class="muted small">
+    주기를 더해도 <strong>기존 주기는 그대로 남습니다.</strong> 지난 주기의 설정은 여기서
+    계속 볼 수 있습니다 — 다만 지난 주기의 관점으로 분석 화면을 다시 그리는 기능은
+    아직 없습니다.
+  </p>
+</section>
+{% endblock %}

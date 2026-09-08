@@ -1,18 +1,31 @@
 {% extends "base.html" %}
-{% block title %}캠프 설정 — votelink{% endblock %}
+{% block title %}{{ '캠프 설정' if first else '선거 주기 추가' }} — votelink{% endblock %}
 
-{# 승인 뒤 한 번 채우는 화면. 여기서 `cycles/<주기>/` 가 만들어지고, 그때부터
-   데이터 화면이 열린다 (P-002 §6).
+{# 한 폼이 두 곳에서 쓰인다: 승인 직후의 첫 설정(`/onboarding`)과 다음 선거 주기
+   추가(`/cycles/new`). 받는 값이 같아서 나누지 않았다 — 관할도 진영도 당적도
+   주기마다 다시 정한다 (P-001 §7).
 
    **관할이 이 폼의 심장이다.** 관할이 틀리면 에러가 나지 않고 그냥 다른 답이
    나온다 — P-001 §16 이 가장 위험한 실패로 지목한 자리다. #}
 {% block content %}
 <section class="gate gate--wide">
+  {% if first %}
   <h1>캠프 설정</h1>
   <p class="muted small">
     한 번만 채우면 됩니다. 다음 선거 때는 주기를 새로 추가합니다 —
     캠프는 남고 선거가 그 안에서 바뀝니다.
   </p>
+  {% else %}
+  <h1>선거 주기 추가</h1>
+  <p class="muted small">
+    <a href="/cycles">&larr; 주기 목록</a>
+  </p>
+  <p class="muted small">
+    관할도 진영도 당적도 다시 정합니다. 구청장에 나갔다가 다음엔 시의원에 나갈 수 있고
+    당적도 바뀝니다 — 그래서 이 값들이 캠프가 아니라 주기에 붙어 있습니다.
+    <strong>기존 주기는 그대로 남습니다.</strong>
+  </p>
+  {% endif %}
 
   {% if error %}
   <div class="banner banner--blocked">
@@ -21,7 +34,7 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/onboarding" class="form">
+  <form method="post" action="{{ '/onboarding' if first else '/cycles/new' }}" class="form">
     <fieldset>
       <legend>선거</legend>
       <label>
@@ -124,7 +137,7 @@
       </label>
     </fieldset>
 
-    <button type="submit">저장하고 시작</button>
+    <button type="submit">{{ '저장하고 시작' if first else '주기 추가' }}</button>
   </form>
 </section>
 {% endblock %}

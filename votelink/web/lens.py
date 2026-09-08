@@ -71,13 +71,15 @@ def load_lens(camp_id: str, cycle_id: str | None, root=None, districts_path=None
     from votelink import camp as camp_mod
 
     if cycle_id is None:
-        cycles = camp_mod.list_cycles(camp_id, root)
-        if not cycles:
+        # **선거일 기준으로 고른다.** 아직 안 지난 선거 중 가장 가까운 것 —
+        # 캠프는 늘 "다음 선거"를 준비한다. 예전의 `list_cycles()[-1]`(사전순 마지막)은
+        # `미정-…` 주기가 언제나 이기게 만들었다 (`camp/loader.py:current_cycle_id`).
+        cycle_id = camp_mod.current_cycle_id(camp_id, root, districts_path=districts_path)
+        if cycle_id is None:
             raise camp_mod.CycleNotFound(
                 f"캠프 '{camp_id}' 에 선거 주기가 없다. "
                 "`uv run votelink camp new` 로 만들거나 --cycle 을 지정하라"
             )
-        cycle_id = cycles[-1]
 
     info = camp_mod.load_camp(camp_id, root)
     cycle = camp_mod.load_cycle(camp_id, cycle_id, root, districts_path=districts_path)

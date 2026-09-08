@@ -346,3 +346,87 @@ def test_opponent_note_carries_the_reasoning():
         }
     )
     assert roster.opponents[0].note
+
+
+# --- 어느 주기가 "지금"인가 --------------------------------------------------------
+
+
+def add_cycle(root, camp_id="test-camp", *, date, cycle_id=None, etype=None):
+    """이미 있는 캠프에 주기를 하나 더 붙인다. `make` 와 달리 camp.yaml 을 안 만든다."""
+    et = etype or ElectionType.NATIONAL_ASSEMBLY
+    office = "national_assembly" if et is ElectionType.NATIONAL_ASSEMBLY else "basic_head"
+    cycle = Cycle.model_validate(
+        {
+            "election": {"type": et, "office": office, "date": date},
+            "lineage": Camp.PROGRESSIVE,
+            "territory": {"preset": "test_gap", "emd_codes": [GA, NA]},
+        }
+    )
+    cid = cycle_id or scaffold.default_cycle_id(cycle, f"미정-{et.value}")
+    scaffold.write_cycle(camp_id, cid, cycle, "홍길동", "가당", False, root)
+    return cid
+
+
+TODAY = dt.date(2026, 9, 9)
+
+
+def test_the_nearest_upcoming_election_wins(root):
+    """캠프는 늘 '다음 선거'를 준비한다."""
+    make(root, date=dt.date(2028, 4, 12))
+    add_cycle(root, date=dt.date(2026, 6, 3), etype=ElectionType.LOCAL)
+    soon = add_cycle(root, date=dt.date(2027, 3, 3))
+
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == soon
+
+
+def test_an_undated_cycle_never_beats_a_dated_one(root):
+    """**여기가 이 규칙을 만든 이유다.**
+
+    예전에는 폴더 이름 사전순 마지막을 골랐는데, 선거일을 모르는 주기의 이름이
+    `미정-…` 이라 한글이 숫자보다 뒤로 갔다. 그래서 날짜를 모르는 주기가 언제나
+    이겼고, 그러면 공표 금지기간(§108) 판정이 전부 불가로 떨어진다.
+    """
+    dated = make(root, date=dt.date(2028, 4, 12))
+    undated = add_cycle(root, date=None)
+
+    assert sorted([dated, undated])[-1] == undated, "사전순으로는 미정이 이긴다"
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == dated
+
+
+def test_an_undated_cycle_is_used_when_it_is_all_there_is(root):
+    """마지막 수단으로는 쓴다. 주기가 하나뿐인데 안 고르면 화면이 아예 안 뜬다."""
+    make(root, date=None, cycle_id="미정-national_assembly")
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == "미정-national_assembly"
+
+
+def test_the_most_recent_past_election_wins_when_all_are_over(root):
+    """전부 지났으면 가장 최근에 치른 것. 다음 주기를 아직 안 만든 캠프다."""
+    make(root, date=dt.date(2020, 4, 15))
+    recent = add_cycle(root, date=dt.date(2024, 4, 10))
+
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == recent
+
+
+def test_election_day_itself_counts_as_upcoming(root):
+    """선거 당일에 지난 선거로 넘어가면 그날 하루 화면이 옆 주기를 본다."""
+    make(root, date=dt.date(2024, 4, 10))
+    today_cycle = add_cycle(root, date=TODAY)
+
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == today_cycle
+
+
+def test_a_broken_cycle_is_skipped_not_fatal(root):
+    """주기 하나가 깨졌다고 캠프 전체가 화면을 잃지는 않는다."""
+    good = make(root, date=dt.date(2028, 4, 12))
+    bad = add_cycle(root, date=dt.date(2030, 4, 10))
+    path = camp.cycle_dir("test-camp", bad, root) / "election.yaml"
+    path.write_text(path.read_text(encoding="utf-8").replace(GA, "9999999999"), encoding="utf-8")
+
+    assert camp.current_cycle_id("test-camp", root, today=TODAY) == good
+
+
+def test_no_cycles_is_none_not_an_error(root):
+    scaffold.write_camp(
+        CampInfo(camp_id="empty", candidate_name="홍길동", created_at=dt.date(2026, 9, 8)), root
+    )
+    assert camp.current_cycle_id("empty", root, today=TODAY) is None

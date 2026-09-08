@@ -15,6 +15,8 @@
 화면 축은 셋이다 (§7): 선거구(대시보드+지도) · 비교(`/compare`) · 전국 동(`/nation`).
 각 화면은 `?election_type=` 로 재필터한다 (기본 presidential).
 그 앞에 인증 화면 넷이 붙는다: `/login` · `/signup` · `/pending` · `/onboarding`.
+캠프 설정은 `/cycles`(주기 목록)와 `/cycles/new`(다음 주기 추가) 둘이고, 운영자 화면은
+`ops.py` 에 따로 있다.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
@@ -84,6 +87,32 @@ OFFICE_LABELS = {
 }
 """온보딩 폼의 직위 라벨. `Office` enum 이 유일한 출처이고 여기는 표기만 붙인다 —
 `viewmodel.py` 의 라벨표들과 달리 캠프 설정 전용이라 화면 계층에 둔다."""
+
+
+class CycleForm(BaseModel):
+    """선거 주기 폼. `/onboarding` 과 `/cycles/new` 가 **같은 것을 받는다.**
+
+    필드가 열 개라 라우트마다 늘어놓으면 언젠가 한쪽만 고친다. 첫 주기와 두 번째
+    주기가 다른 값을 받을 이유가 없다 — 관할도 진영도 당적도 주기마다 다시 정한다
+    (P-001 §7).
+
+    `extra="ignore"` 다. 계약 모델들이 `forbid` 인 것과 다른데, 여기는 레코드가 아니라
+    브라우저 폼이라서다 — 제출 버튼 이름 하나가 딸려 와도 422 로 죽는 대신 무시한다.
+    검증은 `_build_cycle` 이 값으로 한다.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    election_type: str
+    office: str
+    lineage: str
+    party: str
+    election_date: str = ""
+    incumbent: str = ""
+    preset: str = ""
+    sigungu: str = ""
+    emd_codes: str = ""
+    legal_reviewer: str = ""
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -374,47 +403,67 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/onboarding", response_class=Response)
     def onboarding_form(request: Request) -> Response:
-        return _render(request, "onboarding.html", _onboarding_ctx(request))
+        return _render(request, "onboarding.html", _onboarding_ctx(request, first=True))
 
     @app.post("/onboarding", response_class=Response)
-    def onboarding(
-        request: Request,
-        election_type: Annotated[str, Form()],
-        office: Annotated[str, Form()],
-        lineage: Annotated[str, Form()],
-        party: Annotated[str, Form()],
-        election_date: Annotated[str, Form()] = "",
-        incumbent: Annotated[str, Form()] = "",
-        preset: Annotated[str, Form()] = "",
-        sigungu: Annotated[str, Form()] = "",
-        emd_codes: Annotated[str, Form()] = "",
-        legal_reviewer: Annotated[str, Form()] = "",
-    ) -> Response:
+    def onboarding(request: Request, form: Annotated[CycleForm, Form()]) -> Response:
         """관할·진영·선거일을 받아 `cycles/<id>/` 를 만든다.
 
         여기가 **온보딩 완료 지점**이다. 이 파일들이 생기기 전까지 캠프 계정은
         데이터 화면을 볼 수 없다 — 관할을 모르면 무엇을 보여줄지 알 수 없으므로
         fail-closed 가 자연스럽다 (P-002 §6).
         """
+        return _save_cycle(request, form, action="onboarding", first=True)
+
+    @app.get("/cycles", response_class=Response)
+    def cycles(request: Request) -> Response:
+        """이 캠프의 선거 주기 목록. **캠프는 영속이고 선거가 그 안에서 바뀐다** (P-001 §7).
+
+        지금 어느 주기를 보고 있는지 여기서 말한다 — 선택은 자동(선거일 기준)이라
+        캠프가 고를 것은 없지만, 무엇을 보고 있는지는 알아야 한다.
+        """
+        from pydantic import ValidationError
+
+        from votelink import camp as camp_mod
+
+        s: WebSettings = request.app.state.settings
+        camp_id = request.state.account.camp_id
+        current = request.state.lens.cycle_id if request.state.lens else None
+
+        rows = []
+        for cid in camp_mod.list_cycles(camp_id, s.camps_root):
+            try:
+                cycle = camp_mod.load_cycle(
+                    camp_id, cid, s.camps_root, districts_path=s.districts_path
+                )
+            except (camp_mod.CampConfigError, FileNotFoundError, ValidationError) as exc:
+                rows.append({"id": cid, "error": str(exc), "current": cid == current})
+                continue
+            rows.append({"id": cid, "cycle": cycle, "current": cid == current})
+
+        return _render(request, "cycles.html", _auth_ctx(request, rows=rows, today=dt.date.today()))
+
+    @app.get("/cycles/new", response_class=Response)
+    def new_cycle_form(request: Request) -> Response:
+        return _render(request, "onboarding.html", _onboarding_ctx(request, first=False))
+
+    @app.post("/cycles/new", response_class=Response)
+    def new_cycle(request: Request, form: Annotated[CycleForm, Form()]) -> Response:
+        """다음 선거 주기를 추가한다. 관할도 진영도 바뀔 수 있으므로 전부 다시 받는다 —
+        구청장에 나갔다가 다음엔 시의원에 나갈 수 있고 당적도 바뀐다 (P-001 §7)."""
+        return _save_cycle(request, form, action="add_cycle", first=False)
+
+    def _save_cycle(request: Request, form: CycleForm, *, action: str, first: bool) -> Response:
+        """온보딩과 주기 추가가 **같은 저장 경로를 쓴다.** 첫 주기와 두 번째 주기가
+        다른 파일을 만들 이유가 없고, 갈라두면 한쪽만 고치는 일이 생긴다."""
         from votelink import camp as camp_mod
         from votelink.camp import scaffold
 
         s: WebSettings = request.app.state.settings
         account = request.state.account
-        form = {
-            "election_type": election_type,
-            "office": office,
-            "election_date": election_date,
-            "lineage": lineage,
-            "party": party,
-            "incumbent": incumbent,
-            "preset": preset,
-            "sigungu": sigungu,
-            "emd_codes": emd_codes,
-            "legal_reviewer": legal_reviewer,
-        }
+        values = form.model_dump()
         try:
-            cycle = _build_cycle(s, form)
+            cycle = _build_cycle(s, values)
             info = camp_mod.load_camp(account.camp_id, s.camps_root)
             cycle_id = camp_mod.cycle_id_for(cycle) or f"미정-{cycle.election.type.value}"
             scaffold.write_cycle(
@@ -422,20 +471,20 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 cycle_id,
                 cycle,
                 info.candidate_name,
-                party.strip(),
-                bool(incumbent),
+                form.party.strip(),
+                bool(form.incumbent),
                 root=s.camps_root,
             )
         except (ValueError, scaffold.ScaffoldError, camp_mod.CampConfigError) as exc:
             return _render(
                 request,
                 "onboarding.html",
-                _onboarding_ctx(request, error=str(exc), form=form),
+                _onboarding_ctx(request, error=str(exc), form=values, first=first),
                 status_code=400,
             )
 
         control.audit.log(
-            "onboarding",
+            action,
             account_id=account.id,
             camp_id=account.camp_id,
             target=cycle_id,
@@ -443,7 +492,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             ip=_client_ip(request),
             path=s.control_db,
         )
-        return RedirectResponse("/", status_code=303)
+        # 주기를 더했으면 목록으로 — 새 주기가 현재가 됐는지 아닌지를 바로 보여준다.
+        return RedirectResponse("/" if first else "/cycles", status_code=303)
 
     @app.get("/healthz", response_class=PlainTextResponse)
     def healthz() -> str:
@@ -546,9 +596,17 @@ def _auth_ctx(request: Request, **extra) -> dict:
 
 
 def _onboarding_ctx(
-    request: Request, *, error: str | None = None, form: dict | None = None
+    request: Request,
+    *,
+    error: str | None = None,
+    form: dict | None = None,
+    first: bool = True,
 ) -> dict:
-    """온보딩 폼이 고를 값들. 선택지는 전부 코드가 아니라 참조 데이터·enum 에서 온다."""
+    """주기 폼이 고를 값들. 선택지는 전부 코드가 아니라 참조 데이터·enum 에서 온다.
+
+    `first` 는 첫 설정(`/onboarding`)과 주기 추가(`/cycles/new`)를 가른다. 받는 값은
+    같고 문구와 저장 뒤 행선지만 다르다.
+    """
     from votelink.camp.models import Office
     from votelink.reference.districts import load_districts
 
@@ -558,6 +616,7 @@ def _onboarding_ctx(
         request,
         error=error,
         form=form or {},
+        first=first,
         presets=sorted((d.id, d.name) for d in table.values()),
         sigungus=sorted({d.sigungu for d in table.values() if d.sigungu}),
         type_options=election_type_choices(),

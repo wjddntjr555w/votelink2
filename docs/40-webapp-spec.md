@@ -202,6 +202,13 @@ votelink/web/
 `GET/POST /onboarding`. 규약은 `docs/proposals/P-002-auth-and-camp-approval.md` §9 이고,
 여기서는 **위 세 화면 축과의 관계만** 적는다.
 
+`GET /cycles` · `GET/POST /cycles/new` 도 캠프 쪽이다 — 다음 선거 주기를 캠프가 스스로
+더한다 (P-001 §7). `/onboarding` 과 **같은 폼·같은 저장 경로**를 쓰고 문구와 저장 뒤
+행선지만 다르다. 첫 주기와 두 번째 주기가 다른 파일을 만들 이유가 없다.
+
+**지금 보는 주기는 캠프가 고르지 않는다 — 선거일이 정한다.** 아직 안 지난 선거 중 가장
+가까운 것(`camp/loader.py:current_cycle_id`). `/cycles` 가 무엇을 보고 있는지 표시한다.
+
 - **`/login`·`/signup`·`/healthz`·`/static/*` 에는 산출물이 없다.** 이 앱을 인터넷에 열어도
   되는 근거가 그것이다. 이 넷 중 하나에 숫자를 올리는 변경은 근거를 무너뜨린다.
 - **어느 캠프의 눈으로 보는지는 세션이 정한다.** 그래서 렌즈·검토 기록·선거일이
