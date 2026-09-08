@@ -145,6 +145,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `local_issue` | 지역 현안 랭킹 (파생, 어휘집 분류, 선거구당 1레코드) | 분석 산출 (`issue_ranker`) | ✓ |
 | `segment_profile` | 유권자 세그먼트 프로파일 (파생, `election_type` 별 1레코드) | 분석 산출 | ✓ |
 | `news_pulse` | 선거구 뉴스량·분포 (파생, 주 단위, 선거구당 1레코드) | 분석 산출 (`news_pulse`) | ✓ |
+| `turnout_gap` | 읍면동 투표율 편차 (파생, `election_type` 별 1레코드) | 분석 산출 (`turnout_gap`) | ✓ |
 
 ## 5. MVP 3종 payload
 
@@ -257,6 +258,38 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 unclassified_count >= total_articles` (한 기사가 여러 카테고리에 걸리므로 등호가 아니라
 `>=`). 이슈 분류는 어휘집 substring 매칭이며 LLM 을 쓰지 않는다. 감성·유불리는
 판정하지 않는다 — 그건 별도 분석기의 몫이다.
+
+### 5.6 `turnout_gap` (파생)
+```jsonc
+{
+  "election_type": "presidential", // 한 레코드는 한 계열만. 대선과 총선은 투표율
+                                   // 수준이 근본적으로 달라 섞지 않는다
+  "emd_name": "방이2동",
+  "points": [                      // 오래된 회차 순
+    {
+      "election_id": "2017-05-09-presidential",
+      "turnout": 0.771,            // 이 동의 투표율 (비율. %가 아니다)
+      "baseline": 0.796,           // 같은 회차 **선거구 전체** 투표율 (가중 합)
+      "gap": -0.025,               // turnout − baseline. 음수면 평균보다 낮다
+      "eligible_voters": 21044,
+      "total_votes": 16225
+    }
+  ],
+  "latest_gap": -0.045,
+  "mean_gap": -0.051,              // 전 회차 평균
+  "gap_slope": -0.0049,            // 회차당 편차 변화량. 음수면 격차가 더 벌어지는 중
+  "below_baseline": true,          // mean_gap < 0. GOTV 후보군
+  "elections_used": 8,
+  "as_of": "2025-06-03"            // 최근 회차 선거일. 분석 실행 시각이 아니다
+}
+```
+`geo_level: emd`. 기준선은 동별 투표율의 단순 평균이 아니라 **가중 합**
+(`sum(total_votes) / sum(eligible_voters)`) — 인구가 다른 동을 같은 무게로 세면 작은
+동이 기준선을 흔든다. 절대 투표율이 아니라 편차를 쓰는 이유는 회차별 전국 효과가
+동별 차이를 덮기 때문이다 (송파갑 1992년 81.8% → 2008년 42.3%).
+**GOTV 임계값을 두지 않는다** — `below_baseline` 인 동을 `mean_gap` 으로 정렬하면
+순위가 나오고, 어디까지 갈지는 캠프의 자원 문제다. 이 kind 는 성향을 말하지 않는다:
+`segment_profile` 과 함께 읽어야 "우리 편인데 투표를 안 하는 동"이 보인다.
 
 ## 6. 레코드 수명
 

@@ -385,6 +385,41 @@ class LocalIssuePayload(_Payload):
         return self
 
 
+# --- turnout_gap (파생) -------------------------------------------------------
+
+
+class TurnoutPoint(_Payload):
+    """한 회차의 이 동 투표율과 기준선. 제안서: docs/proposals/A-004-turnout-gap.md"""
+
+    election_id: str = Field(min_length=1)
+    turnout: float = Field(ge=0, le=1, description="이 동의 투표율")
+    baseline: float = Field(ge=0, le=1, description="같은 회차 선거구 전체 투표율")
+    gap: float = Field(description="turnout − baseline. 음수면 평균보다 낮다")
+    eligible_voters: int = Field(ge=0)
+    total_votes: int = Field(ge=0)
+
+
+class TurnoutGapPayload(_Payload):
+    """읍면동 투표율 편차. 제안서: docs/proposals/A-004-turnout-gap.md
+
+    "누구를 찍는가"가 아니라 "투표장에 가는가"를 답한다. 성향이 우리 쪽인데
+    투표율이 낮은 동은 설득 대상이 아니라 동원 대상이고, 둘은 다른 자원을 쓴다.
+    """
+
+    election_type: ElectionType
+    """이 편차가 근거한 선거 계열. 대선과 총선은 투표율 수준이 근본적으로 달라
+    (2008 총선 42% vs 1992 대선 82%) 같은 시계열에 섞지 않는다."""
+
+    emd_name: str = Field(min_length=1)
+    points: list[TurnoutPoint] = Field(min_length=1, description="오래된 회차 순")
+    latest_gap: float = Field(description="최근 회차의 편차")
+    mean_gap: float = Field(description="전 회차 평균 편차")
+    gap_slope: float = Field(description="회차당 편차 변화량. 양수면 격차가 벌어지는 중")
+    below_baseline: bool = Field(description="mean_gap < 0. GOTV 후보군")
+    elections_used: int = Field(ge=1)
+    as_of: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="최근 회차 선거일")
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
@@ -392,5 +427,6 @@ PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.SEGMENT_PROFILE: SegmentProfilePayload,
     RecordKind.NEWS_PULSE: NewsPulsePayload,
     RecordKind.LOCAL_ISSUE: LocalIssuePayload,
+    RecordKind.TURNOUT_GAP: TurnoutGapPayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""

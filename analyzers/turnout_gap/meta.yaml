@@ -1,0 +1,57 @@
+id: turnout_gap
+name: 투표율 편차 — 동별 투표율이 선거구 평균에서 얼마나 벌어지는가
+inputs: [election_result]
+outputs: [turnout_gap]
+geo_level: emd
+proposal: docs/proposals/A-004-turnout-gap.md
+
+# 검증 (2026-09-08, seoul_songpa_gap):
+#   입력 5,552건(election_result 전체) → 관할 9개 동으로 좁혀 산출 18건
+#   (동 9 × 계열 2). 격리 0건 (0.0%).
+#   멱등: 1회차 신규 18·교체 0 → 2회차 교체 18·신규 0.
+#
+#   변별력 — 편차가 동마다 갈리고 두 계열이 서로를 뒷받침한다:
+#     대선 8회  평균편차 -5.1%p(방이2동) ~ +5.0%p(오륜동)
+#     총선 5회  평균편차 -8.4%p(방이2동) ~ +7.7%p(오륜동)
+#     **같은 4개 동(방이2·풍납1·송파1·풍납2)이 양쪽 계열에서 모두 평균 아래다.**
+#     계열이 독립인데 같은 답이 나오는 것이 이 지표가 우연이 아니라는 근거다.
+#
+#   절대 투표율을 썼다면: 회차별 전국 효과가 지배해 시계열 비교가 불가능하다
+#   (송파갑 선거구 투표율 1992년 81.8% → 2008년 42.3%). 편차가 그것을 상쇄한다.
+#
+#   외부 대조: 위 선거구 투표율 추이가 전국 투표율 추이와 부합한다.
+verified: true
+
+config:
+  default_district: seoul_songpa_gap
+
+  common:
+    # 기울기(gap_slope)를 계산하기 위한 최소 회차 수.
+    #
+    # 3으로 둔 이유: 2점으로 그은 직선은 추세가 아니라 두 값의 차이일 뿐이라
+    # "벌어지는 중"이라고 말할 근거가 되지 못한다. 3점부터 방향과 흔들림을
+    # 구분할 수 있다.
+    #
+    # 이 값 아래면 gap_slope 를 0.0 으로 두고 confidence 도 0.9 → 0.7 로 내린다.
+    # 실측(송파갑)에서는 대선 8회·총선 5회라 전부 3 이상이었다 — 즉 이 값이
+    # 지금 산출물을 바꾸지는 않는다. 회차가 적은 선거구가 붙을 때를 위한 안전장치다.
+    min_elections_for_slope: 3
+
+  # 임계값이 이것 하나뿐인 이유: GOTV 우선순위에 컷오프를 두지 않기로 했다.
+  # below_baseline(= mean_gap < 0)이 참인 동을 mean_gap 크기로 정렬하면 순위가
+  # 나오고, 어디까지 갈지는 캠프의 자원 문제지 분석기가 정할 값이 아니다
+  # (docs/proposals/A-004 §계산 규칙).
+
+  districts:
+    # nec_archive 가 개표 자료를 가진 서울 선거구. voter_profile 과 같은 목록이며
+    # 선거구별로 달라지는 값이 없어 전부 빈 블록이다 — 등록 표시일 뿐이다.
+    seoul_songpa_gap: {}
+    seoul_songpa_eul: {}
+    seoul_songpa_byeong: {}
+    seoul_gangnam_gap: {}
+    seoul_gangnam_eul: {}
+    seoul_gangnam_byeong: {}
+    seoul_gangdong_gap: {}
+    seoul_gangdong_eul: {}
+    seoul_jongno: {}
+    seoul_yongsan: {}
