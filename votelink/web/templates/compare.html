@@ -3,6 +3,12 @@
 {% set active = 'compare' %}
 {% block title %}선거구 비교 — votelink{% endblock %}
 
+{# 이 표는 **모든** 선거구를 낸다. 공용 코퍼스는 전 캠프 읽기 전용이고(P-001 §4),
+   "우리 지역구가 옆과 어떻게 다른가"가 이 화면의 존재 이유다. 다만 **열 수 있는
+   선거구만 링크가 된다** — 관할 밖은 미들웨어가 403 으로 막으므로, 링크로 두면
+   눌러도 거부되는 자리만 생긴다 (P-002 §9). #}
+{% set open_ids = districts | map(attribute=0) | list %}
+
 {% block content %}
 <section class="head">
   <h1>선거구 비교 <span class="muted">· {{ view.election_type_label }}</span></h1>
@@ -43,7 +49,13 @@
     <tbody>
       {% for row in view.rows %}
       <tr>
-        <td><a href="/d/{{ row.district_id }}/?election_type={{ view.election_type }}">{{ row.district_name }}</a></td>
+        <td>
+          {%- if row.district_id in open_ids -%}
+          <a href="/d/{{ row.district_id }}/?election_type={{ view.election_type }}">{{ row.district_name }}</a>
+          {%- else -%}
+          <span class="muted" title="관할 밖이라 열 수 없다">{{ row.district_name }}</span>
+          {%- endif -%}
+        </td>
         <td>
           <svg class="stack stack--mini" viewBox="0 0 100 8" preserveAspectRatio="none" role="img">
             {% for s in row.agg.camp_bar %}

@@ -342,6 +342,36 @@ def test_two_camps_see_their_own_lens_in_one_process(env):
     assert "을후보" in html_b and "갑후보" not in html_b
 
 
+def test_the_district_nav_is_narrowed_to_the_camp(env):
+    """미들웨어가 관할 밖을 403 으로 막으니, 이동 UI 에 남겨 두면 눌러도 거부되는
+    항목만 늘어난다. 보안이 아니라 정직함의 문제다 — 선거구 정의는 공개 참조 데이터다."""
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+
+    # 관할이 선거구 하나뿐이면 `/` 가 그리로 바로 간다 — 고를 것이 없다.
+    assert client.get("/", follow_redirects=False).headers["location"] == "/d/test_gap/"
+    assert 'value="test_eul"' not in client.get("/d/test_gap/").text
+
+
+def test_compare_shows_every_district_but_links_only_ours(env):
+    """이 표는 **모든** 선거구를 낸다 — 공용 코퍼스는 전 캠프 읽기 전용이고(P-001 §4),
+    "우리 지역구가 옆과 어떻게 다른가"가 이 화면의 존재 이유다.
+    다만 열 수 없는 선거구는 링크가 아니다."""
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+    html = client.get("/compare").text
+
+    assert "시험 지역구 을" in html, "공용 데이터라 표에는 나온다"
+    assert 'href="/d/test_eul/' not in html, "열 수 없는 곳으로 링크하지 않는다"
+    assert 'href="/d/test_gap/' in html
+
+
+def test_the_operator_still_sees_every_district(env):
+    camp_client(env, "gap@test", "gap", "test_gap")
+    client = env.client()
+    login(client, "op@test")
+    html = client.get("/compare").text
+    assert 'href="/d/test_gap/' in html and 'href="/d/test_eul/' in html
+
+
 def test_a_camp_screen_states_which_camp_it_is(env):
     client = camp_client(env, "gap@test", "gap", "test_gap", name="갑후보")
     assert "갑후보" in client.get("/compare").text

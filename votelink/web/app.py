@@ -157,7 +157,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         """선거구 하나면 그리로 보낸다. 여러 개면 고르게 한다 —
         조용히 첫 번째를 열면 옆 지역구를 보여주면서 맞다고 우기는 화면이 된다."""
         settings: WebSettings = request.app.state.settings
-        districts = available_districts(settings)
+        # 캠프 관할로 좁힌 목록이다. 관할이 선거구 하나면 `/` 가 그리로 바로 간다 —
+        # 캠프가 로그인해서 254개 목록을 마주하지 않는다.
+        districts = available_districts(settings, request.state.lens)
         target = settings.district_id or (districts[0][0] if len(districts) == 1 else None)
         if target:
             return RedirectResponse(f"/d/{target}/", status_code=307)
@@ -513,11 +515,12 @@ def _view(
 def _ctx(request: Request, district_id: str | None = None, **extra) -> dict:
     """모든 화면이 공유하는 컨텍스트 — 현재 선거구, 전환 목록, 선거 계열 목록, 렌즈, 로그인 상태."""
     settings: WebSettings = request.app.state.settings
+    lens = getattr(request.state, "lens", None)
     return {
         "district_id": district_id,
-        "districts": available_districts(settings),
+        "districts": available_districts(settings, lens),
         "election_types": election_type_choices(),
-        "lens": getattr(request.state, "lens", None),
+        "lens": lens,
         "account": getattr(request.state, "account", None),
         "auth_on": settings.auth,
         **extra,

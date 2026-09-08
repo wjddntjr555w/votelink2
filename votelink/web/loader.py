@@ -145,11 +145,20 @@ def pick_district(settings: WebSettings, district_id: str | None = None) -> Dist
     )
 
 
-def available_districts(settings: WebSettings) -> list[tuple[str, str]]:
+def available_districts(settings: WebSettings, lens=None) -> list[tuple[str, str]]:
     """(id, name) 목록. 내비게이션의 선거구 전환 UI 가 쓴다. `geo_code` 오름차순이 아니라
-    정의 순서를 지킨다 (districts.yaml 이 의도한 순서)."""
+    정의 순서를 지킨다 (districts.yaml 이 의도한 순서).
+
+    **렌즈가 있으면 그 캠프의 관할과 겹치는 것만 낸다.** 미들웨어가 이미 관할 밖을
+    403 으로 막으므로(P-002 §9), 목록에 남겨 두면 눌러도 거부되는 항목만 늘어난다.
+    보안이 아니라 정직함의 문제다 — 선거구 정의는 어차피 공개 참조 데이터다.
+    관할이 비어 있으면(진영 중립 보기) 전부 낸다.
+    """
     table = load_districts(settings.districts_path)
-    return [(d.id, d.name) for d in table.values()]
+    rows = [(d.id, d.name) for d in table.values()]
+    if lens is None or not lens.territory:
+        return rows
+    return [(d.id, d.name) for d in table.values() if lens.territory & set(d.emd_codes)]
 
 
 def _dedup_newest(
