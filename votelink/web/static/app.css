@@ -428,3 +428,58 @@ td.lens--behind { color: var(--block-line); font-variant-numeric: tabular-nums; 
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* --- 운영자 콘솔 (P-003) ---------------------------------------------------
+   여기에는 산출물이 없다. 계정·신청·감사 로그는 레코드가 아니다. */
+
+.ops-block { margin: 28px 0; }
+.ops-block h2 { font-size: 15px; margin: 0 0 10px; }
+
+table.ops { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.ops th, table.ops td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+table.ops th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.nowrap { white-space: nowrap; }
+
+.ops-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ops-actions form { display: inline; margin: 0; }
+.ops-actions .passwd { display: inline-flex; gap: 4px; align-items: center; }
+.ops-actions .passwd input {
+  width: 120px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.signup, .cycle {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  background: var(--surface);
+}
+.signup header, .cycle header { display: flex; gap: 10px; align-items: baseline; }
+
+/* 한 줄에 늘어놓는 폼. 승인·거절처럼 짧은 입력에만 쓴다. */
+.form--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+.form--inline label { flex: 1 1 200px; }
+.form--inline button[type="submit"] { align-self: flex-end; }
+
+/* .banner--note 는 위(§배너)에 이미 있다. 여기서 다시 정의하지 않는다. */
+button.danger, .danger { color: var(--block-line); }
+
+.tag--active { background: var(--note-bg); border: 1px solid var(--note-line); }
+.tag--pending { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+.tag--suspended { background: var(--block-bg); border: 1px solid var(--block-line); }

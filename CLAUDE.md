@@ -23,6 +23,8 @@
 | 선거구에 어느 동이 속하는지 | `data/shared/reference/districts.yaml` (코드에 박지 말 것) |
 | 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
 | 캠프 공간·온보딩·관할 | `votelink/camp/` + `docs/proposals/P-001-camp-data-isolation.md` |
+| 로그인·세션·계정·권한 | `votelink/control/` + `votelink/web/auth.py` + `docs/proposals/P-002-auth-and-camp-approval.md` |
+| 운영자 화면 (`/ops/*`) | `votelink/web/ops.py` + `docs/proposals/P-003-operator-console.md` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.

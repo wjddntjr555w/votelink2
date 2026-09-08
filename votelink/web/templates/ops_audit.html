@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set active = 'audit' %}
+{% block title %}감사 로그 — votelink{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>감사 로그</h1>
+
+  {# P-003 §5 가 요구한 문장이다. 로그를 읽는 사람이 이 한계를 모르면 로그를
+     과신한다 — "이 캠프의 누군가"를 "이 사람"으로 읽어버린다. #}
+  <div class="banner banner--warn">
+    <strong>이 로그는 "이 캠프의 누군가"까지만 말한다</strong>
+    <p>
+      캠프당 계정이 하나이고 캠프원이 공유한다. 캠프 <em>간</em> 경계는 추적되지만
+      캠프 <em>내부</em>의 행위자는 특정되지 않는다. 같은 이유로 시스템은 법률 검토
+      서명이 그 사람의 것인지도 보증하지 않는다.
+    </p>
+  </div>
+
+  <form method="get" action="/ops/audit" class="form form--inline">
+    <label>
+      캠프
+      <select name="camp">
+        <option value="">전체</option>
+        {% for c in camps %}
+        <option value="{{ c }}" {{ 'selected' if camp == c }}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      건수
+      <input type="number" name="limit" value="{{ limit }}" min="1" max="1000">
+    </label>
+    <button type="submit">보기</button>
+  </form>
+</section>
+
+{% if not entries %}
+<p class="muted">기록이 없다.</p>
+{% else %}
+<div class="tablewrap">
+<table class="ops">
+  <thead>
+    <tr><th>시각</th><th>행위</th><th>계정</th><th>캠프</th><th>대상</th><th>IP</th><th>상세</th></tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td class="muted small nowrap">{{ e.at }}</td>
+      <td class="{{ 'warn-text' if e.action in ('denied', 'login_failed') }}">{{ e.action }}</td>
+      <td class="muted small">{{ e.account_id or '—' }}</td>
+      <td>
+        {% if e.camp_id %}<a href="/ops/camps/{{ e.camp_id }}">{{ e.camp_id }}</a>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td class="muted small">{{ e.target or '—' }}</td>
+      <td class="muted small">{{ e.ip or '—' }}</td>
+      <td class="muted small">
+        {% for k, v in e.detail.items() %}{{ k }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p class="muted small">
+  <code>denied</code> 는 <strong>격리가 실제로 막은 순간</strong>이다 — 캠프가 자기
+  관할 밖의 화면을 열려 했고 거부됐다. 경쟁 캠프를 함께 받는 제품에서 "유출이 없었다"를
+  증명할 수단이 이 줄이다.
+</p>
+<p class="muted small">
+  캠프에게는 이 화면을 열지 않는다. 캠프가 자기 공간의 격리를 스스로 확인할 수단이
+  없다는 뜻이고, 답은 계약과 운영자의 감사 보고다.
+</p>
+{% endif %}
+{% endblock %}

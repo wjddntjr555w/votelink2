@@ -26,6 +26,10 @@
       {% endif %}
       <a href="/compare" class="{{ 'on' if active == 'compare' }}">선거구 비교</a>
       <a href="/nation" class="{{ 'on' if active == 'nation' }}">전국 동</a>
+      {% if account and account.is_operator %}
+      <a href="/ops/" class="{{ 'on' if active == 'ops' }}">캠프 관리</a>
+      <a href="/ops/audit" class="{{ 'on' if active == 'audit' }}">감사 로그</a>
+      {% endif %}
     </nav>
     {% endif %}
     <span class="spacer"></span>

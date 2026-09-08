@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_ops.html" import flash, status_tag %}
+{% set active = 'ops' %}
+{% block title %}캠프 관리 — votelink{% endblock %}
+
+{% block content %}
+<section class="head">
+  <h1>캠프 관리</h1>
+  <p class="muted small">
+    승인하면 <strong>디스크에 캠프 공간이 생긴다.</strong> 관할·진영·선거일은 캠프가
+    승인 뒤 웹에서 직접 채운다 — 여기서 대신 입력하지 않는다.
+  </p>
+</section>
+
+{{ flash(ok, err) }}
+
+<section class="ops-block">
+  <h2>승인 대기 <span class="muted">{{ queue|length }}건</span></h2>
+
+  {% if not queue %}
+  <p class="muted">대기 중인 신청이 없다.</p>
+  {% else %}
+  {% for item in queue %}
+  <article class="signup">
+    <header>
+      <strong>{{ item.req.candidate_name }}</strong>
+      <span class="muted">{{ item.email }} · {{ item.req.contact }}</span>
+    </header>
+    <dl class="kv">
+      {% if item.req.wanted_election %}
+      <dt>희망 선거</dt><dd>{{ item.req.wanted_election }}</dd>
+      {% endif %}
+      <dt>신청 시각</dt><dd>{{ item.req.requested_at }}</dd>
+    </dl>
+
+    <form method="post" action="/ops/signups/{{ item.req.id }}/approve" class="form form--inline">
+      <label>
+        camp_id
+        <input type="text" name="camp_id" value="{{ item.suggested }}"
+               pattern="[a-z0-9][a-z0-9\-]*" required>
+        <span class="muted small">
+          경로가 된다(<code>data/camps/&lt;id&gt;/</code>). 소문자·숫자·하이픈만.
+          <strong>한 번 정하면 바꾸기 어렵다.</strong>
+          {% if item.taken %}
+          <br><span class="warn-text">이 id 는 이미 쓰이고 있다. 다른 값을 넣어야 저장된다.</span>
+          {% endif %}
+        </span>
+      </label>
+      <label>
+        판단 근거 <span class="muted small">(선택)</span>
+        <input type="text" name="note">
+      </label>
+      <button type="submit">승인</button>
+    </form>
+
+    <form method="post" action="/ops/signups/{{ item.req.id }}/reject" class="form form--inline">
+      <label>
+        거절 사유 <span class="muted small">— 신청자가 무엇을 고쳐야 하는지 알아야 한다</span>
+        <input type="text" name="note" required>
+      </label>
+      <button type="submit" class="danger">거절</button>
+    </form>
+  </article>
+  {% endfor %}
+  {% endif %}
+</section>
+
+<section class="ops-block">
+  <h2>계정 <span class="muted">{{ rows|length }}개</span></h2>
+  <div class="tablewrap">
+  <table class="ops">
+    <thead>
+      <tr>
+        <th>id</th><th>이메일</th><th>역할</th><th>캠프</th><th>상태</th>
+        <th>온보딩</th><th>세션</th><th>마지막 로그인</th><th>조치</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set a = row.account %}
+      <tr>
+        <td>{{ a.id }}</td>
+        <td>{{ a.email }}</td>
+        <td>{{ '운영자' if a.is_operator else '캠프' }}</td>
+        <td>
+          {% if a.camp_id %}<a href="/ops/camps/{{ a.camp_id }}">{{ a.camp_id }}</a>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>{{ status_tag(a.status.value) }}</td>
+        <td>
+          {% if a.is_operator %}<span class="muted">해당 없음</span>
+          {% elif row.onboarded %}완료
+          {% else %}<span class="warn-text">미완료</span>{% endif %}
+        </td>
+        <td>{{ row.sessions }}</td>
+        <td class="muted small">{{ a.last_login_at or '없음' }}</td>
+        <td class="ops-actions">
+          {% if a.status.value == 'suspended' %}
+          <form method="post" action="/ops/accounts/{{ a.id }}/status">
+            <input type="hidden" name="status" value="active">
+            <button type="submit" class="linkish">정지 해제</button>
+          </form>
+          {% elif a.id != account.id %}
+          <form method="post" action="/ops/accounts/{{ a.id }}/status">
+            <input type="hidden" name="status" value="suspended">
+            <button type="submit" class="linkish danger">정지</button>
+          </form>
+          {% endif %}
+          {% if row.sessions %}
+          <form method="post" action="/ops/accounts/{{ a.id }}/logout">
+            <button type="submit" class="linkish">세션 끊기</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/ops/accounts/{{ a.id }}/passwd" class="passwd">
+            <input type="password" name="password" placeholder="임시 비밀번호" required>
+            <button type="submit" class="linkish">발급</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">
+    비밀번호 재발급은 <strong>기존 세션도 함께 끊는다.</strong> 재발급의 이유가 유출일 수
+    있고, 그때 남은 세션을 살려두면 재발급이 무의미하다. 메일 발송을 두지 않아 이것이
+    비밀번호를 잊은 캠프의 유일한 통로다 — 발급한 값을 캠프에 직접 전달한다.
+  </p>
+</section>
+{% endblock %}

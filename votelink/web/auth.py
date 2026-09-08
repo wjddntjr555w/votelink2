@@ -42,6 +42,10 @@ PENDING_PATHS = frozenset({"/pending", "/logout"})
 ONBOARDING_PATHS = frozenset({"/onboarding", "/logout"})
 """승인은 됐으나 관할을 아직 안 채운 캠프. 관할이 없으면 무엇을 보여줄지 알 수 없다."""
 
+OPS_PREFIX = "/ops"
+"""운영자 콘솔 (P-003). **접두어로 판정한다** — 화면을 더 붙여도 검사가 이미 걸려 있다.
+`/d/` 관할 검사와 같은 방식이고 같은 이유다."""
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -67,6 +71,10 @@ class Decision:
 
 def is_public(path: str) -> bool:
     return path in PUBLIC_PATHS or path.startswith("/static/")
+
+
+def is_ops(path: str) -> bool:
+    return path == OPS_PREFIX or path.startswith(OPS_PREFIX + "/")
 
 
 def district_in_path(path: str) -> str | None:
@@ -109,7 +117,9 @@ def gate(account: acc.Account | None, path: str, *, onboarded: bool) -> str | No
         return None if path in PENDING_PATHS else "/pending"
     if account.is_operator:
         # 운영자는 전 캠프를 본다. **단일 신뢰 지점이다** (P-003 §6).
-        return None
+        # 다만 캠프 계정용 화면 둘은 갈 곳이 아니다 — 운영자에겐 채울 캠프도,
+        # 기다릴 신청도 없다. `/onboarding` 은 POST 하면 camp_id 가 None 이라 터진다.
+        return "/ops/" if path in ("/onboarding", "/pending") else None
     if not account.camp_id:
         # 활성 캠프 계정인데 캠프가 없다. 승인이 중간에 끊긴 상태다 (P-002 §6).
         return "/pending" if path != "/pending" else None
@@ -186,6 +196,11 @@ def authorize(token: str | None, path: str, settings: WebSettings) -> Decision:
     redirect = gate(account, path, onboarded=onboarded)
     if redirect is not None:
         return Decision(account=account, redirect=redirect)
+
+    if is_ops(path) and not (account and account.is_operator):
+        # **운영자 화면에 캠프 계정이 들어오는 것을 여기서 막는다.** `gate` 가
+        # 온보딩까지 마친 캠프를 통과시키고 나면 그 뒤에는 아무도 안 막는다.
+        return Decision(account=account, denied="운영자 화면이다. 캠프 계정으로는 열 수 없다")
 
     if account is None or account.is_operator or not onboarded:
         # 공개 화면, 운영자, 온보딩 전. 캠프 렌즈가 없다 — 화면은 진영 중립으로 그린다.

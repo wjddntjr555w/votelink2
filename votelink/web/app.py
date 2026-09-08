@@ -35,7 +35,7 @@ from votelink import control
 from votelink.contract.enums import Camp, ElectionType
 from votelink.reference.compliance import EMPTY_REVIEW, Compliance, load_policy, load_review
 from votelink.reference.districts import DistrictNotFound
-from votelink.web import auth
+from votelink.web import auth, ops
 from votelink.web.lens import load_lens
 from votelink.web.loader import (
     AmbiguousDistrict,
@@ -47,6 +47,9 @@ from votelink.web.loader import (
     load_news_pulse,
     load_profiles,
 )
+from votelink.web.render import base_ctx
+from votelink.web.render import client_ip as _client_ip
+from votelink.web.render import render as _render
 from votelink.web.settings import WebSettings
 from votelink.web.shapes import ShapeError, shapes_for
 from votelink.web.viewmodel import (
@@ -446,6 +449,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     def healthz() -> str:
         return "ok"
 
+    # 운영자 콘솔은 별도 모듈이다 (P-003 §6: "화면 넷이 서로 다른 성격이라 구현은
+    # 나눠서 해도 된다"). 접근 통제는 라우터가 아니라 미들웨어에 있다 — 라우터에
+    # 걸면 `include_router` 를 잊은 다음 사람이 통제까지 함께 잊는다.
+    app.include_router(ops.router)
+
     for error in SETUP_ERRORS:
         app.add_exception_handler(error, _setup_error)
 
@@ -532,16 +540,9 @@ def _auth_ctx(request: Request, **extra) -> dict:
 
     **참조 데이터를 읽지 않는다.** 로그인도 하지 않은 요청에 선거구 목록을 읽어줄
     이유가 없고, 참조 데이터가 깨져 있어도 로그인만은 돼야 운영자가 손을 쓸 수 있다.
+    운영자 화면(`ops.py`)이 같은 이유로 같은 것을 쓴다.
     """
-    return {
-        "district_id": None,
-        "districts": [],
-        "election_types": [],
-        "lens": getattr(request.state, "lens", None),
-        "account": getattr(request.state, "account", None),
-        "auth_on": request.app.state.settings.auth,
-        **extra,
-    }
+    return base_ctx(request, **extra)
 
 
 def _onboarding_ctx(
@@ -630,17 +631,6 @@ def _build_cycle(settings: WebSettings, form: dict):
     )
 
 
-def _render(request: Request, template: str, context: dict, status_code: int = 200) -> Response:
-    return request.app.state.templates.TemplateResponse(
-        request, template, context, status_code=status_code
-    )
-
-
-def _client_ip(request: Request) -> str | None:
-    """접속 IP. 프록시 뒤라면 uvicorn 을 `--proxy-headers` 로 띄워야 실주소가 잡힌다."""
-    return request.client.host if request.client else None
-
-
 def _setup_error(request: Request, exc: Exception) -> Response:
     """설정·참조 데이터 오류.
 
@@ -654,11 +644,5 @@ def _setup_error(request: Request, exc: Exception) -> Response:
     try:
         ctx = _ctx(request, **base)
     except Exception:  # noqa: BLE001 - 오류 화면이 오류로 죽지 않게 한다
-        ctx = {
-            **base,
-            "districts": [],
-            "lens": getattr(request.state, "lens", None),
-            "account": getattr(request.state, "account", None),
-            "auth_on": request.app.state.settings.auth,
-        }
+        ctx = base_ctx(request, **base)
     return _render(request, "error.html", ctx, status_code=500)
