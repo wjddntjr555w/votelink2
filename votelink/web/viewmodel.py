@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from votelink.contract.enums import AgeBand, Camp, ElectionType, IssueTrend, Trend
 from votelink.contract.payloads import LeanPoint
-from votelink.reference.compliance import Policy, ReviewStatus, Verdict, review_with
+from votelink.reference.compliance import Compliance, ReviewStatus, Verdict, review_with
 from votelink.reference.districts import District
 from votelink.web.lens import Lens
 from votelink.web.loader import (
@@ -382,7 +382,7 @@ class EmdCard(BaseModel):
 def build_card(
     profile: EmdProfile,
     labels: dict[str, str],
-    policy: Policy,
+    compliance: Compliance,
     *,
     levels: Sequence[str] = GAP_LEVELS,
     primary: str = "district",
@@ -431,7 +431,7 @@ def build_card(
         ),
         evidence_count=len(profile.record.derived_from),
         evidence_ids=list(profile.record.derived_from),
-        verdict=review_with(policy, profile.record),
+        verdict=review_with(compliance, profile.record),
     )
 
 
@@ -492,7 +492,7 @@ def aggregate_profiles(
     profiles: Sequence[EmdProfile],
     *,
     label: str,
-    policy: Policy,
+    compliance: Compliance,
     levels: Sequence[str] = GAP_LEVELS,
     primary: str = "district",
     lens: Lens | None = None,
@@ -583,7 +583,7 @@ def aggregate_profiles(
         gap_spark=sparkline(gap_series, election_ids),
         approx=True,
         approx_reason=_APPROX_REASON,
-        verdict=worst_verdict([review_with(policy, p.record) for p in profiles]),
+        verdict=worst_verdict([review_with(compliance, p.record) for p in profiles]),
     )
 
 
@@ -712,7 +712,7 @@ def last_ingested(profiles: Sequence[EmdProfile]) -> str:
 
 def build_view(
     profiles: DistrictProfiles,
-    policy: Policy,
+    compliance: Compliance,
     *,
     sort: str = "code",
     election_type: ElectionType = DEFAULT_ELECTION_TYPE,
@@ -720,7 +720,7 @@ def build_view(
 ) -> DistrictView:
     district = profiles.district
     labels = gap_labels(district)
-    cards = [build_card(p, labels, policy, lens=lens) for p in profiles.profiles]
+    cards = [build_card(p, labels, compliance, lens=lens) for p in profiles.profiles]
     ordered = sort_cards(cards, sort)
     latest = cards[0] if cards else None
 
@@ -733,7 +733,7 @@ def build_view(
         election_type=election_type.value,
         election_type_label=ELECTION_TYPE_LABELS[election_type],
         summary_card=aggregate_profiles(
-            profiles.profiles, label=f"{district.name} 종합", policy=policy, lens=lens
+            profiles.profiles, label=f"{district.name} 종합", compliance=compliance, lens=lens
         ),
         population_total=sum(c.population_total for c in cards),
         population_months=sorted({p.payload.population_month for p in profiles.profiles}),
@@ -817,7 +817,7 @@ def _sort_comparison(rows: Sequence[ComparisonRow], key: str) -> list[Comparison
 
 def build_comparison(
     comparison: ComparisonProfiles,
-    policy: Policy,
+    compliance: Compliance,
     *,
     sort: str = "name",
     lens: Lens | None = None,
@@ -827,7 +827,7 @@ def build_comparison(
         agg = aggregate_profiles(
             dp.profiles,
             label=dp.district.name,
-            policy=policy,
+            compliance=compliance,
             levels=("nation",),
             primary="nation",
             lens=lens,
@@ -892,11 +892,11 @@ class NationView(BaseModel):
 
 
 def build_nation_view(
-    nation: NationProfiles, policy: Policy, *, sort: str = "code", lens: Lens | None = None
+    nation: NationProfiles, compliance: Compliance, *, sort: str = "code", lens: Lens | None = None
 ) -> NationView:
     labels = {"nation": "전국"}
     cards = [
-        build_card(p, labels, policy, levels=("nation",), primary="nation", lens=lens)
+        build_card(p, labels, compliance, levels=("nation",), primary="nation", lens=lens)
         for p in nation.profiles
     ]
     ordered = sort_cards(cards, sort)
@@ -908,7 +908,7 @@ def build_nation_view(
         summary_card=aggregate_profiles(
             nation.profiles,
             label="전국 종합",
-            policy=policy,
+            compliance=compliance,
             levels=("nation",),
             primary="nation",
             lens=lens,
@@ -1103,7 +1103,7 @@ class NewsView(BaseModel):
 
 def build_news_view(
     news: DistrictNews,
-    policy: Policy,
+    compliance: Compliance,
     *,
     sort: str = "date",
     scope: str = "all",
@@ -1142,7 +1142,7 @@ def build_news_view(
         date_from=dates[0] if dates else "",
         date_to=dates[-1] if dates else "",
         # 모든 기사가 같은 kind(news_article)라 판정이 동일하다. 첫 건으로 대표한다.
-        verdict=review_with(policy, news.items[0].record) if news.items else None,
+        verdict=review_with(compliance, news.items[0].record) if news.items else None,
     )
 
 
@@ -1189,7 +1189,7 @@ class PulseCard(BaseModel):
         return self.bars[-1].week_start if self.bars else UNKNOWN_TEXT
 
 
-def build_pulse_card(pulse: NewsPulse | None, policy: Policy) -> PulseCard | None:
+def build_pulse_card(pulse: NewsPulse | None, compliance: Compliance) -> PulseCard | None:
     if pulse is None:
         return None
     p = pulse.payload
@@ -1226,7 +1226,7 @@ def build_pulse_card(pulse: NewsPulse | None, policy: Policy) -> PulseCard | Non
         top_publishers=[(t.term, t.count) for t in p.top_publishers],
         top_places=[(t.term, t.count) for t in p.top_places],
         top_persons=[(t.term, t.count) for t in p.top_persons],
-        verdict=review_with(policy, pulse.record),
+        verdict=review_with(compliance, pulse.record),
     )
 
 
@@ -1278,7 +1278,7 @@ class IssueBoardCard(BaseModel):
     verdict: Verdict | None = None
 
 
-def build_issue_board(issue: LocalIssue | None, policy: Policy) -> IssueBoardCard | None:
+def build_issue_board(issue: LocalIssue | None, compliance: Compliance) -> IssueBoardCard | None:
     if issue is None:
         return None
     p = issue.payload
@@ -1315,7 +1315,7 @@ def build_issue_board(issue: LocalIssue | None, policy: Policy) -> IssueBoardCar
         lexicon_version=p.lexicon_version,
         backfill_distorted=p.backfill_distorted,
         bars=bars,
-        verdict=review_with(policy, issue.record),
+        verdict=review_with(compliance, issue.record),
     )
 
 

@@ -91,6 +91,36 @@ opponents: []
 """
 
 
+REVIEW_YAML = """\
+# 이 캠프·이 선거 주기의 **법률 검토 기록**.
+#
+# 무엇이 위험한가(위험도·배포범위·기간제한)는 모두에게 같아서 공용에 있다:
+#   data/shared/reference/compliance.policy.yaml
+# **검토했는가는 캠프마다 다르다.** 그래서 여기 있다 (P-001 §13).
+#
+# 검토를 마쳤다면 그 kind 를 아래에 추가하고 status 를 cleared 로, reviewed_by 와
+# reviewed_at 을 채운다. **reviewed_by 가 비어 있으면 cleared 로 인정되지 않는다** —
+# 서명 없는 서명란은 서명이 아니다.
+#
+# **여기 없는 kind 는 미검토로 떨어진다**(fail-closed). 새 분석기가 새 산출물을 내도
+# 아무도 모르게 검증이 비켜가지 않는다는 뜻이며, 그게 절대 규칙 5다.
+#
+# 시스템은 적법성을 판정하지 않는다. 검토가 있었는지만 기록하고, 없으면 웹앱이
+# 경고를 띄운다. 최종 판단자는 캠프의 법률 검토다.
+#
+# 예시:
+# outputs:
+#   - kind: segment_profile
+#     status: cleared
+#     reviewed_by: 김변호사 (○○법률사무소)
+#     reviewed_at: '2026-09-10'
+#     note: 공표된 집계의 재표현이고 최소 단위가 행정동이라 개인정보가 없음을 확인.
+
+version: "{version}"
+outputs: []
+"""
+
+
 class ScaffoldError(RuntimeError):
     """이미 있는 것을 덮어쓰려 했거나 관할을 만들 수 없다."""
 
@@ -200,6 +230,10 @@ def write_cycle(
             incumbent="true" if ours_incumbent else "false",
         ),
         encoding="utf-8",
+    )
+
+    (target / "compliance.review.yaml").write_text(
+        REVIEW_YAML.format(version=cycle_id), encoding="utf-8"
     )
 
     # shared/ 와 같은 모양이라 store.py 가 루트만 바꿔 재사용된다 (P-001 §9).

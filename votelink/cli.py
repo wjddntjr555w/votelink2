@@ -497,7 +497,9 @@ def cmd_camp_new(args: argparse.Namespace) -> int:
         return 1
 
     print(f"{camp_path}")
-    print(f"{cycle_path}/  (election.yaml · candidates.yaml · records/ · rejected/ · incoming/)")
+    print(f"{cycle_path}/")
+    print("  election.yaml · candidates.yaml · compliance.review.yaml")
+    print("  records/ · rejected/ · incoming/")
     print(f"관할 행정동 {len(codes)}개" + (f" · 프리셋 {preset}" if preset else ""))
     if cycle.election.date is None:
         print(

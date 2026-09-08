@@ -50,6 +50,13 @@ class WebSettings(BaseModel):
     districts_path: Path | None = None
     """`data/shared/reference/districts.yaml`."""
 
+    review_path: Path | None = None
+    """법률 검토 기록(`compliance.review.yaml`)을 직접 지정한다.
+
+    `None` 이면 바인딩된 캠프의 주기 폴더에서 읽고, 캠프도 없으면 빈 기록이다
+    (= 전부 미검토, fail-closed). 캠프 없이 검토 기록만 물려보고 싶을 때 쓴다.
+    """
+
     policy_path: Path | None = None
     """`data/shared/reference/compliance.yaml`."""
 

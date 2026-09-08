@@ -16,7 +16,7 @@ from votelink import store
 from votelink.contract.models import KST, Record
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
-from votelink.reference.compliance import load_policy
+from votelink.reference.compliance import Compliance, load_policy
 from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.loader import load_local_issue
@@ -25,14 +25,7 @@ from votelink.web.viewmodel import build_issue_board
 
 SIGUNGU = "1171000000"
 
-POLICY_UNREVIEWED = (
-    "election_day: null\n"
-    "outputs:\n"
-    "  - kind: local_issue\n"
-    "    risk: low\n"
-    "    status: unreviewed\n"
-    '    note: "어휘집 분류 파생"\n'
-)
+POLICY_UNREVIEWED = 'outputs:\n  - kind: local_issue\n    risk: low\n    note: "어휘집 분류 파생"\n'
 
 
 @pytest.fixture(autouse=True)
@@ -148,7 +141,9 @@ def test_load_local_issue_none_when_absent(tmp_path):
 
 def test_build_issue_board_carries_payload_verbatim(tmp_path):
     st = settings_for(tmp_path, [issue_record()])
-    card = build_issue_board(load_local_issue(st, "test_gap"), load_policy(st.policy_path))
+    card = build_issue_board(
+        load_local_issue(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert card is not None
     assert card.lexicon_version == "test-1"
     assert [b.category for b in card.bars] == ["transit", "redevelopment"]
@@ -166,21 +161,25 @@ def test_build_issue_board_caps_at_top_n(tmp_path):
         for i in range(9)  # recency_score 내림차순
     ]
     st = settings_for(tmp_path, [issue_record(issues=issues, unclassified=13)])
-    card = build_issue_board(load_local_issue(st, "test_gap"), load_policy(st.policy_path))
+    card = build_issue_board(
+        load_local_issue(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert len(card.bars) == 6
 
 
 def test_build_issue_board_unclassified_pct(tmp_path):
     # 기본 issues 분류분 14 + 미분류 6 = total 20
     st = settings_for(tmp_path, [issue_record(unclassified=6)])
-    card = build_issue_board(load_local_issue(st, "test_gap"), load_policy(st.policy_path))
+    card = build_issue_board(
+        load_local_issue(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert card.total_articles == 20
     assert card.unclassified_pct == pytest.approx(30.0)
 
 
 def test_build_issue_board_none_passthrough(tmp_path):
     st = settings_for(tmp_path, [])
-    assert build_issue_board(None, load_policy(st.policy_path)) is None
+    assert build_issue_board(None, Compliance(policy=load_policy(st.policy_path))) is None
 
 
 # --- 라우트 -------------------------------------------------------------------

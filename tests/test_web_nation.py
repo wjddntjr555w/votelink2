@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.test_web import POLICY_BLOCKED, POLICY_CLEARED
+from tests.test_web import POLICY_BLOCKED, POLICY_LOW, REVIEW_CLEARED, REVIEW_NONE
 from tests.test_web_loader import CODES, OUTSIDE, profile_record, write_districts
 from votelink import store
 from votelink.reference import compliance as compliance_mod
@@ -28,14 +28,19 @@ def fresh_caches():
     compliance_mod.reset_cache()
 
 
-def build(tmp_path, records, policy: str = POLICY_CLEARED) -> TestClient:
+def build(
+    tmp_path, records, policy: str = POLICY_LOW, *, review: str = REVIEW_CLEARED
+) -> TestClient:
     store.append_records("voter_profile", records, DataSpace(tmp_path))
-    policy_path = tmp_path / "compliance.yaml"
+    policy_path = tmp_path / "compliance.policy.yaml"
     policy_path.write_text(policy, encoding="utf-8")
+    review_path = tmp_path / "compliance.review.yaml"
+    review_path.write_text(review, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path),
         data_root=tmp_path,
         policy_path=policy_path,
+        review_path=review_path,
     )
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
@@ -64,7 +69,11 @@ def test_nation_dedups_to_newest_as_of(tmp_path):
 
 
 def test_nation_blocked_keeps_numbers_out(tmp_path):
-    html = build(tmp_path, [profile_record(CODES[0])], POLICY_BLOCKED).get("/nation").text
+    html = (
+        build(tmp_path, [profile_record(CODES[0])], POLICY_BLOCKED, review=REVIEW_NONE)
+        .get("/nation")
+        .text
+    )
     assert "표시가 차단된 산출물이다" in html
     assert "70.0" not in html
 

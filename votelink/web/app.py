@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
 from votelink.contract.enums import ElectionType
-from votelink.reference.compliance import load_policy
+from votelink.reference.compliance import Compliance, load_policy, load_review
 from votelink.reference.districts import DistrictNotFound
 from votelink.web.lens import load_lens
 from votelink.web.loader import (
@@ -76,6 +76,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     app.state.lens = (
         load_lens(s.camp_id, s.cycle_id, s.camps_root, s.districts_path) if s.camp_id else None
     )
+    # 검토 기록과 선거일도 캠프에서 온다 (P-001 §13). 캠프가 없으면 검토 기록이 비고
+    # 선거일을 모르므로 전부 미검토 + 기간 판정 불가로 떨어진다 — fail-closed 다.
+    app.state.review, app.state.election_day = _camp_compliance(app.state.lens, s)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/", response_class=Response)
@@ -99,9 +102,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         settings: WebSettings = request.app.state.settings
         et = resolve_election_type(election_type)
         view = _view(request, district_id, sort=sort, election_type=et)
-        policy = load_policy(settings.policy_path)
-        pulse = build_pulse_card(load_news_pulse(settings, district_id), policy)
-        issue_board = build_issue_board(load_local_issue(settings, district_id), policy)
+        pulse = build_pulse_card(load_news_pulse(settings, district_id), _compliance(request))
+        issue_board = build_issue_board(
+            load_local_issue(settings, district_id), _compliance(request)
+        )
         return _render(
             request,
             "dashboard.html",
@@ -145,8 +149,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         `?election_type=` 축이 없다 — 기사는 선거 계열에 속하지 않는다."""
         settings: WebSettings = request.app.state.settings
         news = load_news(settings, district_id)
-        policy = load_policy(settings.policy_path)
-        view = build_news_view(news, policy, sort=sort, scope=scope, query=q)
+        view = build_news_view(news, _compliance(request), sort=sort, scope=scope, query=q)
         return _render(request, "news.html", _ctx(request, district_id, view=view))
 
     @app.get("/compare", response_class=Response)
@@ -156,8 +159,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         settings: WebSettings = request.app.state.settings
         et = resolve_election_type(election_type)
         comparison = load_comparison(settings, election_type=et)
-        policy = load_policy(settings.policy_path)
-        view = build_comparison(comparison, policy, sort=sort, lens=request.app.state.lens)
+        view = build_comparison(
+            comparison, _compliance(request), sort=sort, lens=request.app.state.lens
+        )
         return _render(request, "compare.html", _ctx(request, view=view))
 
     @app.get("/nation", response_class=Response)
@@ -167,8 +171,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         settings: WebSettings = request.app.state.settings
         et = resolve_election_type(election_type)
         profiles = load_all_emd(settings, election_type=et)
-        policy = load_policy(settings.policy_path)
-        view = build_nation_view(profiles, policy, sort=sort, lens=request.app.state.lens)
+        view = build_nation_view(
+            profiles, _compliance(request), sort=sort, lens=request.app.state.lens
+        )
         return _render(request, "nation.html", _ctx(request, view=view))
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -181,6 +186,46 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     return app
 
 
+def _camp_compliance(lens, settings: WebSettings):
+    """(검토 기록, 선거일). 캠프가 없으면 (빈 기록, None).
+
+    선거일을 `compliance` 파일이 아니라 캠프의 `election.yaml` 에서 읽는다 —
+    진실의 출처를 둘로 만들지 않는다. 캠프마다 나가는 선거가 다르므로 공표
+    금지기간(§108) 판정도 캠프마다 다르다.
+    """
+    from votelink.camp import cycle_dir, load_cycle
+    from votelink.reference.compliance import EMPTY_REVIEW, REVIEW_FILENAME
+
+    if lens is None:
+        # 캠프가 없어도 검토 기록을 직접 물릴 수 있다. 그때 선거일은 여전히 모른다 —
+        # 선거일의 출처는 캠프의 election.yaml 하나뿐이다.
+        return (load_review(settings.review_path) if settings.review_path else EMPTY_REVIEW), None
+
+    cycle = load_cycle(
+        lens.camp_id, lens.cycle_id, settings.camps_root, districts_path=settings.districts_path
+    )
+    path = settings.review_path or (
+        cycle_dir(lens.camp_id, lens.cycle_id, settings.camps_root) / REVIEW_FILENAME
+    )
+    day = cycle.election.date
+    return load_review(path), day.isoformat() if day else None
+
+
+def _compliance(request: Request) -> Compliance:
+    """공용 정책 + 이 캠프의 검토 기록 + 선거일.
+
+    검토 기록과 선거일은 캠프에서 온다 — 무엇이 위험한가는 모두에게 같지만
+    검토했는가와 언제가 선거일인가는 캠프마다 다르다 (`P-001` §13).
+    캠프가 없으면(진영 중립 보기) 검토 기록이 비어 전부 미검토로 떨어진다.
+    """
+    settings: WebSettings = request.app.state.settings
+    return Compliance(
+        policy=load_policy(settings.policy_path),
+        review=request.app.state.review,
+        election_day=request.app.state.election_day,
+    )
+
+
 def _view(
     request: Request,
     district_id: str | None = None,
@@ -190,9 +235,12 @@ def _view(
 ):
     settings: WebSettings = request.app.state.settings
     profiles = load_profiles(settings, district_id, election_type=election_type)
-    policy = load_policy(settings.policy_path)
     return build_view(
-        profiles, policy, sort=sort, election_type=election_type, lens=request.app.state.lens
+        profiles,
+        _compliance(request),
+        sort=sort,
+        election_type=election_type,
+        lens=request.app.state.lens,
     )
 
 

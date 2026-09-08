@@ -21,7 +21,7 @@ from votelink import store
 from votelink.contract.models import KST, Record
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
-from votelink.reference.compliance import load_policy
+from votelink.reference.compliance import Compliance, load_policy
 from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.loader import load_news
@@ -32,14 +32,12 @@ INSIDE = "1171000000"  # 시험구 (CODES 의 시군구 코드)
 OUTSIDE = "1168000000"  # 옆 자치구
 
 POLICY_UNREVIEWED = (
-    "election_day: null\n"
     "outputs:\n"
     "  - kind: news_article\n"
     "    risk: low\n"
-    "    status: unreviewed\n"
     '    note: "메타만 저장 · 원문 링크로만 연결"\n'
 )
-POLICY_EMPTY = "election_day: null\noutputs: []\n"
+POLICY_EMPTY = "outputs: []\n"
 
 
 @pytest.fixture(autouse=True)
@@ -139,7 +137,9 @@ def test_build_news_view_splits_district_specific_from_sigungu_only(tmp_path):
             news_record("https://a.test/3", confidence=0.7),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path))
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert view.district_specific_count == 1
     assert view.sigungu_only_count == 2
     assert view.coverage_text == "동·지명 직접 1건 / 구 단위만 2건"
@@ -153,7 +153,9 @@ def test_build_news_view_publisher_sort(tmp_path):
             news_record("https://a.test/2", publisher="가나다일보"),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), sort="publisher")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), sort="publisher"
+    )
     assert [r.publisher for r in view.rows] == ["가나다일보", "한겨레"]
 
 
@@ -165,14 +167,16 @@ def test_build_news_view_confidence_sort(tmp_path):
             news_record("https://a.test/2", confidence=0.9),
         ],
     )
-    policy = load_policy(st.policy_path)
+    policy = Compliance(policy=load_policy(st.policy_path))
     view = build_news_view(load_news(st, "test_gap"), policy, sort="confidence")
     assert [r.confidence for r in view.rows] == [0.9, 0.7]
 
 
 def test_build_news_view_empty(tmp_path):
     st = settings_for(tmp_path, [])
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path))
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert view.is_empty
     assert view.nothing_collected
     assert view.verdict is None
@@ -187,7 +191,9 @@ def test_build_news_view_scope_district_filters_but_keeps_the_full_denominator(t
             news_record("https://a.test/3", confidence=0.7),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), scope="district")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), scope="district"
+    )
     assert [r.url for r in view.rows] == ["https://a.test/1"]
     assert view.matched == 1
     # 스코프를 걸어도 관련도 요약은 전체 기준이라 흔들리지 않는다.
@@ -204,7 +210,9 @@ def test_build_news_view_oldest_sort(tmp_path):
             news_record("https://a.test/2", published_at="2026-09-06T09:00:00+09:00"),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), sort="oldest")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), sort="oldest"
+    )
     assert [r.published_at for r in view.rows] == [
         "2026-09-06T09:00:00+09:00",
         "2026-09-06T18:00:00+09:00",
@@ -219,7 +227,9 @@ def test_build_news_view_query_filters_by_publisher(tmp_path):
             news_record("https://a.test/2", publisher="한겨레"),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="조선")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="조선"
+    )
     assert [r.publisher for r in view.rows] == ["조선일보"]
     assert view.query == "조선"
     assert view.matched == 1
@@ -233,9 +243,13 @@ def test_build_news_view_query_matches_place_and_person(tmp_path):
             news_record("https://a.test/2", places=["방이동"], persons=["홍길동"]),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="풍납동")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="풍납동"
+    )
     assert [r.url for r in view.rows] == ["https://a.test/1"]
-    got = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="홍길동")
+    got = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="홍길동"
+    )
     assert [r.url for r in got.rows] == ["https://a.test/2"]
 
 
@@ -262,7 +276,9 @@ def test_build_news_view_query_matches_summary_snippet(tmp_path):
         },
     )
     st = settings_for(tmp_path, [rec, news_record("https://a.test/2")])
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="트램")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="트램"
+    )
     assert [r.url for r in view.rows] == ["https://a.test/s"]
 
 
@@ -275,7 +291,9 @@ def test_build_news_view_query_then_scope_denominator_is_the_query_subset(tmp_pa
             news_record("https://a.test/3", publisher="한겨레", confidence=0.9),
         ],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="조선")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="조선"
+    )
     # 검색 결과(2건) 기준: 강함 1 / 구단위 1. 한겨레 강함 1건은 세지 않는다.
     assert view.district_specific_count == 1
     assert view.sigungu_only_count == 1
@@ -283,7 +301,9 @@ def test_build_news_view_query_then_scope_denominator_is_the_query_subset(tmp_pa
 
 def test_build_news_view_query_no_match_is_empty(tmp_path):
     st = settings_for(tmp_path, [news_record("https://a.test/1", publisher="조선일보")])
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), query="없는말")
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), query="없는말"
+    )
     assert view.is_empty
     assert not view.nothing_collected
 
@@ -293,7 +313,9 @@ def test_build_news_view_truncates_and_says_so(tmp_path):
         tmp_path,
         [news_record(f"https://a.test/{i}") for i in range(5)],
     )
-    view = build_news_view(load_news(st, "test_gap"), load_policy(st.policy_path), limit=2)
+    view = build_news_view(
+        load_news(st, "test_gap"), Compliance(policy=load_policy(st.policy_path)), limit=2
+    )
     assert len(view.rows) == 2
     assert view.matched == 5
     assert view.truncated

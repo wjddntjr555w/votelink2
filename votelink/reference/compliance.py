@@ -26,7 +26,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from votelink.contract.enums import RecordKind
 from votelink.contract.models import Record
 
-POLICY_PATH = Path("data/shared/reference/compliance.yaml")
+POLICY_PATH = Path("data/shared/reference/compliance.policy.yaml")
+"""**공용** — 산출물의 성질(위험도·배포범위·기간제한). 운영자가 유지하고 전 캠프가 같이 본다."""
+
+REVIEW_FILENAME = "compliance.review.yaml"
+"""**캠프·주기별** — 그 캠프 법률 검토자의 서명. `cycles/<cycle_id>/` 에 산다.
+
+정책과 검토를 한 파일에 두면 캠프가 늘어나는 순간 무너진다. 무엇이 위험한가는 모두에게
+같지만, 검토했는가는 캠프마다 다르기 때문이다 (`docs/proposals/P-001` §13).
+"""
 
 _lock = threading.Lock()
 _cache: Policy | None = None
@@ -57,48 +65,91 @@ class Risk(StrEnum):
     HIGH = "high"
 
 
+def _reject_cleared(status: ReviewStatus, where: str) -> ReviewStatus:
+    """`cleared` 는 사람의 서명이지 기본값이 될 수 없다.
+
+    기본값으로 통과시키면, 새 분석기가 새 산출물을 낼 때마다 아무도 모르게 검증이
+    비켜간다. 규칙 5가 막으려는 게 정확히 그 상황이다 (`docs/90-compliance.md §4`).
+    """
+    if status is ReviewStatus.CLEARED:
+        raise ValueError(
+            f"{where} 를 cleared 로 둘 수 없다. cleared 는 캠프 법률 검토자의 서명으로만 "
+            f"들어간다 ({REVIEW_FILENAME})"
+        )
+    return status
+
+
 class OutputPolicy(BaseModel):
-    """산출물 한 종류(kind)에 대한 정책."""
+    """**공용** — 산출물 한 종류(kind)의 성질. 캠프와 무관하게 같다."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: RecordKind
     risk: Risk
-    status: ReviewStatus = ReviewStatus.UNREVIEWED
     derived: bool = False
     """L2 파생 산출물인가. 참이면 `derived_from` 이 비었을 때 근거 없음을 경고한다."""
     distribution: str = "internal_only"
     ai_generated: bool = False
     blackout: str | None = None
-    """기간 제한 이름. 설정되면 `election_day` 없이는 판정할 수 없다."""
+    """기간 제한 이름. 설정되면 선거일 없이는 판정할 수 없다."""
     min_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    default_status: ReviewStatus = ReviewStatus.UNREVIEWED
+    """**캠프의 검토 기록이 없을 때의 처분.**
+
+    고위험 산출물(메시지 자산·게시물 배치안)은 `blocked` 로 둔다 —
+    `docs/90-compliance.md §5` 가 "기본 blocked" 라고 정한 것이 이 자리다.
+    검토 기록을 캠프 쪽으로 옮기면서 이 바닥이 없으면, 검토 기록이 아직 없는 새 캠프에서
+    고위험 산출물이 `unreviewed`(= 경고와 함께 내용 표시)로 떨어진다.
+    """
+    note: str = ""
+
+    @model_validator(mode="after")
+    def _default_must_stay_closed(self):
+        _reject_cleared(self.default_status, f"'{self.kind}' 의 default_status")
+        return self
+
+
+class Policy(BaseModel):
+    """`compliance.policy.yaml` — 공용 정책표."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: str = "unknown"
+    default_status: ReviewStatus = ReviewStatus.UNREVIEWED
+    """정책표에 아예 없는 kind 의 처분. fail-closed."""
+    outputs: list[OutputPolicy] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self):
+        _reject_cleared(self.default_status, "default_status")
+        kinds = [o.kind for o in self.outputs]
+        if len(kinds) != len(set(kinds)):
+            raise ValueError("같은 kind 가 두 번 있다. 어느 쪽이 적용되는지 알 수 없다")
+        return self
+
+    def for_kind(self, kind: RecordKind) -> OutputPolicy | None:
+        return next((o for o in self.outputs if o.kind == kind), None)
+
+
+class OutputReview(BaseModel):
+    """**캠프·주기별** — 이 산출물에 대한 그 캠프 법률 검토자의 기록."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: RecordKind
+    status: ReviewStatus = ReviewStatus.UNREVIEWED
     reviewed_by: str = ""
     reviewed_at: str = ""
     note: str = ""
 
 
-class Policy(BaseModel):
+class Review(BaseModel):
+    """`cycles/<cycle_id>/compliance.review.yaml`. 캠프가 없으면 빈 것이 쓰인다."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     version: str = "unknown"
-    election_day: str | None = None
-    """선거일(YYYY-MM-DD). **모르면 null.** 기간 의존 판정이 전부 unreviewed 로 떨어진다."""
-    default_status: ReviewStatus = ReviewStatus.UNREVIEWED
-    outputs: list[OutputPolicy] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _default_must_stay_closed(self):
-        """`default_status: cleared` 는 규칙 5를 끄는 것이다.
-
-        정책표에 없는 kind가 조용히 무경고로 표시되면, 새 분석기가 새 산출물을 낼 때마다
-        아무도 모르게 검증이 비켜간다. 규칙 5가 막으려는 게 정확히 그 상황이다.
-        """
-        if self.default_status is ReviewStatus.CLEARED:
-            raise ValueError(
-                "default_status 를 cleared 로 둘 수 없다. 정책표에 없는 kind 는 "
-                "unreviewed 여야 한다 (docs/90-compliance.md §4 fail-closed)"
-            )
-        return self
+    outputs: list[OutputReview] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _no_duplicate_kinds(self):
@@ -107,8 +158,28 @@ class Policy(BaseModel):
             raise ValueError("같은 kind 가 두 번 있다. 어느 쪽이 적용되는지 알 수 없다")
         return self
 
-    def for_kind(self, kind: RecordKind) -> OutputPolicy | None:
+    def for_kind(self, kind: RecordKind) -> OutputReview | None:
         return next((o for o in self.outputs if o.kind == kind), None)
+
+
+EMPTY_REVIEW = Review()
+"""캠프가 없을 때(진영 중립 보기) 쓰는 빈 검토 기록. 전부 미검토로 떨어진다."""
+
+
+class Compliance(BaseModel):
+    """판정에 필요한 전부 — 공용 정책 + 이 캠프의 검토 기록 + 선거일.
+
+    둘을 합쳐 하나로 만들지 않고 나란히 든다. 그래야 판정 사유가 "정책표에 없다"와
+    "이 캠프가 아직 검토하지 않았다"를 구분해 말할 수 있다 — 사용자가 할 일이 다르다.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    policy: Policy
+    review: Review = EMPTY_REVIEW
+    election_day: str | None = None
+    """선거일(YYYY-MM-DD). 캠프의 `election.yaml` 에서 온다. **모르면 null** —
+    기간 의존 판정이 전부 unreviewed 로 떨어진다."""
 
 
 class Verdict(BaseModel):
@@ -157,23 +228,38 @@ def reset_cache() -> None:
         _cache = None
 
 
+def load_review(path: Path) -> Review:
+    """캠프 주기의 검토 기록. 파일이 없으면 빈 것 — 아무것도 검토되지 않은 상태다.
+
+    **캐시하지 않는다.** 캠프마다 다른 파일이고, 모듈 전역에 담으면 캠프 A 와 B 의
+    동시 요청이 같은 슬롯을 두고 경쟁한다 (`docs/proposals/P-001` §10).
+    """
+    if not path.exists():
+        return EMPTY_REVIEW
+    return Review.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
+
+
 def review(record: Record, path: Path | None = None) -> Verdict:
-    """정책표를 읽어서 판정한다. 디스크를 타는 쪽은 이것 하나뿐이다."""
-    return review_with(load_policy(path), record)
+    """공용 정책만으로 판정한다. 캠프 검토 기록이 없으므로 전부 미검토로 떨어진다."""
+    return review_with(Compliance(policy=load_policy(path)), record)
 
 
-def review_with(policy: Policy, record: Record) -> Verdict:
+def review_with(compliance: Compliance, record: Record) -> Verdict:
     """이 레코드를 웹앱에 어떻게 표시할 것인가. `docs/90-compliance.md §8`.
 
-    **순수 함수다** — 같은 (정책, 레코드)면 같은 판정이 나온다. 시계도 난수도 디스크도
-    쓰지 않는다. L3의 뷰모델이 순수하게 남으려면 판정도 순수해야 해서 갈라 두었다.
+    **순수 함수다** — 같은 (정책+검토, 레코드)면 같은 판정이 나온다. 시계도 난수도
+    디스크도 쓰지 않는다. L3의 뷰모델이 순수하게 남으려면 판정도 순수해야 한다.
+
+    상태는 두 곳에서 온다: **캠프의 검토 기록이 있으면 그것**, 없으면 **공용 정책의
+    기본 처분**. 고위험 산출물이 `blocked` 로 시작하는 것이 후자다.
     """
-    rule = policy.for_kind(record.kind)
+    rule = compliance.policy.for_kind(record.kind)
+    entry = compliance.review.for_kind(record.kind)
     notes = _notes(record, rule)
 
     if rule is None:
         return Verdict(
-            status=policy.default_status,
+            status=compliance.policy.default_status,
             reasons=(
                 f"정책표에 '{record.kind}' 항목이 없다. "
                 "검토되지 않은 산출물로 다룬다 (fail-closed)",
@@ -181,14 +267,18 @@ def review_with(policy: Policy, record: Record) -> Verdict:
             notes=notes,
         )
 
-    if rule.status is ReviewStatus.BLOCKED:
+    status = entry.status if entry is not None else rule.default_status
+    signed_by = entry.reviewed_by if entry is not None else ""
+
+    if status is ReviewStatus.BLOCKED:
+        blocked_note = (entry.note if entry is not None else "") or rule.note
         return Verdict(
             status=ReviewStatus.BLOCKED,
-            reasons=(rule.note or "정책표가 이 산출물의 표시를 차단했다",),
+            reasons=(blocked_note or "이 산출물의 표시가 차단됐다",),
             notes=notes,
         )
 
-    if rule.status is ReviewStatus.CLEARED and not rule.reviewed_by.strip():
+    if status is ReviewStatus.CLEARED and not signed_by.strip():
         return Verdict(
             status=ReviewStatus.UNREVIEWED,
             reasons=(
@@ -198,30 +288,37 @@ def review_with(policy: Policy, record: Record) -> Verdict:
             notes=notes,
         )
 
-    if rule.blackout is not None and policy.election_day is None:
+    if rule.blackout is not None and compliance.election_day is None:
         return Verdict(
             status=ReviewStatus.UNREVIEWED,
             reasons=(
-                f"'{rule.blackout}' 은 기간 판정이 필요한데 election_day 가 설정되지 않았다. "
-                "선거일을 모르면 기간을 계산할 수 없다",
+                f"'{rule.blackout}' 은 기간 판정이 필요한데 선거일이 설정되지 않았다. "
+                "캠프의 election.yaml 에 선거일을 적어야 기간을 계산할 수 있다",
             ),
             notes=notes,
         )
 
     reasons: tuple[str, ...] = ()
-    if rule.status is ReviewStatus.UNREVIEWED:
+    if status is ReviewStatus.UNREVIEWED:
         # 사유 없는 경고는 사용자가 무엇을 해야 하는지 알려주지 않는다.
         reasons = (
-            "정책표에 unreviewed 로 기록돼 있다 — 아직 법률 검토를 받지 않았다. "
-            "검토를 마치면 data/shared/reference/compliance.yaml 에 서명을 남긴다",
+            (
+                f"이 캠프의 검토 기록({REVIEW_FILENAME})에 '{record.kind}' 가 없다 — "
+                "아직 법률 검토를 받지 않았다"
+            )
+            if entry is None
+            else (
+                f"검토 기록에 unreviewed 로 남아 있다. 검토를 마치면 "
+                f"{REVIEW_FILENAME} 에 서명을 남긴다"
+            ),
         )
 
     return Verdict(
-        status=rule.status,
+        status=status,
         reasons=reasons,
         notes=notes,
-        reviewed_by=rule.reviewed_by,
-        reviewed_at=rule.reviewed_at,
+        reviewed_by=signed_by,
+        reviewed_at=entry.reviewed_at if entry is not None else "",
     )
 
 

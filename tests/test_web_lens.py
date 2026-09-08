@@ -28,7 +28,6 @@ from votelink.web.settings import WebSettings
 
 POLICY = """\
 version: test
-election_day: null
 default_status: unreviewed
 outputs:
   - kind: segment_profile
@@ -36,10 +35,16 @@ outputs:
     derived: true
     distribution: internal_only
     ai_generated: false
+    note: 시험용
+"""
+
+REVIEW = """\
+version: test
+outputs:
+  - kind: segment_profile
     status: cleared
     reviewed_by: 시험 검토자
     reviewed_at: '2026-09-08'
-    note: 시험용
 """
 
 
@@ -74,12 +79,15 @@ def build_camp(tmp_path, lineage: str = "progressive", codes=None) -> tuple[str,
 
 
 def settings_for(tmp_path, *, camp_id=None, cycle_id=None) -> WebSettings:
-    policy_path = tmp_path / "compliance.yaml"
+    policy_path = tmp_path / "compliance.policy.yaml"
     policy_path.write_text(POLICY, encoding="utf-8")
+    review_path = tmp_path / "compliance.review.yaml"
+    review_path.write_text(REVIEW, encoding="utf-8")
     return WebSettings(
         districts_path=write_districts(tmp_path),
         data_root=tmp_path,
         policy_path=policy_path,
+        review_path=review_path,
         boundaries_path=tmp_path / "없다.geojson",
         camp_id=camp_id,
         cycle_id=cycle_id,
@@ -88,9 +96,7 @@ def settings_for(tmp_path, *, camp_id=None, cycle_id=None) -> WebSettings:
 
 
 def seed(tmp_path) -> None:
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path)
-    )
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
 
 
 def client(tmp_path, **kw) -> TestClient:
@@ -150,7 +156,7 @@ def test_lens_reads_ours_versus_theirs(tmp_path):
 
 
 def test_screen_says_what_theirs_means(tmp_path):
-    """"상대"는 우리 진영을 뺀 **전부**다 — 중도·기타가 함께 들어간다.
+    """ "상대"는 우리 진영을 뺀 **전부**다 — 중도·기타가 함께 들어간다.
 
     화면이 그걸 말하지 않으면 "상대 60%"가 특정 상대 후보의 득표로 읽힌다.
     이 시스템은 개별 후보 득표를 모르고 진영 단위 값만 안다 (LensRead 참조).
@@ -197,9 +203,7 @@ def test_dong_outside_the_territory_is_flagged_not_hidden(tmp_path):
 
 
 def test_empty_territory_covers_everything():
-    lens = Lens(
-        camp_id="c", cycle_id="x", candidate_name="후보", lineage=Camp.PROGRESSIVE
-    )
+    lens = Lens(camp_id="c", cycle_id="x", candidate_name="후보", lineage=Camp.PROGRESSIVE)
     assert lens.covers("1111051500")
     assert lens.covers(None)
 
@@ -219,7 +223,7 @@ def test_last_updated_is_shown(tmp_path):
 def test_broken_camp_config_fails_at_startup(tmp_path):
     """관할이 틀린 채로 화면을 그리면 조용히 다른 답을 준다. 기동에서 막는다."""
     camp_id, cycle_id = build_camp(tmp_path)
-    path = (tmp_path / "data" / "camps" / camp_id / "cycles" / cycle_id / "election.yaml")
+    path = tmp_path / "data" / "camps" / camp_id / "cycles" / cycle_id / "election.yaml"
     path.write_text(
         path.read_text(encoding="utf-8").replace(f'"{CODES[0]}"', '"9999999999"'),
         encoding="utf-8",

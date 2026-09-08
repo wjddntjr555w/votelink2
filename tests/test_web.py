@@ -20,24 +20,26 @@ from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.settings import WebSettings
 
-POLICY_CLEARED = (
-    "election_day: null\n"
+# 정책(공용)은 산출물의 성질만, 검토 기록(캠프)은 서명만 담는다 (P-001 §13).
+POLICY_LOW = "outputs:\n  - kind: segment_profile\n    risk: low\n"
+POLICY_EMPTY = "outputs: []\n"
+POLICY_BLOCKED = (
     "outputs:\n"
     "  - kind: segment_profile\n"
-    "    risk: low\n"
+    "    risk: high\n"
+    "    default_status: blocked\n"
+    '    note: "선거일 전 6일 공표 금지"\n'
+)
+"""고위험 산출물은 캠프 검토가 없으면 blocked 로 시작한다 (`90-compliance.md §5`)."""
+
+REVIEW_CLEARED = (
+    "outputs:\n"
+    "  - kind: segment_profile\n"
     "    status: cleared\n"
     '    reviewed_by: "법률검토자"\n'
     '    reviewed_at: "2026-09-10"\n'
 )
-POLICY_EMPTY = "election_day: null\noutputs: []\n"
-POLICY_BLOCKED = (
-    "election_day: null\n"
-    "outputs:\n"
-    "  - kind: segment_profile\n"
-    "    risk: high\n"
-    "    status: blocked\n"
-    '    note: "선거일 전 6일 공표 금지"\n'
-)
+REVIEW_NONE = "outputs: []\n"
 
 
 @pytest.fixture(autouse=True)
@@ -49,17 +51,26 @@ def fresh_caches():
     compliance_mod.reset_cache()
 
 
-def build(tmp_path, policy: str = POLICY_CLEARED, *, records=True) -> TestClient:
+def build(
+    tmp_path,
+    policy: str = POLICY_LOW,
+    *,
+    review: str = REVIEW_CLEARED,
+    records=True,
+) -> TestClient:
     if records:
         store.append_records(
             "voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path)
         )
-    policy_path = tmp_path / "compliance.yaml"
+    policy_path = tmp_path / "compliance.policy.yaml"
     policy_path.write_text(policy, encoding="utf-8")
+    review_path = tmp_path / "compliance.review.yaml"
+    review_path.write_text(review, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path),
         data_root=tmp_path,
         policy_path=policy_path,
+        review_path=review_path,
         boundaries_path=tmp_path / "없다.geojson",
     )
     return TestClient(create_app(settings))
@@ -82,7 +93,7 @@ def test_removing_the_policy_entry_warns_every_card(tmp_path):
 
 def test_blocked_keeps_the_numbers_out_of_the_html(tmp_path):
     """차단이면 수치가 HTML 에 나가지 않는다. 매크로가 caller() 를 부르지 않는다."""
-    html = build(tmp_path, POLICY_BLOCKED).get("/").text
+    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/").text
 
     assert "표시가 차단된 산출물이다" in html
     assert "선거일 전 6일 공표 금지" in html
@@ -102,7 +113,7 @@ def test_cleared_shows_the_signature_not_a_warning(tmp_path):
 
 def test_blocked_map_hides_values_too(tmp_path):
     """규칙 5는 화면마다 다시 구현되지 않는다. 같은 매크로를 쓴다."""
-    html = build(tmp_path, POLICY_BLOCKED).get("/d/test_gap/map").text
+    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/d/test_gap/map").text
     assert "표시가 차단된 산출물이다" in html
     assert '<svg class="map"' not in html
 
@@ -125,7 +136,7 @@ def test_dashboard_shows_loaded_over_expected(tmp_path):
 def test_missing_dong_is_called_out(tmp_path):
     store.append_records("voter_profile", [profile_record(CODES[0])], DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
-    policy_path.write_text(POLICY_CLEARED, encoding="utf-8")
+    policy_path.write_text(POLICY_LOW, encoding="utf-8")
     client = TestClient(
         create_app(
             WebSettings(
@@ -274,7 +285,7 @@ TWO_DISTRICTS_EXTRA = (
 def build_two(tmp_path) -> TestClient:
     store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
-    policy_path.write_text(POLICY_CLEARED, encoding="utf-8")
+    policy_path.write_text(POLICY_LOW, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path, extra=TWO_DISTRICTS_EXTRA),
         data_root=tmp_path,

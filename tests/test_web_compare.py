@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.test_web import POLICY_BLOCKED, POLICY_CLEARED
+from tests.test_web import POLICY_BLOCKED, POLICY_LOW, REVIEW_CLEARED, REVIEW_NONE
 from tests.test_web_loader import CODES, profile_record, write_districts
 from votelink import store
 from votelink.reference import compliance as compliance_mod
@@ -37,14 +37,17 @@ def fresh_caches():
     compliance_mod.reset_cache()
 
 
-def build(tmp_path, policy: str = POLICY_CLEARED) -> TestClient:
+def build(tmp_path, policy: str = POLICY_LOW, *, review: str = REVIEW_CLEARED) -> TestClient:
     store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
-    policy_path = tmp_path / "compliance.yaml"
+    policy_path = tmp_path / "compliance.policy.yaml"
     policy_path.write_text(policy, encoding="utf-8")
+    review_path = tmp_path / "compliance.review.yaml"
+    review_path.write_text(review, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path, extra=EXTRA),
         data_root=tmp_path,
         policy_path=policy_path,
+        review_path=review_path,
     )
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
@@ -62,7 +65,7 @@ def test_compare_sort_key_garbage_does_not_crash(tmp_path):
 
 
 def test_compare_blocked_keeps_numbers_out(tmp_path):
-    html = build(tmp_path, POLICY_BLOCKED).get("/compare").text
+    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/compare").text
     assert "표시가 차단된 산출물이다" in html
     assert "<table" not in html  # 표 자체가 안 나간다
 

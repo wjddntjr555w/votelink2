@@ -16,7 +16,7 @@ from votelink import store
 from votelink.contract.models import KST, Record
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
-from votelink.reference.compliance import load_policy
+from votelink.reference.compliance import Compliance, load_policy
 from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.loader import load_news_pulse
@@ -25,14 +25,7 @@ from votelink.web.viewmodel import build_pulse_card
 
 SIGUNGU = "1171000000"
 
-POLICY_UNREVIEWED = (
-    "election_day: null\n"
-    "outputs:\n"
-    "  - kind: news_pulse\n"
-    "    risk: low\n"
-    "    status: unreviewed\n"
-    '    note: "파생 집계"\n'
-)
+POLICY_UNREVIEWED = 'outputs:\n  - kind: news_pulse\n    risk: low\n    note: "파생 집계"\n'
 
 
 @pytest.fixture(autouse=True)
@@ -132,7 +125,9 @@ def test_load_news_pulse_none_when_absent(tmp_path):
 
 def test_build_pulse_card_carries_l2_spike_verbatim(tmp_path):
     st = settings_for(tmp_path, [pulse_record()])
-    card = build_pulse_card(load_news_pulse(st, "test_gap"), load_policy(st.policy_path))
+    card = build_pulse_card(
+        load_news_pulse(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert card is not None
     assert card.latest_count == 9
     assert card.latest_spike is True
@@ -144,14 +139,16 @@ def test_build_pulse_card_carries_l2_spike_verbatim(tmp_path):
 def test_build_pulse_card_z_text_when_undecidable(tmp_path):
     weeks = [weekly("2026-08-24", 4), weekly("2026-08-31", 5)]
     st = settings_for(tmp_path, [pulse_record(weeks=weeks)])
-    card = build_pulse_card(load_news_pulse(st, "test_gap"), load_policy(st.policy_path))
+    card = build_pulse_card(
+        load_news_pulse(st, "test_gap"), Compliance(policy=load_policy(st.policy_path))
+    )
     assert card.latest_spike is False
     assert card.latest_z_text == "판정 불가"
 
 
 def test_build_pulse_card_none_passthrough(tmp_path):
     st = settings_for(tmp_path, [])
-    assert build_pulse_card(None, load_policy(st.policy_path)) is None
+    assert build_pulse_card(None, Compliance(policy=load_policy(st.policy_path))) is None
 
 
 # --- 라우트 -------------------------------------------------------------------

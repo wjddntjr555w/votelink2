@@ -1,6 +1,6 @@
 # 법적 제약과 검증 규칙
 
-> 상태: v1 구현됨 (`votelink/reference/compliance.py`) · 정책표는 `data/shared/reference/compliance.yaml`
+> 상태: v1 구현됨 (`votelink/reference/compliance.py`) · 정책표는 `data/shared/reference/compliance.policy.yaml` + 캠프별 `compliance.review.yaml`
 > 산출물이 선거법에 걸리는지 확인할 때 읽을 문서는 **이것 + 그 YAML 뿐**이다.
 
 ## 1. 이 문서가 있는 이유
@@ -30,9 +30,9 @@
 
 | 상태 | 뜻 | 누가 정하나 | 웹앱의 의무 |
 |---|---|---|---|
-| `cleared` | **사람이 검토했다고 서명한 기록** | 캠프 법률 검토자가 정책표에 `reviewed_by`·`reviewed_at`·`note` 를 남긴다 | 조용한 배지 + 검토자·검토일 표시 |
+| `cleared` | **사람이 검토했다고 서명한 기록** | 그 캠프의 법률 검토자가 `compliance.review.yaml` 에 `reviewed_by`·`reviewed_at`·`note` 를 남긴다 | 조용한 배지 + 검토자·검토일 표시 |
 | `unreviewed` | 아직 검토되지 않았다 (**기본값**) | 아무도 정하지 않았다는 뜻 | **콘텐츠 위에** 경고 배너 |
-| `blocked` | 지금 표시하면 안 된다 | 정책표 | 내용 대신 차단 사유만 |
+| `blocked` | 지금 표시하면 안 된다 | 공용 정책의 `default_status`(고위험) 또는 캠프의 검토 기록 | 내용 대신 차단 사유만 |
 
 `cleared` 는 **시스템의 판단이 아니라 사람의 서명을 옮겨 적은 것**이다. 그래서
 `reviewed_by` 가 비어 있으면 `cleared` 로 인정하지 않는다 — 서명 없는 서명란은 서명이 아니다.
@@ -76,15 +76,21 @@ v0.1이 저위험 화면 둘로 시작하는 것은 우연이 아니다. 검증 
 빠진 것들(현수막 수량·위치 규정, 선거공보 규격)은 **고위험 산출물이 생길 때** 이 표에 들어온다.
 지금 적어두면 집행되지 않는 규칙이 문서에만 쌓인다.
 
-## 7. 정책표는 데이터다 — `data/shared/reference/compliance.yaml`
+## 7. 정책표는 데이터다 — 그리고 **둘로 갈라져 있다**
 
 `districts.yaml`(획정이 바뀐다)·`party_lineage.yaml`(정치적 판단이다)과 **같은 이유**로 데이터다:
 
 **법률 검토는 사람의 판단이고, 변호사가 파이썬을 읽지 않아도 검토·수정할 수 있어야 한다.**
 
+**2026-09-08 (P-001 §13) 분리.** 무엇이 위험한가는 모두에게 같지만 검토했는가는
+캠프마다 다르다. 한 파일에 두면 한 캠프의 서명이 모든 캠프에 적용된다.
+
+### 공용 — `data/shared/reference/compliance.policy.yaml`
+
+산출물의 **성질**만. 서명이 없다.
+
 ```yaml
-election_day: null          # 모르면 null. 기간 의존 판정은 전부 unreviewed 가 된다
-default_status: unreviewed  # 정책표에 없는 kind 의 처분. cleared 로 바꾸지 않는다
+default_status: unreviewed  # 정책표에 아예 없는 kind 의 처분. cleared 로 바꾸지 않는다
 
 outputs:
   - kind: segment_profile
@@ -92,11 +98,31 @@ outputs:
     distribution: internal_only
     ai_generated: false
     min_confidence: 0.5
-    status: cleared
-    reviewed_by: ""         # 사람이 채운다. 비어 있으면 cleared 로 인정하지 않는다
-    reviewed_at: ""
+    default_status: unreviewed  # 캠프 검토 기록이 없을 때의 처분.
+                                # 고위험(메시지·배치안)은 blocked 로 둔다 (§5)
     note: "..."
 ```
+
+### 캠프·주기별 — `data/camps/<캠프>/cycles/<주기>/compliance.review.yaml`
+
+그 캠프 법률 검토자의 **서명**만.
+
+```yaml
+outputs:
+  - kind: segment_profile
+    status: cleared
+    reviewed_by: 김변호사 (○○법률사무소)  # 비어 있으면 cleared 로 인정하지 않는다
+    reviewed_at: "2026-09-10"
+```
+
+**여기 없는 kind 는 정책의 `default_status` 로 떨어진다.** 파일이 통째로 없어도 정상이며
+그 경우 전부 미검토다 — 아직 아무것도 검토하지 않았다는 뜻이고 그게 fail-closed 다.
+(정책 파일이 없는 것은 다르다. 무엇이 위험한지조차 모르므로 로딩이 실패한다.)
+
+### 선거일은 어디에도 없다
+
+`election_day` 는 캠프의 `cycles/<주기>/election.yaml` 에서 온다. 캠프마다 나가는 선거가
+다르므로 공표 금지기간(§108) 판정도 캠프마다 다르다. 진실의 출처를 둘로 만들지 않는다.
 
 `default_status` 를 `cleared` 로 바꾸는 것은 **규칙 5를 끄는 것**이다. 그렇게 하지 않는다.
 
@@ -113,10 +139,11 @@ v0.1 규칙:
 
 | # | 조건 | 결과 |
 |---|---|---|
-| 1 | 정책표에 없는 kind | `unreviewed` |
+| 1 | 정책표에 없는 kind | `unreviewed` + "정책표에 없다" |
+| 1-b | 정책표에는 있으나 **이 캠프의 검토 기록에 없다** | `unreviewed` + "아직 법률 검토를 받지 않았다" |
 | 2 | `status: cleared` 인데 `reviewed_by` 가 비었다 | `unreviewed` + 사유 |
-| 3 | 기간 의존 항목인데 `election_day: null` | `unreviewed` + "선거일 미설정으로 기간 판정 불가" |
-| 4 | `status: blocked` | `blocked` |
+| 3 | 기간 의존 항목인데 캠프의 선거일이 `null` | `unreviewed` + "선거일 미설정으로 기간 판정 불가" |
+| 4 | 검토 기록 또는 정책 기본값이 `blocked` | `blocked` |
 | 5 | `confidence < min_confidence` | **상태는 유지**, `notes` 에 신뢰도 경고 |
 | 6 | 파생 kind인데 `derived_from` 이 비었다 | **상태는 유지**, `notes` 에 "근거 없음" |
 
@@ -137,7 +164,7 @@ v0.1 규칙:
 
 회귀 테스트가 이 규칙 자체다 (`tests/test_web.py`):
 
-- 정책표에서 `segment_profile` 항목을 **지운** 상태로 대시보드를 렌더하면 9장 전부에 경고 문구가 있다
+- 정책표에서 `segment_profile` 항목을 **지운** 상태로(또는 검토 기록이 비었을 때) 대시보드를 렌더하면 9장 전부에 경고 문구가 있다
 - `blocked` 로 바꾸면 payload의 수치 문자열이 HTML에 **없다**
 
 ## 10. 수집 단계의 제약

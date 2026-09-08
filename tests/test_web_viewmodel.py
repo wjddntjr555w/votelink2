@@ -16,7 +16,15 @@ import pytest
 from tests.conftest import make_record
 from votelink.contract.enums import AgeBand, Camp, Trend
 from votelink.contract.payloads import SegmentProfilePayload
-from votelink.reference.compliance import OutputPolicy, Policy, ReviewStatus, Verdict
+from votelink.reference.compliance import (
+    Compliance,
+    OutputPolicy,
+    OutputReview,
+    Policy,
+    Review,
+    ReviewStatus,
+    Verdict,
+)
 from votelink.reference.districts import District, Emd
 from votelink.web import shapes as shapes_mod
 from votelink.web.loader import DistrictProfiles, EmdProfile, LoadDiagnostics
@@ -100,11 +108,13 @@ def make_district() -> District:
     )
 
 
-def cleared_policy() -> Policy:
-    return Policy(
-        outputs=[
-            OutputPolicy(kind="segment_profile", risk="low", status="cleared", reviewed_by="검토자")
-        ]
+def cleared_policy() -> Compliance:
+    """공용 정책(성질) + 캠프 검토 기록(서명). 둘이 갈라졌다 (P-001 §13)."""
+    return Compliance(
+        policy=Policy(outputs=[OutputPolicy(kind="segment_profile", risk="low")]),
+        review=Review(
+            outputs=[OutputReview(kind="segment_profile", status="cleared", reviewed_by="검토자")]
+        ),
     )
 
 
@@ -252,7 +262,7 @@ def test_aggregate_camp_bar_is_population_turnout_weighted_not_arithmetic():
     """작은 동과 큰 동을 같은 무게로 섞으면 왜곡된다."""
     small = agg_profile(CODES[0], 40.0, 1000)
     big = agg_profile(CODES[1], 60.0, 3000)
-    agg = aggregate_profiles([small, big], label="종합", policy=cleared_policy())
+    agg = aggregate_profiles([small, big], label="종합", compliance=cleared_policy())
     con = next(s.pct for s in agg.camp_bar if s.camp is Camp.CONSERVATIVE)
     assert con != pytest.approx(50.0)  # 산술평균이 아니다
     assert con == pytest.approx(55.0, abs=0.1)  # (40·1000 + 60·3000) / 4000
@@ -264,7 +274,7 @@ def test_aggregate_age_mix_sums_to_100_and_is_population_weighted():
     agg = aggregate_profiles(
         [agg_profile(CODES[0], 40.0, 1000), agg_profile(CODES[1], 60.0, 9000)],
         label="종합",
-        policy=cleared_policy(),
+        compliance=cleared_policy(),
     )
     assert sum(a.pct for a in agg.age_bars) == pytest.approx(100.0, abs=0.05)
 
@@ -273,7 +283,7 @@ def test_aggregate_sex_ratio_reconstructs_headcounts():
     """비 + 인구로 남/여 인원을 복원해 합산 (정확)."""
     a = agg_profile(CODES[0], 40.0, 1000, sex_ratio=1.0)  # 남 500 / 여 500
     b = agg_profile(CODES[1], 40.0, 1000, sex_ratio=3.0)  # 남 750 / 여 250
-    agg = aggregate_profiles([a, b], label="종합", policy=cleared_policy())
+    agg = aggregate_profiles([a, b], label="종합", compliance=cleared_policy())
     # (500+750) / (500+250) = 1250/750
     assert agg.sex_ratio == pytest.approx(1250 / 750, abs=1e-6)
 
@@ -282,7 +292,7 @@ def test_aggregate_gap_summary_exposes_denominator_when_some_are_none():
     known = agg_profile(CODES[0], 50.0, 1000, gap_nation=4.0)
     blind = agg_profile(CODES[1], 50.0, 1000, gap_nation=None)
     agg = aggregate_profiles(
-        [known, blind], label="종합", policy=cleared_policy(), levels=("nation",)
+        [known, blind], label="종합", compliance=cleared_policy(), levels=("nation",)
     )
     assert agg.gaps["nation"].known == 1
     assert agg.gaps["nation"].total == 2
@@ -297,21 +307,21 @@ def test_aggregate_trend_mix_counts_members():
             agg_profile(CODES[2], 50.0, 1000, trend="conservative_shift"),
         ],
         label="종합",
-        policy=cleared_policy(),
+        compliance=cleared_policy(),
     )
     assert agg.trend_mix[Trend.CONSERVATIVE_SHIFT] == 2
     assert agg.trend_mix[Trend.STABLE] == 1
 
 
 def test_aggregate_of_empty_is_none():
-    assert aggregate_profiles([], label="x", policy=cleared_policy()) is None
+    assert aggregate_profiles([], label="x", compliance=cleared_policy()) is None
 
 
 def test_aggregate_is_deterministic():
     profs = [agg_profile(CODES[0], 40.0, 1000), agg_profile(CODES[1], 60.0, 2000)]
     policy = cleared_policy()
-    a = aggregate_profiles(profs, label="x", policy=policy)
-    b = aggregate_profiles(profs, label="x", policy=policy)
+    a = aggregate_profiles(profs, label="x", compliance=policy)
+    b = aggregate_profiles(profs, label="x", compliance=policy)
     assert a == b
 
 

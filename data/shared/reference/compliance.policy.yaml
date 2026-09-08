@@ -1,25 +1,22 @@
-# 산출물 검증 정책. 규약은 `docs/90-compliance.md`.
+# 산출물 검증 **정책** — 공용. 규약은 `docs/90-compliance.md`.
 #
-# **이 파일은 법률 검토의 기록이지 판정이 아니다.** 시스템은 적법성을 판단하지 않는다.
-# 검토가 있었는지 없었는지만 기록하고, 없으면 웹앱이 경고를 띄운다.
-# 최종 판단자는 캠프의 법률 검토다.
+# **여기에는 서명이 없다.** 이 파일이 말하는 것은 "이 산출물이 어떤 성질인가"뿐이다 —
+# 위험도, 배포 범위, 기간 제한, 파생 여부. 그건 캠프와 무관하게 같다.
+#
+# "검토했는가"는 캠프마다 다르므로 캠프 공간으로 갔다:
+#   data/camps/<캠프>/cycles/<주기>/compliance.review.yaml
+# 거기에 status·reviewed_by·reviewed_at 이 있다 (P-001 §13, 2026-09-08 분리).
 #
 # 코드가 아니라 데이터로 두는 이유는 districts.yaml(획정이 바뀐다)·
 # party_lineage.yaml(정치적 판단이다)과 같다 — 변호사가 파이썬을 읽지 않아도
 # 검토하고 고칠 수 있어야 한다.
 #
-# 검토를 마쳤다면 그 항목의 status 를 cleared 로 바꾸고 reviewed_by 와 reviewed_at 을
-# 채운다. **reviewed_by 가 비어 있으면 cleared 로 인정되지 않는다** — 서명 없는
-# 서명란은 서명이 아니다 (votelink/reference/compliance.py 의 review()).
+# 선거일도 여기 없다. 캠프의 election.yaml 에 있다 — 캠프마다 나가는 선거가 다르므로
+# 공표 금지기간(§108) 판정도 캠프마다 다르다.
 
 version: "2026-09 기준"
 
-# 선거일(YYYY-MM-DD). 모르면 null 로 둔다.
-# 여론조사 공표 금지기간처럼 기간에 의존하는 판정은 이 값 없이 계산할 수 없고,
-# 그런 항목은 전부 unreviewed 로 떨어진다. 0이나 임의 날짜로 채우지 않는다.
-election_day: null
-
-# 정책표에 없는 kind 의 처분. **cleared 로 바꾸는 것은 규칙 5를 끄는 것이다.**
+# 정책표에 아예 없는 kind 의 처분. **cleared 로 바꾸는 것은 규칙 5를 끄는 것이다.**
 # 코드가 이 값을 검증해서 cleared 면 로딩 자체가 실패한다.
 default_status: unreviewed
 
@@ -34,9 +31,6 @@ outputs:
     derived: false
     distribution: internal_only
     ai_generated: false
-    status: unreviewed
-    reviewed_by: ""
-    reviewed_at: ""
     note: >-
       네이버 검색 API 가 준 기사 메타(제목·언론사·발행시각·링크·스니펫)뿐이다.
       본문 전문은 저장하지 않고(계약이 막는다) 화면은 원문 링크로만 연결한다.
@@ -50,9 +44,6 @@ outputs:
     derived: true
     distribution: internal_only
     ai_generated: false
-    status: unreviewed
-    reviewed_by: ""
-    reviewed_at: ""
     note: >-
       news_article(네이버 검색 API 메타)를 주 단위로 접은 파생 집계다. 기사 본문도
       개인 식별 정보도 없고 최소 단위는 시군구다. spike 는 급증 여부일 뿐 이슈
@@ -65,9 +56,6 @@ outputs:
     derived: true
     distribution: internal_only
     ai_generated: false
-    status: unreviewed
-    reviewed_by: ""
-    reviewed_at: ""
     note: >-
       news_article(네이버 검색 API 메타)를 어휘집(issue_lexicon.yaml)으로 분류해 언급
       빈도·최근성으로 세운 파생 랭킹이다. LLM 을 쓰지 않는다 — 순수 substring 매칭이라
@@ -88,12 +76,9 @@ outputs:
     # 현재 voter_profile 은 0.7 이다(기준선 2건 결측: 2002 서울시·2007 전국).
     min_confidence: 0.5
 
-    # 아직 아무도 법률 검토를 하지 않았다. 그래서 unreviewed 다.
-    # 대시보드 첫 화면에 경고 배너가 뜨는 것이 맞는 상태이며, 이것이 규칙 5가
-    # 동작한다는 증거다. 검토를 마치면 cleared 로 바꾸고 아래 두 칸을 채운다.
-    status: unreviewed
-    reviewed_by: ""
-    reviewed_at: ""
+    # 검토 여부는 여기 없다 — 캠프의 compliance.review.yaml 이 말한다.
+    # 아직 아무 캠프도 검토하지 않았으므로 대시보드에 경고 배너가 뜬다.
+    # 그게 맞는 상태이며, 규칙 5가 동작한다는 증거다.
     note: >-
       읍면동 유권자 프로파일(A-001). 선관위 개표결과와 행안부 주민등록 인구라는
       이미 공표된 집계의 재표현이며, 최소 집계 단위는 행정동이라 개인 식별 정보가
