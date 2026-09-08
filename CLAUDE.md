@@ -22,6 +22,7 @@
 | API 키·계정이 필요한지 | `docs/SETUP.md` |
 | 선거구에 어느 동이 속하는지 | `data/shared/reference/districts.yaml` (코드에 박지 말 것) |
 | 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
+| 캠프 공간·온보딩·관할 | `votelink/camp/` + `docs/proposals/P-001-camp-data-isolation.md` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.
@@ -55,6 +56,11 @@ uv run votelink analyze <id> --all-districts      # meta 의 config.districts �
 uv run votelink analyze --all             # 등록된 모든 분석기 × 각자의 config.districts 전체. 입력 kind 는 1회만 읽어 공유
 uv run votelink analyze <id> --dry-run   # 저장 없이 계약 검증만
 uv run votelink analyze --sync           # analyzers/registry.yaml 재생성
+uv run votelink camp new <id> --candidate <이름> --party <정당> --type <계열> --office <직위> \
+    --lineage <진영> [--date YYYY-MM-DD] [--preset <선거구>|--sigungu <자치구>|--emd <코드>]
+                                 # 캠프 온보딩. 관할은 프리셋·자치구·직접지정을 합칠 수 있다
+uv run votelink camp list        # 캠프와 선거 주기 목록
+uv run votelink camp show <캠프> [<주기>]  # 한 주기의 설정 (관할 검증 포함)
 uv run votelink serve            # 로컬 웹앱 (기본 8420). `/` 선거구 선택 · `/d/<선거구>/`[/map] · `/compare` · `/nation`. `?election_type=` 로 계열 재필터
 uv run votelink serve --district <선거구>  # `/` 를 이 선거구로 바로 보낸다
 uv run pytest                    # 테스트

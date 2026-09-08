@@ -11,15 +11,19 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
-from votelink import store
+from votelink import camp, store
 from votelink.analyze import registry as analyze_registry
 from votelink.analyze import runner as analyze_runner
 from votelink.analyze.base import AnalyzeError
+from votelink.camp import Office, scaffold
 from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
+from votelink.contract.enums import Camp, ElectionType
 from votelink.contract.models import GEO_CODE_DIGITS, KST
 from votelink.reference import compliance, districts, emd_backfill
+from votelink.reference.districts import DistrictNotFound
 from votelink.store import DataSpace
 from votelink.web import DEFAULT_HOST, DEFAULT_PORT
 from votelink.web.loader import AmbiguousDistrict, load_profiles
@@ -452,6 +456,119 @@ def _analyze_all(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_camp_new(args: argparse.Namespace) -> int:
+    """캠프 온보딩. 관할이 실재하는지 여기서 확인하고 못 만들면 아무것도 남기지 않는다."""
+    try:
+        preset, codes = scaffold.resolve_territory(
+            args.preset, args.sigungu, args.emd, districts_path=None
+        )
+        cycle = camp.Cycle(
+            election=camp.Election(type=args.type, office=args.office, date=args.date),
+            lineage=args.lineage,
+            territory=camp.Territory(preset=preset, emd_codes=codes),
+            legal_reviewer=args.reviewer,
+        )
+        info = camp.CampInfo(
+            camp_id=args.camp_id, candidate_name=args.candidate, created_at=scaffold.today()
+        )
+        cycle_id = args.cycle or scaffold.default_cycle_id(cycle)
+    except (scaffold.ScaffoldError, ValidationError, DistrictNotFound) as exc:
+        # 설정 오류는 사용자가 고칠 일이다. 트레이스백을 보여줄 이유가 없다.
+        print(f"캠프를 만들 수 없다: {exc}", file=sys.stderr)
+        return 1
+
+    # 주기 이름이 선거일·계열과 어긋나면 load_cycle 이 나중에 거부한다. 지금 막는다.
+    expected = camp.cycle_id_for(cycle)
+    if expected is not None and cycle_id != expected:
+        print(
+            f"주기 이름 '{cycle_id}' 가 선거일·계열에서 나온 '{expected}' 와 다르다. "
+            "--cycle 을 빼거나 선거일을 맞춰라",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        camp_path = scaffold.write_camp(info)
+        cycle_path = scaffold.write_cycle(
+            info.camp_id, cycle_id, cycle, args.candidate, args.party, args.incumbent
+        )
+    except scaffold.ScaffoldError as exc:
+        print(f"캠프를 만들 수 없다: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"{camp_path}")
+    print(f"{cycle_path}/  (election.yaml · candidates.yaml · records/ · rejected/ · incoming/)")
+    print(f"관할 행정동 {len(codes)}개" + (f" · 프리셋 {preset}" if preset else ""))
+    if cycle.election.date is None:
+        print(
+            "[주의] 선거일이 비어 있다. "
+            "기간에 의존하는 컴플라이언스 판정이 전부 unreviewed 로 떨어진다"
+        )
+    print(f"다음: uv run votelink camp show {info.camp_id}")
+    return 0
+
+
+def cmd_camp_list(args: argparse.Namespace) -> int:
+    camps = camp.list_camps()
+    if not camps:
+        print("등록된 캠프가 없다. `uv run votelink camp new <id> ...` 로 만든다")
+        return 0
+    for camp_id in camps:
+        try:
+            info = camp.load_camp(camp_id)
+        except (camp.CampConfigError, ValidationError) as exc:
+            print(f"{camp_id:<24} [설정 오류] {exc}", file=sys.stderr)
+            continue
+        cycles = camp.list_cycles(camp_id)
+        print(f"{camp_id:<24} {info.candidate_name:<10} 주기 {len(cycles)}개")
+        for cycle_id in cycles:
+            print(f"    {cycle_id}")
+    return 0
+
+
+def cmd_camp_show(args: argparse.Namespace) -> int:
+    cycle_id = args.cycle_id
+    if cycle_id is None:
+        cycles = camp.list_cycles(args.camp_id)
+        if not cycles:
+            print(f"캠프 '{args.camp_id}' 에 선거 주기가 없다", file=sys.stderr)
+            return 1
+        cycle_id = cycles[-1]
+
+    try:
+        info = camp.load_camp(args.camp_id)
+        cycle = camp.load_cycle(args.camp_id, cycle_id)
+        roster = camp.load_roster(args.camp_id, cycle_id)
+    except (
+        camp.CampNotFound,
+        camp.CycleNotFound,
+        camp.CampConfigError,
+        FileNotFoundError,
+        ValidationError,
+    ) as exc:
+        print(f"캠프 설정을 읽을 수 없다: {exc}", file=sys.stderr)
+        return 1
+
+    e = cycle.election
+    print(f"{info.camp_id} · {info.candidate_name} (생성 {info.created_at})")
+    print(f"  주기      {cycle_id}")
+    print(f"  선거      {e.type.value} / {e.office.value} / {e.date or '미정'}")
+    print(f"  진영      {cycle.lineage.value}  ← 렌즈")
+    preset = f" (프리셋 {cycle.territory.preset})" if cycle.territory.preset else ""
+    print(f"  관할      행정동 {len(cycle.territory.emd_codes)}개{preset}")
+    print(f"  법률검토  {cycle.legal_reviewer or '미정'}")
+    print(f"  우리      {roster.ours.name} ({roster.ours.party}, {roster.ours.lineage.value})")
+    if roster.opponents:
+        for o in roster.opponents:
+            mark = " · 현역" if o.incumbent else ""
+            print(f"  상대      {o.name} ({o.party}, {o.lineage.value}{mark})")
+    else:
+        print("  상대      아직 없음 — candidates.yaml 의 opponents 를 채운다")
+    space = camp.space_for(args.camp_id, cycle_id)
+    print(f"  공간      공용 {space.root} + 캠프 {space.camp_root}")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     """로컬 웹앱(L3)을 띄운다.
 
@@ -590,6 +707,49 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
     p_analyze.set_defaults(func=cmd_analyze)
+
+    p_camp = sub.add_parser("camp", help="캠프 공간 (P-001)")
+    c_sub = p_camp.add_subparsers(dest="camp_command", required=True)
+
+    p_cnew = c_sub.add_parser("new", help="캠프와 첫 선거 주기를 만든다 (온보딩)")
+    p_cnew.add_argument("camp_id", help="캠프 id. 경로가 되므로 소문자·숫자·하이픈만")
+    p_cnew.add_argument("--candidate", required=True, help="우리 후보 이름")
+    p_cnew.add_argument("--party", required=True, help="우리 후보 정당")
+    p_cnew.add_argument(
+        "--type",
+        required=True,
+        choices=[e.value for e in ElectionType],
+        help="선거 계열. 레코드의 election_type 과 같은 값이어야 렌즈가 동작한다",
+    )
+    p_cnew.add_argument(
+        "--office", required=True, choices=[o.value for o in Office], help="노리는 직위"
+    )
+    p_cnew.add_argument(
+        "--lineage",
+        required=True,
+        choices=[c.value for c in Camp],
+        help="우리 진영. party_lineage.yaml 의 4축과 같은 값",
+    )
+    p_cnew.add_argument("--date", help="선거일 YYYY-MM-DD. 모르면 생략하고 --cycle 을 준다")
+    p_cnew.add_argument("--cycle", help="주기 이름. 생략하면 선거일+계열로 만든다")
+    p_cnew.add_argument("--preset", help="관할을 채울 선거구 id (districts.yaml)")
+    p_cnew.add_argument(
+        "--sigungu", help="관할을 채울 자치구 이름. 구청장처럼 선거구 여럿을 아울러야 할 때"
+    )
+    p_cnew.add_argument(
+        "--emd", action="append", default=[], help="관할 행정동코드 직접 지정 (반복 가능)"
+    )
+    p_cnew.add_argument("--incumbent", action="store_true", help="우리 후보가 현역인가")
+    p_cnew.add_argument("--reviewer", help="법률 검토자")
+    p_cnew.set_defaults(func=cmd_camp_new)
+
+    p_clist = c_sub.add_parser("list", help="캠프와 선거 주기 목록")
+    p_clist.set_defaults(func=cmd_camp_list)
+
+    p_cshow = c_sub.add_parser("show", help="한 주기의 설정을 확인한다 (관할 검증 포함)")
+    p_cshow.add_argument("camp_id")
+    p_cshow.add_argument("cycle_id", nargs="?", help="생략하면 가장 최근 주기")
+    p_cshow.set_defaults(func=cmd_camp_show)
 
     p_serve = sub.add_parser("serve", help="로컬 웹앱 (L3)")
     p_serve.add_argument(

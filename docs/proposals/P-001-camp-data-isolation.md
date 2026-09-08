@@ -7,8 +7,8 @@
 > 이유고, 온보딩이 관할 모델링 문제를 없애는 이유다. 나누면 각 조각의 근거가 사라진다.
 >
 > 상태: **채택 · 롤아웃 진행 중** (2026-09-08).
-> §15 롤아웃 1단계(`store.py` 경로 헬퍼화 + `DataSpace` 도입) **완료**.
-> `data/` → `data/shared/` 이전과 2단계 이후는 아직이다. §18 의 문서 갱신도 아직이다.
+> §15 롤아웃 **1단계(경로를 값으로 + `data/shared/` 이전)와 2단계(캠프 로더 + 온보딩 CLI) 완료.**
+> 3단계(렌즈를 웹에) 이후는 아직이다. §18 의 문서 갱신은 저장 경로 부분만 반영됐다.
 
 ## 1. 무엇을
 
@@ -79,7 +79,7 @@ SQLite 도입 자체가 아직 미착수이므로 여기서 결론짓지 않고 
 
 이 제안이 싼 이유가 여기 있다.
 
-`data/reference/party_lineage.yaml` 은 후보를 **진영**으로 환원해 둔다 — `conservative` ·
+`data/shared/reference/party_lineage.yaml` 은 후보를 **진영**으로 환원해 둔다 — `conservative` ·
 `progressive` · `centrist` · `other`. 그 파일이 그렇게 설계된 것은 멀티테넌시와 무관하게
 "동별 성향을 시계열로 비교하려면 공통 축이 필요해서"였다(`party_lineage.yaml:3-5`). 그런데
 그 결과로 **모든 분석이 이미 캠프 중립적**이 되어 있다.
@@ -152,7 +152,7 @@ lineage: progressive        # 우리는 이 진영이다
 | `camp_id`, 후보 이름, 생성일 | 선거 종류·직위, 관할 emd 목록, 선거일, **진영**, 법률 검토자 |
 
 구청장에 나갔다가 다음엔 시의원에 나갈 수 있고 **당적도 바뀔 수 있다**. 그래서 관할도
-진영도 주기별이다. `cycle_id` 는 `2026-06-03-local` 처럼 선거일 + 계열.
+진영도 주기별이다. `cycle_id` 는 `2026-06-03-local`·`2028-04-12-national_assembly` 처럼 **선거일 + 계약의 계열값**이다. 선거일을 모르면 유도할 수 없으므로 그때는 사람이 직접 정한다.
 
 **승계가 재계약 유인이다.** 새 주기를 만들 때 직전 주기를 복사 시작점으로 제시하면 온보딩이
 짧아지고 과거 선거와의 비교가 가능해진다. 파기도 주기 단위로 할 수 있다(§13).
@@ -167,9 +167,13 @@ created_at: 2026-09-08
 ```
 
 ```yaml
-# camps/<camp_id>/cycles/2028-04-12-assembly/election.yaml
+# camps/<camp_id>/cycles/2028-04-12-national_assembly/election.yaml
 election:
-  type: assembly              # presidential | assembly | local
+  # 계약의 ElectionType 을 그대로 쓴다 — presidential | national_assembly | local | by_election.
+  # (2026-09-08 정정: 초안은 `assembly` 라는 별칭을 썼으나 폐기했다. 레코드의
+  #  election_type 과 값이 같아야 렌즈가 voter_profile·turnout_gap 을 걸러낼 수 있고,
+  #  별칭을 하나 두는 순간 두 곳이 어긋날 자리가 생긴다.)
+  type: national_assembly
   office: national_assembly   # local 이면 metro_head | basic_head | metro_council | ...
   date: 2028-04-12            # null 이면 기간 판정이 전부 unreviewed 로 떨어진다
 
@@ -186,7 +190,7 @@ legal_reviewer: "김변호사 (○○법률사무소)"
 ```
 
 ```yaml
-# camps/<camp_id>/cycles/2028-04-12-assembly/candidates.yaml
+# camps/<camp_id>/cycles/2028-04-12-national_assembly/candidates.yaml
 #
 # **공개 출처 필드만 적는다.** 선관위 후보자정보·언론 보도로 확인 가능한 것에 한한다.
 # 사적 정보·미확인 소문은 어떤 경우에도 넣지 않는다 (docs/new_process.md — 뒷조사 금지).
@@ -228,7 +232,7 @@ data/
     rejected/<owner_id>/<YYYY-MM-DD>.jsonl
   camps/<camp_id>/
     camp.yaml                               영속 — 후보 신원
-    cycles/<cycle_id>/                      예: 2028-04-12-assembly
+    cycles/<cycle_id>/                      예: 2028-04-12-national_assembly
       election.yaml
       candidates.yaml
       compliance.review.yaml
@@ -392,7 +396,7 @@ fail-closed 는 그대로 유지한다.
 |---|---|---|
 | 1a ✅ | `store.py` 경로 헬퍼화 + `DataSpace` 도입 (2026-09-08) | 동작 변화 없음. 588 tests pass · ruff clean · 실제 데이터로 `analyze`·`serve` 확인 |
 | 1b ✅ | `data/` → `data/shared/` 이전 (2026-09-08) | 12,148 파일 · 1.06GB 이동. 파일 수·바이트 대조로 무결성 확인 |
-| 2 | `camp.yaml`/`election.yaml`/`candidates.yaml` 로더 + `votelink camp new` 온보딩 CLI | 캠프 등록이 된다 |
+| 2 ✅ | `camp.yaml`/`election.yaml`/`candidates.yaml` 로더 + `votelink camp new` 온보딩 CLI (2026-09-08) | 캠프 등록이 된다. 관할 검증이 읽기 경로에 있어 손으로 고친 파일도 잡힌다 |
 | 3 | 렌즈 — 웹에 "우리/상대" 주석 + 갱신 이력 노출 | 캠프가 자기 관점으로 본다 |
 | 4 | `compliance.yaml` 분리 | 캠프별 법률 검토가 성립한다 |
 | 5 | 인증·세션·감사 로그 (**P-002**) | 여기까지 와야 실제 운영 가능 |
