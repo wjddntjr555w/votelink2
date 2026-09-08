@@ -20,6 +20,7 @@ from votelink.collect import geo, registry, runner
 from votelink.collect.http import FetchError
 from votelink.contract.models import GEO_CODE_DIGITS, KST
 from votelink.reference import compliance, districts, emd_backfill
+from votelink.store import DataSpace
 from votelink.web import DEFAULT_HOST, DEFAULT_PORT
 from votelink.web.loader import AmbiguousDistrict, load_profiles
 from votelink.web.settings import WebSettings
@@ -81,6 +82,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     try:
         report = runner.run(
             collector,
+            space=DataSpace.default(),
             since=_parse_since(args.since),
             dry_run=args.dry_run,
             reparse=args.reparse,
@@ -154,7 +156,13 @@ def _collect_all_districts(args: argparse.Namespace) -> int:
             failures.append(did)
             continue
         try:
-            report = runner.run(collector, since=since, dry_run=args.dry_run, reparse=args.reparse)
+            report = runner.run(
+                collector,
+                space=DataSpace.default(),
+                since=since,
+                dry_run=args.dry_run,
+                reparse=args.reparse,
+            )
         except FetchError as exc:
             print(f"[{did}] 수집 실패: {exc}", file=sys.stderr)
             failures.append(did)
@@ -319,7 +327,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             "산출물을 신뢰하기 전에 테스트를 통과시키고 verified 를 올려라"
         )
     try:
-        report = analyze_runner.run(analyzer, dry_run=args.dry_run)
+        report = analyze_runner.run(analyzer, space=DataSpace.default(), dry_run=args.dry_run)
     except AnalyzeError as exc:
         # 참조 데이터 결손 같은 것은 사용자가 고칠 일이다. 트레이스백을 보여줄 이유가 없다.
         print(f"분석 실패: {exc}", file=sys.stderr)
@@ -357,7 +365,7 @@ def _analyze_all_districts(args: argparse.Namespace) -> int:
             failures.append(did)
             continue
         try:
-            report = analyze_runner.run(analyzer, dry_run=args.dry_run)
+            report = analyze_runner.run(analyzer, space=DataSpace.default(), dry_run=args.dry_run)
         except AnalyzeError as exc:
             print(f"[{did}] 분석 실패: {exc}", file=sys.stderr)
             failures.append(did)
@@ -394,7 +402,7 @@ def _analyze_all(args: argparse.Namespace) -> int:
 
     wanted_kinds = sorted({k for m in metas.values() for k in m.inputs}, key=str)
     print(f"입력 로드: {', '.join(str(k) for k in wanted_kinds)} …")
-    shared = store.load_records(wanted_kinds)
+    shared = store.load_records(wanted_kinds, space=DataSpace.default())
     by_kind: dict = {}
     for r in shared:
         by_kind.setdefault(r.kind, []).append(r)
@@ -421,7 +429,9 @@ def _analyze_all(args: argparse.Namespace) -> int:
                 failures.append(tag)
                 continue
             try:
-                report = analyze_runner.run(analyzer, dry_run=args.dry_run, records=subset)
+                report = analyze_runner.run(
+                    analyzer, space=DataSpace.default(), dry_run=args.dry_run, records=subset
+                )
             except AnalyzeError as exc:
                 print(f"[{tag}] 분석 실패: {exc}", file=sys.stderr)
                 failures.append(tag)

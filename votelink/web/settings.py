@@ -1,7 +1,7 @@
 """웹앱 설정. 전부 선택값이며, `None` 은 "해당 모듈의 기본 경로를 쓴다"는 뜻이다.
 
 경로를 주입 가능하게 두는 이유는 테스트다. 전역을 monkeypatch 하는 대신
-`create_app(WebSettings(records_root=tmp_path))` 로 임시 디렉터리를 넘긴다.
+`create_app(WebSettings(data_root=tmp_path))` 로 임시 디렉터리를 넘긴다.
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from votelink import store
+from votelink.store import DataSpace
 from votelink.web import DEFAULT_HOST, DEFAULT_PORT
 
 
@@ -23,8 +25,12 @@ class WebSettings(BaseModel):
     `/` 가 선거구 선택 화면을 띄운다 — 조용히 첫 번째를 고르지 않는다.
     """
 
-    records_root: Path | None = None
-    """`data/records/`. `None` 이면 `store.RECORDS_DIR`."""
+    data_root: Path | None = None
+    """데이터 공간의 뿌리 (`records/`·`raw/`·`rejected/` 의 부모). `None` 이면 `data/`.
+
+    `records/` 가 아니라 그 부모를 받는다 — `DataSpace` 가 세 하위 디렉터리를 함께
+    들기 때문이다 (`docs/proposals/P-001` §10).
+    """
 
     districts_path: Path | None = None
     """`data/reference/districts.yaml`."""
@@ -37,3 +43,13 @@ class WebSettings(BaseModel):
 
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
+
+    @property
+    def space(self) -> DataSpace:
+        """이 설정이 가리키는 데이터 공간. 로더가 레코드를 읽을 때 쓴다.
+
+        `store.DATA_DIR` 을 import 로 당겨오지 않고 매번 모듈에서 읽는다 — `from ...
+        import DATA_DIR` 은 이름을 복사하므로 테스트의 monkeypatch 가 먹지 않는다
+        (루트 `conftest.py` 가 기록한 함정과 같은 것).
+        """
+        return DataSpace(self.data_root or store.DATA_DIR)

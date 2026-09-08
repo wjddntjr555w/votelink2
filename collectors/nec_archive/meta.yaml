@@ -28,6 +28,13 @@ proposal: docs/proposals/C-004-nec-archive-presidential.md
 #
 # 결측 1건은 정직하게 비워 둔다 — 2002년은 시도 열이 없어 서울시를 만들 수 없다.
 # confidence 는 그래서 8회 전부 0.7 (voter_profile 이 4단계 완비를 요구한다).
+#
+# 2026-09-07 (D-006): sigungu 기준선 geo_code 를 District.primary_sigungu_code
+# (admmCd 앞 5자리)로 통일했다 — 앞 4자리로 자르던 옛 로직은 광진(11215)·강북
+# (11305)·금천(11545)에서 존재하지 않는 절단 코드를 냈다(그동안 voter_profile 이
+# geo_code 를 안 보고 있어 드러나지 않았다). --all-districts --reparse 로 재생성:
+# 48/48 선거구, 격리 0, 저장 4125 그대로, sigungu 코드 25개 전부 실제 자치구와
+# 일치. 송파구(11710)는 두 규칙이 같아 값 불변(회귀 없음).
 verified: true
 
 config:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from votelink import cli, store
+from votelink import cli
 from votelink.collect import geo
 
 
@@ -79,7 +79,8 @@ def test_serve_honours_host_and_port(monkeypatch):
 def test_serve_warns_but_still_starts_with_no_records(monkeypatch, tmp_path, capsys):
     """서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 경고하고 띄운다."""
     monkeypatch.setattr("uvicorn.run", lambda app, **kw: None)
-    monkeypatch.setattr(store, "RECORDS_DIR", tmp_path / "없다")
+    # 레코드가 없는 상태는 루트 conftest 의 autouse 픽스처가 이미 만들어 준다
+    # (`store.DATA_DIR` 이 빈 임시 경로를 가리킨다).
 
     assert cli.main(["serve"]) == 0
     assert "분석 결과가 0건" in capsys.readouterr().out
@@ -217,7 +218,7 @@ def test_analyze_all_districts_runs_every_registered_block(monkeypatch, capsys):
             super().__init__(meta=meta or ameta)
             self.district_id = district_id
 
-        def load(self) -> list[Record]:
+        def load(self, space) -> list[Record]:
             return [make_record(1)]
 
         def compute(self, records: list[Record]) -> Iterator[Record | Rejected]:
@@ -270,7 +271,7 @@ def test_analyze_all_runs_every_analyzer_over_its_districts(monkeypatch, capsys)
             super().__init__(meta=meta)
             self.district_id = district_id
 
-        def load(self) -> list[Record]:
+        def load(self, space) -> list[Record]:
             raise AssertionError("--all 은 records= 로 입력을 주입한다")
 
         def compute(self, records: list[Record]) -> Iterator[Record | Rejected]:

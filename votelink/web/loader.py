@@ -208,7 +208,7 @@ def load_profiles(
     district = pick_district(settings, district_id)
     codes = set(district.emd_codes)
     profiles, counters = _dedup_newest(
-        iter_records([RecordKind.SEGMENT_PROFILE], root=settings.records_root),
+        iter_records([RecordKind.SEGMENT_PROFILE], space=settings.space),
         election_type=election_type,
         within=district.contains,
     )
@@ -266,7 +266,7 @@ def load_all_emd(
     settings: WebSettings, *, election_type: ElectionType = DEFAULT_ELECTION_TYPE
 ) -> NationProfiles:
     profiles, counters = _dedup_newest(
-        iter_records([RecordKind.SEGMENT_PROFILE], root=settings.records_root),
+        iter_records([RecordKind.SEGMENT_PROFILE], space=settings.space),
         election_type=election_type,
         within=lambda _code: True,  # 전국: 선거구 소속 필터를 의도적으로 건너뛴다
     )
@@ -330,7 +330,7 @@ def load_news(settings: WebSettings, district_id: str | None = None) -> District
     district = pick_district(settings, district_id)
     wanted = _sigungu_codes(district)
 
-    total = count_records([RecordKind.NEWS_ARTICLE], root=settings.records_root)
+    total = count_records([RecordKind.NEWS_ARTICLE], space=settings.space)
     rejected = duplicate = 0
     seen: set[str] = set()
     items: list[NewsItem] = []
@@ -338,9 +338,7 @@ def load_news(settings: WebSettings, district_id: str | None = None) -> District
     # geo 필터를 iter_records 로 밀어 넣는다 — 관심 밖 시군구 기사를 Record 로
     # 만들기 전에 부분문자열로 쳐낸다 (naver_news.jsonl 은 수만 줄이다). 남는
     # 것만 여기서 계약 검증한다.
-    for record in iter_records(
-        [RecordKind.NEWS_ARTICLE], geo_codes=wanted, root=settings.records_root
-    ):
+    for record in iter_records([RecordKind.NEWS_ARTICLE], geo_codes=wanted, space=settings.space):
         if record.record_id in seen:
             duplicate += 1
             continue
@@ -385,7 +383,7 @@ def load_news_pulse(settings: WebSettings, district_id: str | None = None) -> Ne
     wanted = _sigungu_codes(district)
 
     best: NewsPulse | None = None
-    for record in iter_records([RecordKind.NEWS_PULSE], root=settings.records_root):
+    for record in iter_records([RecordKind.NEWS_PULSE], space=settings.space):
         if record.geo_code not in wanted:
             continue
         try:
@@ -414,7 +412,7 @@ def load_local_issue(settings: WebSettings, district_id: str | None = None) -> L
     wanted = _sigungu_codes(district)
 
     best: LocalIssue | None = None
-    for record in iter_records([RecordKind.LOCAL_ISSUE], root=settings.records_root):
+    for record in iter_records([RecordKind.LOCAL_ISSUE], space=settings.space):
         if record.geo_code not in wanted:
             continue
         try:

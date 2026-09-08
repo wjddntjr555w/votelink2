@@ -77,13 +77,13 @@ class BaseAnalyzer(ABC):
 
     # --- load -----------------------------------------------------------------
 
-    def load(self) -> list[Record]:
+    def load(self, space: store.DataSpace) -> list[Record]:
         """입력 레코드를 읽는다. **디스크만 본다. 네트워크 금지.**
 
         자기 출력 파일은 제외한다 — 분석기가 자기 결론을 입력으로 다시 먹으면
         재실행할 때마다 결과가 흘러간다.
         """
-        return store.load_records(self.meta.inputs, exclude_owners=[self.id])
+        return store.load_records(self.meta.inputs, space=space, exclude_owners=[self.id])
 
     # --- compute --------------------------------------------------------------
 

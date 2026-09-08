@@ -16,6 +16,7 @@ from tests.test_web_loader import CODES, profile_record, write_districts
 from votelink import store
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
+from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.settings import WebSettings
 
@@ -51,13 +52,13 @@ def fresh_caches():
 def build(tmp_path, policy: str = POLICY_CLEARED, *, records=True) -> TestClient:
     if records:
         store.append_records(
-            "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
+            "voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path)
         )
     policy_path = tmp_path / "compliance.yaml"
     policy_path.write_text(policy, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path),
-        records_root=tmp_path / "records",
+        data_root=tmp_path,
         policy_path=policy_path,
         boundaries_path=tmp_path / "없다.geojson",
     )
@@ -122,14 +123,14 @@ def test_dashboard_shows_loaded_over_expected(tmp_path):
 
 
 def test_missing_dong_is_called_out(tmp_path):
-    store.append_records("voter_profile", [profile_record(CODES[0])], root=tmp_path / "records")
+    store.append_records("voter_profile", [profile_record(CODES[0])], DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
     policy_path.write_text(POLICY_CLEARED, encoding="utf-8")
     client = TestClient(
         create_app(
             WebSettings(
                 districts_path=write_districts(tmp_path),
-                records_root=tmp_path / "records",
+                data_root=tmp_path,
                 policy_path=policy_path,
                 boundaries_path=tmp_path / "없다.geojson",
             )
@@ -271,14 +272,12 @@ TWO_DISTRICTS_EXTRA = (
 
 
 def build_two(tmp_path) -> TestClient:
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
-    )
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
     policy_path.write_text(POLICY_CLEARED, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path, extra=TWO_DISTRICTS_EXTRA),
-        records_root=tmp_path / "records",
+        data_root=tmp_path,
         policy_path=policy_path,
         boundaries_path=tmp_path / "없다.geojson",
     )
@@ -318,12 +317,12 @@ def test_unknown_district_shows_what_to_fix(tmp_path):
 
 def test_missing_policy_file_shows_what_to_fix(tmp_path):
     """규칙 5를 집행할 근거가 없으면 조용히 통과시키지 않는다."""
-    store.append_records("voter_profile", [profile_record(CODES[0])], root=tmp_path / "records")
+    store.append_records("voter_profile", [profile_record(CODES[0])], DataSpace(tmp_path))
     client = TestClient(
         create_app(
             WebSettings(
                 districts_path=write_districts(tmp_path),
-                records_root=tmp_path / "records",
+                data_root=tmp_path,
                 policy_path=tmp_path / "없다.yaml",
                 boundaries_path=tmp_path / "없다.geojson",
             )

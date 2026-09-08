@@ -5,9 +5,12 @@
 `votelink/collect/storage.py` 는 raw(수집 원본) 전용으로 남고 이 함수들을 재수출한다.
 
 ```
-data/records/   계약을 통과한 공통 레코드 (JSONL). 원천도 파생도 같은 형식
-data/rejected/  계약을 위반해 격리된 항목 (사유 포함)
+<space>/records/   계약을 통과한 공통 레코드 (JSONL). 원천도 파생도 같은 형식
+<space>/rejected/  계약을 위반해 격리된 항목 (사유 포함)
+<space>/raw/       fetch 원본 (votelink/collect/storage.py 가 다룬다). 불변
 ```
+
+**경로는 모듈 상수가 아니라 `DataSpace` 값이다** (`docs/proposals/P-001` §10).
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import json
 import logging
 import mmap
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -25,24 +29,79 @@ from votelink.contract.models import KST, Record, Rejected, load_record
 log = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
-RECORDS_DIR = DATA_DIR / "records"
-REJECTED_DIR = DATA_DIR / "rejected"
 
 
-def _day(dt: datetime) -> str:
+@dataclass(frozen=True)
+class DataSpace:
+    """레코드를 어디서 읽고 어디에 쓰는가.
+
+    **모든 입출력이 이 값을 인자로 받는다. 기본값이 없으므로 빠뜨리면 `TypeError` 다.**
+    경로를 모듈 상수로 두면 두 가지가 깨진다 (`docs/proposals/P-001` §10):
+
+    1. 모듈 전역은 요청별 상태를 담을 수 없다. 캠프 A 와 캠프 B 의 동시 요청이
+       같은 상수를 두고 경쟁한다.
+    2. `glob` 이 디렉터리 전체를 훑으므로, 한 트리에 여러 캠프가 있으면 전 캠프 스캔이
+       된다. "어느 공간인가"를 말하지 않고 읽을 방법이 아예 없어야 한다.
+
+    `camp_root` 는 아직 아무도 채우지 않는다 — P-002(인증·캠프 승인)가 캠프 공간을
+    만들면서 채운다. 읽기는 그때 두 루트를 합치고, 쓰기는 `meta.yaml` 의 `scope` 가
+    목적지를 정한다. 지금 있는 데이터는 전부 공용이다 (`P-001` §3).
+    """
+
+    root: Path
+    camp_root: Path | None = None
+
+    @classmethod
+    def default(cls) -> DataSpace:
+        """저장소 기본 공간. CLI 진입점이 쓴다."""
+        return cls(DATA_DIR)
+
+    @property
+    def records(self) -> Path:
+        return self.root / "records"
+
+    @property
+    def rejected(self) -> Path:
+        return self.root / "rejected"
+
+    @property
+    def raw(self) -> Path:
+        return self.root / "raw"
+
+    def record_file(self, owner_id: str) -> Path:
+        """`<space>/records/<owner_id>.jsonl`. owner_id 는 수집기 id 이거나 분석기 id 다."""
+        return self.records / f"{owner_id}.jsonl"
+
+    def rejected_file(self, owner_id: str, when: datetime) -> Path:
+        return self.rejected / owner_id / f"{day(when)}.jsonl"
+
+    def record_files(self) -> list[Path]:
+        """읽을 레코드 파일 전부. 공용 먼저, 캠프 전용 나중.
+
+        `glob` 을 이 메서드 안에만 둔다 — 바깥에서 디렉터리를 직접 훑기 시작하면
+        위 docstring 의 2번이 되살아난다.
+        """
+        roots = (
+            [self.records] if self.camp_root is None else [self.records, self.camp_root / "records"]
+        )
+        return [p for base in roots if base.exists() for p in sorted(base.glob("*.jsonl"))]
+
+
+def day(dt: datetime) -> str:
+    """KST 기준 날짜. raw·rejected 의 일자 파티션이 이걸 쓴다."""
     return dt.astimezone(KST).strftime("%Y-%m-%d")
 
 
 # --- 쓰기 -----------------------------------------------------------------------
 
 
-def append_records(owner_id: str, records: list[Record], root: Path | None = None) -> Path:
-    """`data/records/<owner_id>.jsonl` 에 덧붙인다.
+def append_records(owner_id: str, records: list[Record], space: DataSpace) -> Path:
+    """`<space>/records/<owner_id>.jsonl` 에 덧붙인다.
 
     owner_id 는 수집기 id 이거나 분석기 id 다. 파생 레코드도 원천과 같은 계약을
     쓰므로 파일 형식이 같다.
     """
-    target = (root or RECORDS_DIR) / f"{owner_id}.jsonl"
+    target = space.record_file(owner_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a", encoding="utf-8") as fh:
         for record in records:
@@ -50,9 +109,9 @@ def append_records(owner_id: str, records: list[Record], root: Path | None = Non
     return target
 
 
-def existing_record_ids(owner_id: str, root: Path | None = None) -> set[str]:
+def existing_record_ids(owner_id: str, space: DataSpace) -> set[str]:
     """이미 저장된 record_id. 재실행 시 중복 저장을 막는다."""
-    target = (root or RECORDS_DIR) / f"{owner_id}.jsonl"
+    target = space.record_file(owner_id)
     if not target.exists():
         return set()
     ids: set[str] = set()
@@ -63,9 +122,7 @@ def existing_record_ids(owner_id: str, root: Path | None = None) -> set[str]:
     return ids
 
 
-def upsert_records(
-    owner_id: str, records: list[Record], root: Path | None = None
-) -> tuple[int, int]:
+def upsert_records(owner_id: str, records: list[Record], space: DataSpace) -> tuple[int, int]:
     """같은 `record_id` 는 새 값으로 교체하고 나머지 줄은 보존한다. (교체수, 신규수).
 
     **분석기용이다.** 수집기는 원본이 불변이라 append 로 충분하지만, 분석 결과는
@@ -75,7 +132,7 @@ def upsert_records(
 
     다른 `as_of` 의 과거 분석은 record_id 가 다르므로 그대로 남는다.
     """
-    target = (root or RECORDS_DIR) / f"{owner_id}.jsonl"
+    target = space.record_file(owner_id)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     incoming = {r.record_id: r for r in records}
@@ -102,10 +159,8 @@ def upsert_records(
     return replaced, len(records) - replaced
 
 
-def append_rejected(
-    owner_id: str, items: list[Rejected], when: datetime, root: Path | None = None
-) -> Path:
-    target = (root or REJECTED_DIR) / owner_id / f"{_day(when)}.jsonl"
+def append_rejected(owner_id: str, items: list[Rejected], when: datetime, space: DataSpace) -> Path:
+    target = space.rejected_file(owner_id, when)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a", encoding="utf-8") as fh:
         for item in items:
@@ -145,7 +200,7 @@ def _file_may_contain(path: Path, markers: tuple[str, ...]) -> bool:
         return any(blob.find(n) != -1 for n in needles)
 
 
-def count_records(kinds: Iterable[RecordKind], *, root: Path | None = None) -> int:
+def count_records(kinds: Iterable[RecordKind], *, space: DataSpace) -> int:
     """해당 kind 레코드의 총 건수. mmap 부분문자열 카운트라 `json.loads` 를 하지 않는다.
 
     로더가 "전체 N건 중 M건 표시" 진단을 그리려면 코퍼스 전체 크기를 알아야 하는데,
@@ -153,12 +208,9 @@ def count_records(kinds: Iterable[RecordKind], *, root: Path | None = None) -> i
     한 줄 = 한 레코드이므로 마커 카운트가 곧 건수다 (거짓 양성은 자유 텍스트에
     `"kind":"<value>"` 형태가 그대로 나와야 해서 사실상 0).
     """
-    base = root or RECORDS_DIR
-    if not base.exists():
-        return 0
     needles = [m.encode() for m in _kind_markers(set(kinds))]
     total = 0
-    for path in sorted(base.glob("*.jsonl")):
+    for path in space.record_files():
         blob = path.read_bytes()
         total += sum(blob.count(n) for n in needles)
     return total
@@ -167,9 +219,9 @@ def count_records(kinds: Iterable[RecordKind], *, root: Path | None = None) -> i
 def iter_records(
     kinds: Iterable[RecordKind] | None = None,
     *,
+    space: DataSpace,
     geo_codes: Iterable[str] | None = None,
     exclude_owners: Iterable[str] = (),
-    root: Path | None = None,
 ) -> Iterator[Record]:
     """저장된 레코드를 읽는다. 분석기의 입력 경로다.
 
@@ -184,16 +236,13 @@ def iter_records(
     exclude_owners: 읽지 않을 파일(=수집기·분석기 id). 분석기가 자기 출력을 다시
     입력으로 먹는 것을 막는다.
     """
-    base = root or RECORDS_DIR
-    if not base.exists():
-        return
     wanted = set(kinds) if kinds is not None else None
     markers = _kind_markers(wanted) if wanted is not None else None
     geo_wanted = set(geo_codes) if geo_codes is not None else None
     geo_markers = tuple(f'"geo_code":"{c}"' for c in geo_wanted) if geo_wanted is not None else None
     skip = set(exclude_owners)
 
-    for path in sorted(base.glob("*.jsonl")):
+    for path in space.record_files():
         if path.stem in skip:
             continue
         # 원하는 kind 가 파일 어디에도 없으면 줄 단위로 열지 않는다.
@@ -225,9 +274,9 @@ def iter_records(
 def load_records(
     kinds: Iterable[RecordKind] | None = None,
     *,
+    space: DataSpace,
     exclude_owners: Iterable[str] = (),
-    root: Path | None = None,
 ) -> list[Record]:
     """iter_records 의 리스트 판. 분석기는 보통 전량을 메모리에 올린다
     (읍면동 단위 집계라 규모가 작다)."""
-    return list(iter_records(kinds, exclude_owners=exclude_owners, root=root))
+    return list(iter_records(kinds, space=space, exclude_owners=exclude_owners))

@@ -17,6 +17,7 @@ from datetime import datetime
 from votelink import store
 from votelink.analyze.base import AnalyzeError, BaseAnalyzer
 from votelink.contract.models import KST, Record, Rejected
+from votelink.store import DataSpace
 
 log = logging.getLogger(__name__)
 
@@ -57,11 +58,13 @@ class AnalysisReport:
 def run(
     analyzer: BaseAnalyzer,
     *,
+    space: DataSpace,
     dry_run: bool = False,
     records: list[Record] | None = None,
 ) -> AnalysisReport:
     """분석 1회 실행.
 
+    space: 어느 데이터 공간에 읽고 쓰는가. 기본값을 두지 않는다 (`P-001` §10)
     dry_run: 아무것도 저장하지 않고 계약 검증만 한다
     records: 주어지면 `analyzer.load()` 대신 이 리스트를 입력으로 쓴다. `analyze --all`
         이 같은 kind 를 분석기·선거구 조합마다 다시 읽지 않도록 한 번 읽어 공유하는
@@ -69,7 +72,7 @@ def run(
     """
     report = AnalysisReport(analyzer_id=analyzer.id, started_at=datetime.now(KST))
 
-    records = analyzer.load() if records is None else records
+    records = analyzer.load(space) if records is None else records
     report.inputs = len(records)
 
     # 입력 0건은 성공이 아니라 실패다. 조용히 0건을 내면 '분석이 돌았는데 결과가
@@ -111,8 +114,8 @@ def run(
 
     if not dry_run:
         if rejected:
-            store.append_rejected(analyzer.id, rejected, report.started_at)
+            store.append_rejected(analyzer.id, rejected, report.started_at, space)
         if accepted and not report.failed:
-            report.replaced, report.added = store.upsert_records(analyzer.id, accepted)
+            report.replaced, report.added = store.upsert_records(analyzer.id, accepted, space)
 
     return report

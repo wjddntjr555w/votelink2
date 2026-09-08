@@ -113,6 +113,30 @@ def test_sigungu_codes_span_two_sigungu_when_district_does():
     ]
 
 
+def test_primary_sigungu_code_uses_same_five_digit_rule_as_sigungu_codes():
+    """nec_archive 기준선과 voter_profile 대조가 공유하는 단일 자치구 코드(D-006).
+
+    sigungu_codes 와 같은 5자리 규칙이라야 한다 — 4자리는 광진·강북·금천에서
+    틀리고, 그 경우 voter_profile 이 자기 자치구 기준선을 못 찾아 gap_sigungu 가
+    None 으로 떨어진다.
+    """
+    assert resolve_district("seoul_gwangjin_gap").primary_sigungu_code == "1121500000"
+    assert resolve_district("seoul_gangbuk_eul").primary_sigungu_code == "1130500000"
+    assert resolve_district("seoul_geumcheon").primary_sigungu_code == "1154500000"
+    # 송파(11710)는 [:4] 와 [:5] 가 같아 값이 안 바뀐다 — 송파갑 검증 회귀 방지.
+    assert resolve_district("seoul_songpa_gap").primary_sigungu_code == "1171000000"
+
+
+def test_primary_sigungu_code_picks_dominant_sigungu_when_district_spans_two():
+    """중구성동구 을은 중구 15동 + 성동구 4동 — 더 많은 중구(1114)를 쓴다.
+
+    sigungu_codes 는 둘 다 주지만, 기준선은 하나여야 하므로 다수 자치구로 좁힌다
+    (nec_archive._baseline_geo 와 같은 선택).
+    """
+    assert resolve_district("seoul_jung_seongdong_eul").primary_sigungu_code == "1114000000"
+    assert resolve_district("seoul_jung_seongdong_gap").primary_sigungu_code == "1120000000"
+
+
 # --- 모델 규칙 -----------------------------------------------------------------
 
 

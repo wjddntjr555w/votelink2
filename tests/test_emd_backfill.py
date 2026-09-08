@@ -14,6 +14,7 @@ from votelink.collect.storage import write_raw
 from votelink.contract.enums import Sex
 from votelink.reference import districts as districts_mod
 from votelink.reference import emd_backfill
+from votelink.store import DataSpace
 
 AGE_STARTS = (0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
 
@@ -42,7 +43,7 @@ def make_row(sido: str, sigungu: str, dong: str, admm_code: str) -> dict:
 def write_raw_batch(root, rows: list[dict], batch_key: str = "batch") -> None:
     body = {"Response": {"items": {"item": rows}}}
     batch = RawBatch(collector_id="mois_population", body=body, batch_key=batch_key)
-    write_raw(batch, root=root)
+    write_raw(batch, DataSpace(root.parent))
 
 
 def write_districts_yaml(path, body: str) -> None:
@@ -70,7 +71,7 @@ def test_fills_exact_name_match(tmp_path):
         '      - { name: "청운효자동", code: null }\n',
     )
 
-    report = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    report = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
 
     assert report.ok
     assert report.filled == [("seoul_jongno", "청운효자동", "1111051500")]
@@ -102,7 +103,7 @@ def test_name_mismatch_reports_instead_of_guessing(tmp_path):
         '      - { name: "창신제1동", code: null }\n',
     )
 
-    report = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    report = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
 
     assert not report.filled
     assert report.unmatched_yaml == [("seoul_jongno", "창신제1동")]
@@ -129,9 +130,9 @@ def test_rerun_is_idempotent(tmp_path):
         '      - { name: "청운효자동", code: null }\n',
     )
 
-    first = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    first = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
     text_after_first = yaml_path.read_text(encoding="utf-8")
-    second = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    second = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
 
     assert first.filled
     assert not second.filled
@@ -156,7 +157,9 @@ def test_dry_run_does_not_write(tmp_path):
         '      - { name: "청운효자동", code: null }\n',
     )
 
-    report = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root, dry_run=True)
+    report = emd_backfill.backfill(
+        districts_path=yaml_path, space=DataSpace(tmp_path), dry_run=True
+    )
 
     assert report.filled == [("seoul_jongno", "청운효자동", "1111051500")]
     assert "code: null" in yaml_path.read_text(encoding="utf-8")
@@ -189,7 +192,7 @@ def test_conflicting_admm_code_within_district_is_skipped(tmp_path):
         '      - { name: "사직동", code: null }\n',
     )
 
-    report = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    report = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
 
     assert len(report.filled) == 1
     assert report.conflicts
@@ -225,7 +228,7 @@ def test_district_id_scopes_to_one_district(tmp_path):
     )
 
     report = emd_backfill.backfill(
-        districts_path=yaml_path, raw_root=raw_root, district_id="seoul_jongno"
+        districts_path=yaml_path, space=DataSpace(tmp_path), district_id="seoul_jongno"
     )
 
     assert report.filled == [("seoul_jongno", "청운효자동", "1111051500")]
@@ -234,7 +237,6 @@ def test_district_id_scopes_to_one_district(tmp_path):
 
 
 def test_unknown_district_id_raises(tmp_path):
-    raw_root = tmp_path / "raw"
     yaml_path = tmp_path / "districts.yaml"
     write_districts_yaml(
         yaml_path,
@@ -248,12 +250,14 @@ def test_unknown_district_id_raises(tmp_path):
     )
 
     with pytest.raises(districts_mod.DistrictNotFound):
-        emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root, district_id="nope")
+        emd_backfill.backfill(
+            districts_path=yaml_path, space=DataSpace(tmp_path), district_id="nope"
+        )
 
 
 def test_missing_raw_sigungu_does_not_pollute_unmatched_yaml(tmp_path):
     """raw 가 아예 없는 자치구는 missing_raw_sigungu 로만 드러난다 (이름 불일치 아님)."""
-    raw_root = tmp_path / "raw"  # 만들지 않는다 — 이 자치구로는 collect 를 한 번도 안 돌렸다
+    # raw 를 아예 만들지 않는다 — 이 자치구로는 collect 를 한 번도 안 돌렸다는 뜻이다.
     yaml_path = tmp_path / "districts.yaml"
     write_districts_yaml(
         yaml_path,
@@ -267,7 +271,7 @@ def test_missing_raw_sigungu_does_not_pollute_unmatched_yaml(tmp_path):
         '      - { name: "사직동", code: null }\n',
     )
 
-    report = emd_backfill.backfill(districts_path=yaml_path, raw_root=raw_root)
+    report = emd_backfill.backfill(districts_path=yaml_path, space=DataSpace(tmp_path))
 
     assert not report.filled
     assert not report.unmatched_yaml

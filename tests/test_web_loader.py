@@ -15,6 +15,7 @@ from tests.conftest import make_record
 from votelink import store
 from votelink.contract.enums import AgeBand, ElectionType
 from votelink.reference import districts as districts_mod
+from votelink.store import DataSpace
 from votelink.web.loader import (
     AmbiguousDistrict,
     load_all_emd,
@@ -92,7 +93,7 @@ def profile_record(code: str, as_of: str = "2024-12", *, election_type: str = "p
 def settings_for(tmp_path, **over) -> WebSettings:
     base = {
         "districts_path": write_districts(tmp_path),
-        "records_root": tmp_path / "records",
+        "data_root": tmp_path,
     }
     base.update(over)
     return WebSettings(**base)
@@ -106,7 +107,7 @@ def test_records_outside_the_district_are_ignored(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0]), profile_record(OUTSIDE)],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_profiles(settings_for(tmp_path))
 
@@ -120,9 +121,8 @@ def test_other_kinds_in_the_same_directory_do_not_leak(tmp_path):
 
     이름을 블랙리스트에 굽지 않고 kind 로 거르기 때문이다.
     """
-    root = tmp_path / "records"
-    store.append_records("voter_profile", [profile_record(CODES[0])], root=root)
-    store.append_records("fake_collector", [make_record(i) for i in range(5)], root=root)
+    store.append_records("voter_profile", [profile_record(CODES[0])], DataSpace(tmp_path))
+    store.append_records("fake_collector", [make_record(i) for i in range(5)], DataSpace(tmp_path))
 
     result = load_profiles(settings_for(tmp_path))
     assert result.diagnostics.read == 1  # news_article 은 세지도 않는다
@@ -140,7 +140,7 @@ def test_only_the_newest_as_of_survives(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0], "2024-12"), profile_record(CODES[0], "2025-03")],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_profiles(settings_for(tmp_path))
 
@@ -154,7 +154,7 @@ def test_older_as_of_arriving_first_still_loses(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0], "2025-03"), profile_record(CODES[0], "2024-12")],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_profiles(settings_for(tmp_path))
     assert result.profiles[0].payload.as_of == "2025-03"
@@ -165,7 +165,7 @@ def test_older_as_of_arriving_first_still_loses(tmp_path):
 
 def test_missing_dongs_are_reported(tmp_path):
     """'9 / 9' 의 오른쪽은 선거구 정의에서 온다. 왼쪽만 보여주면 결측이 안 보인다."""
-    store.append_records("voter_profile", [profile_record(CODES[0])], root=tmp_path / "records")
+    store.append_records("voter_profile", [profile_record(CODES[0])], DataSpace(tmp_path))
     diag = load_profiles(settings_for(tmp_path)).diagnostics
 
     assert diag.loaded == 1
@@ -175,9 +175,7 @@ def test_missing_dongs_are_reported(tmp_path):
 
 
 def test_complete_coverage_is_reported(tmp_path):
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
-    )
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
     diag = load_profiles(settings_for(tmp_path)).diagnostics
     assert diag.is_complete
     assert diag.missing_codes == []
@@ -185,7 +183,7 @@ def test_complete_coverage_is_reported(tmp_path):
 
 def test_no_records_directory_is_not_a_crash(tmp_path):
     """서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 빈 결과를 돌려준다."""
-    result = load_profiles(settings_for(tmp_path, records_root=tmp_path / "없다"))
+    result = load_profiles(settings_for(tmp_path, data_root=tmp_path / "없다"))
     assert result.profiles == []
     assert result.diagnostics.loaded == 0
     assert result.diagnostics.expected == 3  # 무엇이 있어야 하는지는 여전히 안다
@@ -209,7 +207,7 @@ def test_two_districts_without_a_choice_is_an_error(tmp_path):
         '      - {name: 딴동, code: "1171057000"}\n'
     )
     path = write_districts(tmp_path, extra=extra)
-    settings = WebSettings(districts_path=path, records_root=tmp_path / "records")
+    settings = WebSettings(districts_path=path, data_root=tmp_path)
     with pytest.raises(AmbiguousDistrict, match="--district"):
         load_profiles(settings)
 
@@ -230,7 +228,7 @@ def test_other_election_types_are_filtered_and_counted(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0]), profile_record(CODES[0], election_type="national_assembly")],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_profiles(settings_for(tmp_path))  # 기본 = presidential
     assert [p.payload.election_type for p in result.profiles] == [ElectionType.PRESIDENTIAL]
@@ -238,9 +236,7 @@ def test_other_election_types_are_filtered_and_counted(tmp_path):
 
 
 def test_requesting_a_type_with_no_data_returns_empty(tmp_path):
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
-    )
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
     result = load_profiles(settings_for(tmp_path), election_type=ElectionType.NATIONAL_ASSEMBLY)
     assert result.profiles == []
     assert result.diagnostics.other_election_type == len(CODES)
@@ -260,10 +256,8 @@ def test_comparison_splits_loaded_from_skipped(tmp_path):
         '      - {name: 딴동, code: "1171057000"}\n'
     )
     path = write_districts(tmp_path, extra=extra)
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
-    )
-    settings = WebSettings(districts_path=path, records_root=tmp_path / "records")
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
+    settings = WebSettings(districts_path=path, data_root=tmp_path)
 
     comp = load_comparison(settings)
     assert [dp.district.id for dp in comp.rows] == ["test_gap"]
@@ -281,10 +275,8 @@ def test_comparison_pending_district_says_so(tmp_path):
         "      - {name: 미확정동, code: null}\n"
     )
     path = write_districts(tmp_path, extra=extra)
-    store.append_records(
-        "voter_profile", [profile_record(c) for c in CODES], root=tmp_path / "records"
-    )
-    comp = load_comparison(WebSettings(districts_path=path, records_root=tmp_path / "records"))
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
+    comp = load_comparison(WebSettings(districts_path=path, data_root=tmp_path))
     skip = next(s for s in comp.skipped if s.district_id == "test_pending")
     assert "행정동코드" in skip.reason
 
@@ -297,7 +289,7 @@ def test_all_emd_bypasses_the_district_filter(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0]), profile_record(OUTSIDE)],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_all_emd(settings_for(tmp_path))
     assert {p.geo_code for p in result.profiles} == {CODES[0], OUTSIDE}
@@ -308,7 +300,7 @@ def test_all_emd_keeps_only_newest_as_of(tmp_path):
     store.append_records(
         "voter_profile",
         [profile_record(CODES[0], "2024-12"), profile_record(CODES[0], "2025-03")],
-        root=tmp_path / "records",
+        DataSpace(tmp_path),
     )
     result = load_all_emd(settings_for(tmp_path))
     assert len(result.profiles) == 1
@@ -318,11 +310,11 @@ def test_all_emd_keeps_only_newest_as_of(tmp_path):
 
 def test_loading_does_not_write_anything(tmp_path):
     """L3는 쓰지 않는다. 웹앱이 데이터를 만들면 derived_from 추적이 끊긴다."""
-    root = tmp_path / "records"
-    store.append_records("voter_profile", [profile_record(c) for c in CODES], root=root)
-    before = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in root.rglob("*")}
+    space = DataSpace(tmp_path)
+    store.append_records("voter_profile", [profile_record(c) for c in CODES], space)
+    before = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in space.records.rglob("*")}
 
     load_profiles(settings_for(tmp_path))
 
-    after = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in root.rglob("*")}
+    after = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in space.records.rglob("*")}
     assert before == after

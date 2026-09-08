@@ -13,10 +13,10 @@
 > 확인됐으므로 직접 기록했다(§제약과 위험에 한계로 남김). 전역 code 425개 전부 유니크,
 > `uv run pytest` 통과.
 >
-> **후속으로 남은 것 (이번 범위 아님):** `nec_archive`/`voter_profile` 의 `meta.yaml`
-> 은 아직 `seoul_songpa_gap` 하나만 `districts:` 에 등록돼 있다 — 이 47개 선거구에서
-> 실제로 개표결과·인구 조인이 되려면 그 두 수집기/분석기도 47개 선거구 설정을
-> 넓혀야 한다.
+> **후속 (해결됨):** `nec_archive`·`nec_archive_assembly`·`voter_profile` 의
+> `meta.yaml` `districts:` 는 D-002(`457c847`)·D-004(`06f9bab`) 에서 서울 48개
+> 선거구로 넓혔고, 후보→진영 매핑도 D-005 에서 채웠다. 그 확장이 도입한 sigungu
+> 기준선 오염 버그의 수정과 48개 선거구 산출물 실측 검증은 **D-006** 에 있다.
 
 ## 무엇을
 

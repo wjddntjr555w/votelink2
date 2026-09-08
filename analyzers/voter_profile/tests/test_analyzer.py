@@ -118,6 +118,48 @@ def election_record(
     )
 
 
+def baseline_election_record(
+    geo_level: str,
+    geo_code: str | None,
+    date: str,
+    conservative_pct: float,
+    *,
+    etype: str = "presidential",
+) -> Record:
+    """상위 단위(sigungu/sido/nation) 합계 레코드.
+
+    emd 개표 레코드와 payload 구조가 같고 geo_level 만 다르다 — 분석기는 geo_level
+    로만 분기한다(nec_archive._to_baseline_record 와 동일한 모양).
+    """
+    con = round(conservative_pct * 10)
+    return Record(
+        kind=RecordKind.ELECTION_RESULT,
+        collector_id="fake_archive",
+        source_name="시험",
+        source_license="public_open",
+        observed_at=datetime.fromisoformat(f"{date}T00:00:00+09:00"),
+        observed_precision="day",
+        geo_level=geo_level,
+        geo_code=geo_code,
+        geo_name=None if geo_code is None else "기준선",
+        confidence=1.0,
+        payload={
+            "election_id": f"{date}-{etype}",
+            "election_type": etype,
+            "district_name": "기준선",
+            "precinct": None,
+            "eligible_voters": 1500,
+            "total_votes": 1010,
+            "invalid_votes": 10,
+            "results": [
+                {"party": "가", "candidate": "보수후보", "votes": con},
+                {"party": "나", "candidate": "진보후보", "votes": 1000 - con},
+            ],
+        },
+        natural_key=f"{date}|baseline|{geo_level}|{geo_code or 'nation'}",
+    )
+
+
 def population_record(code: str, name: str) -> Record:
     return Record(
         kind=RecordKind.POPULATION,
@@ -442,3 +484,43 @@ class TestElectionTypeSeparation:
         )
         assert len(out) == 6  # local 개표가 0건이라 local 레코드는 안 나온다
         assert "local" not in {r.payload["election_type"] for r in out}
+
+
+class TestSigunguBaselineScoping:
+    """다지역구 실행에서는 입력에 서울 25개 자치구의 sigungu 기준선이 다 들어온다
+    (load 는 geo 로 안 거른다). 분석기는 자기 자치구(primary_sigungu_code) 것만
+    gap_sigungu 에 써야 한다 — 안 그러면 마지막에 처리된 옆 자치구가 이긴다(D-006).
+
+    test_district 의 emd 코드는 1171xxxxx 라 자기 자치구 코드는 1171000000 이다.
+    """
+
+    def _records_with_baselines(self) -> list[Record]:
+        recs = make_records()
+        for _i, (date, base) in enumerate(ELECTIONS):
+            # 자기 자치구(송파, 1171000000): 지역구 평균보다 5%p 낮은 보수세
+            recs.append(baseline_election_record("sigungu", "1171000000", date, base - 5.0))
+            # 옆 자치구(강남, 1168000000): 뒤에 온다 — 안 좁히면 이 값이 gap_sigungu 를 먹는다
+            recs.append(baseline_election_record("sigungu", "1168000000", date, base + 30.0))
+            recs.append(baseline_election_record("sido", "1100000000", date, base - 2.0))
+            recs.append(baseline_election_record("nation", None, date, base))
+        return recs
+
+    def test_gap_sigungu_uses_own_sigungu_not_the_last_one_seen(self, reference):
+        mid = {r.geo_code: r.payload for r in run(self._records_with_baselines())}["1171052000"]
+        # 중간동: own_pct == 지역구 평균 == base
+        for i, (_date, _base) in enumerate(ELECTIONS):
+            point = mid["lean_series"][i]
+            # 자기 자치구 기준선 = base - 5 → gap = +5. 강남(base+30)을 썼다면 -30 근처.
+            assert point["gap_sigungu"] == pytest.approx(5.0, abs=0.3)
+            assert point["gap_sido"] == pytest.approx(2.0, abs=0.3)
+            assert point["gap_nation"] == pytest.approx(0.0, abs=0.3)
+
+    def test_confidence_is_09_when_own_sigungu_baseline_is_complete(self, reference):
+        assert all(r.confidence == 0.9 for r in run(self._records_with_baselines()))
+
+    def test_only_decoy_sigungu_present_leaves_gap_none(self, reference):
+        recs = make_records()
+        for date, base in ELECTIONS:
+            recs.append(baseline_election_record("sigungu", "1168000000", date, base + 30.0))
+        point = run(recs)[0].payload["lean_series"][0]
+        assert point["gap_sigungu"] is None

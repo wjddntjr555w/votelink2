@@ -16,18 +16,18 @@ GA = "1111054000"
 NA = "1111055000"
 
 
-def test_count_records_counts_only_the_asked_kind(data_root):
-    store.append_records("c", [make_record(1), make_record(2), make_record(3)])
-    assert store.count_records([NEWS]) == 3
+def test_count_records_counts_only_the_asked_kind(space):
+    store.append_records("c", [make_record(1), make_record(2), make_record(3)], space)
+    assert store.count_records([NEWS], space=space) == 3
     # 그 kind 레코드가 하나도 없으면 0 — json.loads 없이 마커 카운트다.
-    assert store.count_records([OTHER]) == 0
+    assert store.count_records([OTHER], space=space) == 0
 
 
-def test_count_records_on_empty_dir_is_zero(data_root):
-    assert store.count_records([NEWS]) == 0
+def test_count_records_on_empty_dir_is_zero(space):
+    assert store.count_records([NEWS], space=space) == 0
 
 
-def test_iter_records_geo_codes_filters_to_the_wanted_sigungu(data_root):
+def test_iter_records_geo_codes_filters_to_the_wanted_sigungu(space):
     store.append_records(
         "c",
         [
@@ -35,21 +35,22 @@ def test_iter_records_geo_codes_filters_to_the_wanted_sigungu(data_root):
             make_record(2, geo_code=NA),
             make_record(3, geo_code=GA),
         ],
+        space,
     )
-    got = list(store.iter_records([NEWS], geo_codes={GA}))
+    got = list(store.iter_records([NEWS], space=space, geo_codes={GA}))
     assert {r.geo_code for r in got} == {GA}
     assert len(got) == 2
 
 
-def test_iter_records_empty_geo_codes_yields_nothing(data_root):
+def test_iter_records_empty_geo_codes_yields_nothing(space):
     """빈 컬렉션 = '원하는 geo 가 없다' — 필터 없음(None)과 구분한다."""
-    store.append_records("c", [make_record(1, geo_code=GA)])
-    assert list(store.iter_records([NEWS], geo_codes=set())) == []
-    assert len(list(store.iter_records([NEWS], geo_codes=None))) == 1
+    store.append_records("c", [make_record(1, geo_code=GA)], space)
+    assert list(store.iter_records([NEWS], space=space, geo_codes=set())) == []
+    assert len(list(store.iter_records([NEWS], space=space, geo_codes=None))) == 1
 
 
-def test_iter_records_skips_files_without_the_wanted_kind(data_root):
+def test_iter_records_skips_files_without_the_wanted_kind(space):
     """news_article 만 든 파일은 election_result 를 물어보면 통째로 건너뛴다
     (`_file_may_contain`). 결과가 비어야 맞다."""
-    store.append_records("c", [make_record(1), make_record(2)])
-    assert list(store.iter_records([OTHER])) == []
+    store.append_records("c", [make_record(1), make_record(2)], space)
+    assert list(store.iter_records([OTHER], space=space)) == []

@@ -45,6 +45,10 @@ proposal: docs/proposals/C-005-nec-archive-assembly.md
 # 나머지 3종(중구성동구 갑/을, 강남구병·강서구병)은 D-002 코멘트 그대로:
 # 중구성동구 갑/을은 2008~2020 엔 이 결합 형태 자체가 없었다(그때는 중구 단독 +
 # 성동구 갑/을). 강남구병·강서구병은 3분할이 20대(2016)부터 생겼다.
+#
+# 2026-09-07 (D-006): 이 수집기는 상위 단위 기준선을 만들지 않아(총선 레코드
+# 전부 emd) nec_archive 의 sigungu 기준선 버그와 무관하다. voter_profile 총선
+# 계열은 그래서 gap_* None·confidence 0.7 로 유지된다 — 총선 기준선 도입은 별도.
 verified: true
 
 config:

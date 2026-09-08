@@ -21,6 +21,7 @@ from collectors.mois_population.collector import emd_admm_codes
 from votelink.collect.storage import iter_raw
 from votelink.contract.models import GEO_CODE_DIGITS
 from votelink.reference.districts import DISTRICTS_PATH, DistrictNotFound, load_districts
+from votelink.store import DataSpace
 
 
 @dataclass
@@ -63,11 +64,11 @@ class BackfillReport:
         return "\n".join(lines)
 
 
-def _build_admm_index(root: Path | None) -> tuple[dict[tuple[str, str], str], list[str]]:
+def _build_admm_index(space: DataSpace) -> tuple[dict[tuple[str, str], str], list[str]]:
     """raw 전체에서 (시군구명, 행정동명) -> admmCd. 배치 하나의 문제로 전체를 죽이지 않는다."""
     index: dict[tuple[str, str], str] = {}
     conflicts: list[str] = []
-    for batch in iter_raw("mois_population", root=root):
+    for batch in iter_raw("mois_population", space):
         try:
             triples = list(emd_admm_codes(batch))
         except Exception as exc:  # noqa: BLE001 - 배치 하나가 깨져도 나머지는 계속 읽는다
@@ -89,12 +90,12 @@ def backfill(
     *,
     district_id: str | None = None,
     districts_path: Path | None = None,
-    raw_root: Path | None = None,
+    space: DataSpace | None = None,
     dry_run: bool = False,
 ) -> BackfillReport:
     """districts.yaml 의 emd[].code 를 raw 응답의 admmCd 로 채운다. 재실행해도 안전하다."""
     path = districts_path or DISTRICTS_PATH
-    index, conflicts = _build_admm_index(raw_root)
+    index, conflicts = _build_admm_index(space or DataSpace.default())
     districts = load_districts(path, force=True)
 
     if district_id:

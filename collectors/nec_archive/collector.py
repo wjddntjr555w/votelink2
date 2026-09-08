@@ -8,7 +8,6 @@ parse: 격자 -> election_result 레코드 (네트워크 금지, 순수 함수)
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime
 from functools import cached_property
@@ -157,9 +156,7 @@ class Collector(BaseCollector):
         district = resolve_district(self.config["district"])
         # row.emd_name 은 이미 normalize_emd() 를 거친 값(§ iter_emd_rows) 이므로
         # districts.yaml 쪽도 같은 정규화를 거쳐 비교한다 — 표기가 서로 다를 수 있다.
-        code = next(
-            (e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None
-        )
+        code = next((e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None)
         if not code:
             raise ValueError(
                 f"{row.emd_name}: districts.yaml 에 행정동코드가 없다. "
@@ -278,11 +275,11 @@ class Collector(BaseCollector):
     def _baseline_geo(self) -> dict[str, dict[str, str | None]]:
         """전국·서울시·해당 자치구의 지리 식별자. districts.yaml 에서 유도한다(D-002).
 
-        sigungu 코드는 그 선거구 행정동코드(admmCd)들의 공통 4자리 접두사 + '000000'
-        이다 — mois_population 이 실측한 sigungu_admm_code 와 같은 규칙
-        (docs/SETUP.md §2). 접두사가 하나로 안 모이면(선거구가 두 시군구에 걸친
-        경우, 예: 중구성동구 을) 더 많은 동이 속한 접두사를 쓴다 — district.sigungu
-        가 가리키는 그 자치구다(D-001 §제약과 위험에 같은 한계가 적혀 있다).
+        sigungu 코드는 `District.primary_sigungu_code`(행정동코드 앞 5자리 +
+        '00000')를 그대로 쓴다 — 4자리로 자르면 광진·강북·금천에서 틀리고
+        (커밋 c7ac49d), voter_profile 의 기준선 대조가 같은 접근자를 써야 어긋나지
+        않기 때문이다(D-006). 선거구가 두 시군구에 걸치면 더 많은 동이 속한 쪽 —
+        district.sigungu 가 가리키는 그 자치구다.
         """
         district = resolve_district(self.config["district"])
         if district.sido != "서울특별시":
@@ -290,17 +287,15 @@ class Collector(BaseCollector):
                 f"{district.id}: 서울 밖 선거구의 기준선은 아직 지원하지 않는다 "
                 f"(sido={district.sido!r}). SEOUL_SIDO 상수를 일반화해야 한다"
             )
-        codes = district.emd_codes
-        if not codes:
+        if not district.emd_codes:
             raise ValueError(
                 f"{district.id}: 확인된 행정동코드가 없다 — "
                 "먼저 `votelink district backfill-codes` 를 돌려라 (D-001)"
             )
-        prefix, _ = Counter(c[:4] for c in codes).most_common(1)[0]
         return {
             "nation": {"code": None, "name": "전국"},
             "sido": {"code": "1100000000", "name": "서울특별시"},
-            "sigungu": {"code": f"{prefix}000000", "name": district.sigungu},
+            "sigungu": {"code": district.primary_sigungu_code, "name": district.sigungu},
         }
 
     @staticmethod

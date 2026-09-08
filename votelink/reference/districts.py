@@ -10,6 +10,7 @@ L1은 '어디를 수집할지', L2는 '어디를 분석할지'를 여기서 가�
 from __future__ import annotations
 
 import threading
+from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -88,6 +89,25 @@ class District(BaseModel):
         금천(11545) — 에서 틀린다. 두 시군구에 걸친 선거구(중구·성동구 을)면 둘 다 든다.
         """
         return sorted({f"{c[:5]}00000" for c in self.emd_codes})
+
+    @property
+    def primary_sigungu_code(self) -> str:
+        """이 선거구의 대표 자치구 코드(행정동코드 앞 5자리 + "00000").
+
+        두 시군구에 걸친 선거구(중구성동구 을)면 **더 많은 동이 속한** 쪽을 쓴다 —
+        district.sigungu 가 가리키는 그 자치구다. nec_archive 의 sigungu 기준선
+        생성과 voter_profile 의 기준선 대조가 이 하나를 공유해야 어긋나지 않는다.
+        `sigungu_codes` 와 같은 5자리 규칙이다(4자리는 광진·강북·금천에서 틀린다).
+        """
+        counts = Counter(f"{c[:5]}00000" for c in self.emd_codes)
+        if not counts:
+            raise ValueError(
+                f"선거구 '{self.id}' 에 확인된 행정동코드가 없다 — "
+                "primary_sigungu_code 를 유도할 수 없다"
+            )
+        # most_common 은 동률 시 삽입 순서를 지킨다. emd 는 districts.yaml 순서라
+        # 결정적이다.
+        return counts.most_common(1)[0][0]
 
     @property
     def pending(self) -> list[Emd]:

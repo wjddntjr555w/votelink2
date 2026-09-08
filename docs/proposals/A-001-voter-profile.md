@@ -176,7 +176,9 @@ class SegmentProfilePayload(_Payload):
 
 - `camp_share` = 진영 득표 합 / (투표수 − 무효표). 분모를 선거인수로 잡지 않는다 —
   투표율 변화가 성향 변화로 오독된다
-- `gap` = 이 동의 `conservative` 비율 − 기준선의 `conservative` 비율 (%p)
+- `gap` = 이 동의 `conservative` 비율 − 기준선의 `conservative` 비율 (%p).
+  다지역구 실행에서는 입력에 서울 25개 자치구 기준선이 다 들어오므로 sigungu
+  기준선을 이 선거구 자치구(`District.primary_sigungu_code`)로 좁혀서 쓴다(D-006)
 - `swing` = `conservative` **절대** 시계열의 최댓값 − 최솟값 (%p). 표준편차가 아니라
   진폭을 쓰는 이유: 8점짜리 표본에서 표준편차는 해석하기 어렵고, 캠프가 알고 싶은 것은
   "이 동이 얼마나 흔들리는가"의 폭이다. **여기서는 절대값이 맞다** — 스윙보터 규모는

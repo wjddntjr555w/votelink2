@@ -1,9 +1,11 @@
 """수집 원본(raw)의 저장 레이아웃.
 
-data/raw/       fetch 원본. **불변.** 어떤 경우에도 수정·삭제하지 않는다
+`<space>/raw/`  fetch 원본. **불변.** 어떤 경우에도 수정·삭제하지 않는다
 
-레코드·격리 입출력(`data/records/`, `data/rejected/`)은 L1·L2 공용이라
-`votelink/store.py` 로 옮겼다. 기존 import 경로가 깨지지 않도록 여기서 재수출한다.
+레코드·격리 입출력(`records/`, `rejected/`)은 L1·L2 공용이라 `votelink/store.py` 로
+옮겼다. 기존 import 경로가 깨지지 않도록 여기서 재수출한다.
+
+경로는 모듈 상수가 아니라 `DataSpace` 값이다 (`docs/proposals/P-001` §10).
 """
 
 from __future__ import annotations
@@ -14,23 +16,18 @@ from datetime import datetime
 from pathlib import Path
 
 from votelink.collect.base import RawBatch
-from votelink.contract.models import KST
 from votelink.store import (
     DATA_DIR,
-    RECORDS_DIR,
-    REJECTED_DIR,
+    DataSpace,
     append_records,
     append_rejected,
+    day,
     existing_record_ids,
 )
 
-RAW_DIR = DATA_DIR / "raw"
-
 __all__ = [
     "DATA_DIR",
-    "RAW_DIR",
-    "RECORDS_DIR",
-    "REJECTED_DIR",
+    "DataSpace",
     "append_records",
     "append_rejected",
     "existing_record_ids",
@@ -39,17 +36,12 @@ __all__ = [
 ]
 
 
-def _day(dt: datetime) -> str:
-    return dt.astimezone(KST).strftime("%Y-%m-%d")
-
-
 # --- raw (불변) ----------------------------------------------------------------
 
 
-def write_raw(batch: RawBatch, root: Path | None = None) -> Path:
+def write_raw(batch: RawBatch, space: DataSpace) -> Path:
     """원본을 그대로 저장한다. 이미 있으면 덮어쓰지 않는다."""
-    root = root or RAW_DIR
-    target = root / batch.collector_id / _day(batch.fetched_at) / batch.filename
+    target = space.raw / batch.collector_id / day(batch.fetched_at) / batch.filename
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         stem = target.name.removesuffix(".json.gz")
@@ -60,10 +52,10 @@ def write_raw(batch: RawBatch, root: Path | None = None) -> Path:
 
 
 def iter_raw(
-    collector_id: str, since: datetime | None = None, root: Path | None = None
+    collector_id: str, space: DataSpace, since: datetime | None = None
 ) -> Iterator[RawBatch]:
     """저장된 원본을 오래된 순으로 돌려준다. --reparse 가 쓴다."""
-    base = (root or RAW_DIR) / collector_id
+    base = space.raw / collector_id
     if not base.exists():
         return
     for path in sorted(base.rglob("*.json.gz")):

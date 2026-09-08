@@ -14,6 +14,7 @@ from tests.test_web_loader import CODES, OUTSIDE, profile_record, write_district
 from votelink import store
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
+from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.settings import WebSettings
 
@@ -28,12 +29,12 @@ def fresh_caches():
 
 
 def build(tmp_path, records, policy: str = POLICY_CLEARED) -> TestClient:
-    store.append_records("voter_profile", records, root=tmp_path / "records")
+    store.append_records("voter_profile", records, DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
     policy_path.write_text(policy, encoding="utf-8")
     settings = WebSettings(
         districts_path=write_districts(tmp_path),
-        records_root=tmp_path / "records",
+        data_root=tmp_path,
         policy_path=policy_path,
     )
     return TestClient(create_app(settings), raise_server_exceptions=False)

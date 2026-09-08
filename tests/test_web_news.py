@@ -22,6 +22,7 @@ from votelink.contract.models import KST, Record
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
 from votelink.reference.compliance import load_policy
+from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.loader import load_news
 from votelink.web.settings import WebSettings
@@ -84,12 +85,12 @@ def news_record(
 
 
 def settings_for(tmp_path, records, policy: str = POLICY_UNREVIEWED) -> WebSettings:
-    store.append_records("naver_news", records, root=tmp_path / "records")
+    store.append_records("naver_news", records, DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.yaml"
     policy_path.write_text(policy, encoding="utf-8")
     return WebSettings(
         districts_path=write_districts(tmp_path),
-        records_root=tmp_path / "records",
+        data_root=tmp_path,
         policy_path=policy_path,
     )
 

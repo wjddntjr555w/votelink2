@@ -11,26 +11,41 @@
 지금은 `collectors/*/tests/` 와 `analyzers/*/tests/` 가 `store` 를 아예 쓰지 않는다.
 이 픽스처는 그 사실이 바뀌는 날을 위한 것이다 — **개별 테스트가 기억해야 하는
 안전장치는 언젠가 잊힌다.**
+
+**2026-09-08 (P-001 롤아웃 1단계):** 예전에는 `store.RECORDS_DIR` 같은 모듈 전역을
+monkeypatch 했다. 이제 경로가 `DataSpace` 값이라 그냥 임시 공간을 만들어 넘긴다 —
+전역을 건드리지 않으므로 "어느 모듈의 전역을 패치해야 먹히는가" 같은 함정이 없다.
 """
+
+from pathlib import Path
 
 import pytest
 
 from votelink import store
-from votelink.collect import storage
+from votelink.store import DataSpace
 
 
 @pytest.fixture(autouse=True)
-def data_root(tmp_path, monkeypatch):
-    """`data/` 하위 쓰기 경로를 임시 디렉터리로 돌린다.
+def _no_real_data_dir(tmp_path, monkeypatch):
+    """`DataSpace.default()` 가 테스트 중에 실제 `data/` 를 가리키지 못하게 한다.
 
-    raw 는 `storage` 가, records/rejected 는 `store` 가 진실이다 (L1·L2 공용이라
-    `votelink/store.py` 로 옮겼다). `storage` 쪽 재수출 이름을 패치해도 함수는
-    `store` 모듈의 전역을 보므로 효과가 없다 — 여기를 고쳐야 한다.
+    경로가 값이 된 뒤에도 전역이 **하나** 남는다 — `store.DATA_DIR`. `default()` 가
+    그것을 읽고, CLI 코드를 복사해 온 테스트는 `space=DataSpace.default()` 라고 쓰기
+    쉽다. 그 한 줄이 실제 `data/records/` 에 쓰는 길이므로 여기서 막는다.
 
     **`data/reference/` 는 돌리지 않는다.** 읽기 전용 참조 데이터이고, 실제 파일이
     유효한지 보는 것도 테스트의 일이다 (`test_districts.py`, `test_compliance.py`).
     """
-    monkeypatch.setattr(storage, "RAW_DIR", tmp_path / "raw")
-    monkeypatch.setattr(store, "RECORDS_DIR", tmp_path / "records")
-    monkeypatch.setattr(store, "REJECTED_DIR", tmp_path / "rejected")
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path / "default")
+
+
+@pytest.fixture
+def space(tmp_path) -> DataSpace:
+    """임시 데이터 공간. 레코드를 읽고 쓰는 테스트는 이걸 넘긴다."""
+    return DataSpace(tmp_path)
+
+
+@pytest.fixture
+def data_root(tmp_path) -> Path:
+    """`space` 와 같은 뿌리. 경로를 직접 들여다보는 테스트가 쓴다."""
     return tmp_path

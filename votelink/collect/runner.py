@@ -13,6 +13,7 @@ from datetime import datetime
 from votelink.collect import storage
 from votelink.collect.base import BaseCollector, Rejected
 from votelink.contract.models import KST, Record
+from votelink.store import DataSpace
 
 log = logging.getLogger(__name__)
 
@@ -54,26 +55,30 @@ class RunReport:
 def run(
     collector: BaseCollector,
     *,
+    space: DataSpace,
     since: datetime | None = None,
     dry_run: bool = False,
     reparse: bool = False,
 ) -> RunReport:
     """수집 1회 실행.
 
+    space: 어느 데이터 공간에 읽고 쓰는가. 기본값을 두지 않는다 (`P-001` §10)
     dry_run: 아무것도 저장하지 않고 계약 검증만 한다
     reparse: 네트워크를 타지 않고 저장된 raw 만 다시 파싱한다
     """
     report = RunReport(collector_id=collector.id, started_at=datetime.now(KST))
 
     batches = (
-        storage.iter_raw(collector.id, since)
+        storage.iter_raw(collector.id, space, since)
         if reparse
-        else _fetch_and_persist(collector, since, dry_run, report)
+        else _fetch_and_persist(collector, since, dry_run, report, space)
     )
 
     accepted: list[Record] = []
     rejected: list[Rejected] = []
-    seen: set[str] = set() if (dry_run or reparse) else storage.existing_record_ids(collector.id)
+    seen: set[str] = (
+        set() if (dry_run or reparse) else storage.existing_record_ids(collector.id, space)
+    )
 
     for batch in batches:
         report.batches += 1
@@ -101,16 +106,20 @@ def run(
 
     if not dry_run:
         if rejected:
-            storage.append_rejected(collector.id, rejected, report.started_at)
+            storage.append_rejected(collector.id, rejected, report.started_at, space)
         if accepted and not report.failed:
-            storage.append_records(collector.id, accepted)
+            storage.append_records(collector.id, accepted, space)
             report.written = len(accepted)
 
     return report
 
 
 def _fetch_and_persist(
-    collector: BaseCollector, since: datetime | None, dry_run: bool, report: RunReport
+    collector: BaseCollector,
+    since: datetime | None,
+    dry_run: bool,
+    report: RunReport,
+    space: DataSpace,
 ):
     """fetch 결과를 흘려보내면서 즉시 raw 로 저장한다.
 
@@ -118,6 +127,6 @@ def _fetch_and_persist(
     """
     for batch in collector.fetch(since):
         if not dry_run:
-            path = storage.write_raw(batch)
+            path = storage.write_raw(batch, space)
             report.raw_files.append(str(path))
         yield batch

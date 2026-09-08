@@ -55,6 +55,12 @@ class TestBaselineGeo:
         geo = _collector("seoul_gangnam_gap")._baseline_geo
         assert geo["sigungu"] == {"code": "1168000000", "name": "강남구"}
 
+    def test_uses_five_digit_prefix_for_gwangjin(self):
+        # 광진(11215)·강북(11305)·금천(11545)은 5번째 자리가 0이 아니다 — 4자리로
+        # 자르면 존재하지 않는 코드가 나온다. primary_sigungu_code 로 통일했다(D-006).
+        geo = _collector("seoul_gwangjin_gap")._baseline_geo
+        assert geo["sigungu"] == {"code": "1121500000", "name": "광진구"}
+
     def test_cross_sigungu_district_uses_majority_prefix(self):
         # 중구성동구 을은 중구 15동 + 성동구 4동(금호1~4가동·옥수동)이 섞여 있다.
         # district.sigungu == "중구" 이므로 다수인 중구 접두사(1114)를 써야 한다.

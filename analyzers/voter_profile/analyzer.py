@@ -60,6 +60,10 @@ class Analyzer(BaseAnalyzer):
                 f"선거구 '{district.id}' 에 확인된 행정동코드가 없다. "
                 "districts.yaml 의 emd[].code 를 먼저 채워야 한다"
             )
+        # 입력에는 서울 25개 자치구의 sigungu 기준선이 다 들어온다(load 는 geo 로
+        # 거르지 않는다). 자기 자치구 것만 받지 않으면 마지막에 처리된 옆 자치구가
+        # 이겨 gap_sigungu 가 통째로 틀린다(D-006). nec_archive 와 같은 접근자다.
+        own_sigungu_code = district.primary_sigungu_code
 
         # 순서 보존 중복 제거 — items 곱집합의 결정성을 위해.
         wanted_types = list(dict.fromkeys(self.config["election_types"]))
@@ -78,7 +82,9 @@ class Analyzer(BaseAnalyzer):
             if record.kind is RecordKind.POPULATION:
                 self._collect_population(record, codes, populations)
             elif record.kind is RecordKind.ELECTION_RESULT:
-                self._collect_election(record, codes, wanted_set, by_election, baselines)
+                self._collect_election(
+                    record, codes, own_sigungu_code, wanted_set, by_election, baselines
+                )
 
         if not by_election:
             raise AnalyzeError(
@@ -140,6 +146,7 @@ class Analyzer(BaseAnalyzer):
         self,
         record: Record,
         codes: set[str],
+        own_sigungu_code: str,
         wanted_types: set[str],
         by_election: dict[str, dict[str, dict[str, _Row]]],
         baselines: dict[str, dict[str, dict[GeoLevel, tuple[str, float]]]],
@@ -154,6 +161,10 @@ class Analyzer(BaseAnalyzer):
 
         is_emd = record.geo_level is GeoLevel.EMD and record.geo_code in codes
         is_baseline = record.geo_level in BASELINE_FIELDS
+        # sigungu 기준선은 서울 25개 자치구 것이 다 들어온다 — 이 선거구 자치구
+        # 것만 받는다(D-006). sido·nation 은 단일값이라 그대로 둔다.
+        if record.geo_level is GeoLevel.SIGUNGU and record.geo_code != own_sigungu_code:
+            return
         if not (is_emd or is_baseline):
             return
 
