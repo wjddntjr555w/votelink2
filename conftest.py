@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from votelink import store
+from votelink.control import db as control_db
 from votelink.store import DataSpace
 
 
@@ -38,6 +39,9 @@ def _no_real_data_dir(tmp_path, monkeypatch):
     파일이 유효한지 보는 것도 테스트의 일이다 (`test_districts.py`, `test_compliance.py`).
     """
     monkeypatch.setattr(store, "SHARED_DIR", tmp_path / "default")
+    # control plane(계정·세션·감사)도 같은 이유로 막는다. 테스트가 실제 계정을
+    # 만들면 그 계정으로 로그인이 되는 상태가 저장소에 남는다.
+    monkeypatch.setattr(control_db, "CONTROL_DB", tmp_path / "control.db")
 
 
 @pytest.fixture

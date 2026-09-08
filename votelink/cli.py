@@ -456,6 +456,118 @@ def _analyze_all(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_account_create_operator(args: argparse.Namespace) -> int:
+    """첫 운영자를 만드는 유일한 경로. 웹에는 운영자 가입 폼이 없다 (P-002 §6)."""
+    from votelink import control
+
+    control.init()
+    try:
+        account = control.accounts.create(
+            args.email,
+            args.password,
+            role=control.Role.OPERATOR,
+            status=control.Status.ACTIVE,
+        )
+    except control.AccountError as exc:
+        print(f"계정을 만들 수 없다: {exc}", file=sys.stderr)
+        return 1
+    control.audit.log("create_operator", account_id=account.id, target=account.email)
+    print(f"운영자 계정 생성: {account.email} (id={account.id})")
+    print("다음: uv run votelink serve --auth")
+    return 0
+
+
+def cmd_account_list(args: argparse.Namespace) -> int:
+    from votelink import control
+
+    if not control.db.exists():
+        print("control.db 가 없다. `uv run votelink account create-operator` 로 시작한다")
+        return 0
+    rows = control.accounts.listing()
+    if not rows:
+        print("계정이 없다")
+        return 0
+    print(f"{'id':>3}  {'이메일':<28} {'역할':<9} {'상태':<10} {'캠프':<20} 세션")
+    for a in rows:
+        n = control.sessions.active_count(a.id)
+        camp = a.camp_id or "—"
+        print(
+            f"{a.id:>3}  {a.email:<28} {a.role.value:<9} "
+            f"{a.status.value:<10} {camp:<20} {n}"
+        )
+    return 0
+
+
+def cmd_account_signups(args: argparse.Namespace) -> int:
+    """승인 대기 큐. 운영자 콘솔(P-003)이 생기기 전까지 이것이 승인 창구다."""
+    from votelink import control
+
+    if not control.db.exists():
+        print("control.db 가 없다", file=sys.stderr)
+        return 1
+    rows = control.signup.pending()
+    if not rows:
+        print("승인 대기 중인 신청이 없다")
+        return 0
+    for r in rows:
+        print(f"[{r.id}] {r.candidate_name} · {r.contact} · 희망: {r.wanted_election or '—'}")
+        print(f"     신청 {r.requested_at}")
+    print("\n승인: uv run votelink account approve <신청번호> --operator <운영자id>")
+    return 0
+
+
+def cmd_account_approve(args: argparse.Namespace) -> int:
+    from votelink import control
+
+    try:
+        camp_id = control.signup.approve(
+            args.request_id, args.operator, camp_id=args.camp_id, note=args.note
+        )
+    except (control.SignupError, control.AccountError) as exc:
+        print(f"승인할 수 없다: {exc}", file=sys.stderr)
+        return 1
+    control.audit.log(
+        "approve_signup", account_id=args.operator, camp_id=camp_id, target=str(args.request_id)
+    )
+    print(f"승인 완료 · 캠프 공간 생성: data/camps/{camp_id}/")
+    print("캠프가 로그인해 /onboarding 에서 관할·진영을 채우면 데이터 화면이 열린다")
+    return 0
+
+
+def cmd_account_reject(args: argparse.Namespace) -> int:
+    from votelink import control
+
+    try:
+        control.signup.reject(args.request_id, args.operator, note=args.note)
+    except control.SignupError as exc:
+        print(f"거절할 수 없다: {exc}", file=sys.stderr)
+        return 1
+    control.audit.log("reject_signup", account_id=args.operator, target=str(args.request_id))
+    print(f"신청 {args.request_id} 거절")
+    return 0
+
+
+def cmd_account_logout(args: argparse.Namespace) -> int:
+    """그 계정의 세션을 전부 끊는다. 비밀번호가 샜을 때의 즉시 대응 (P-002 §14)."""
+    from votelink import control
+
+    n = control.sessions.end_all(args.account_id)
+    control.audit.log("force_logout", target=str(args.account_id))
+    print(f"세션 {n}개 종료")
+    return 0
+
+
+def cmd_account_passwd(args: argparse.Namespace) -> int:
+    """운영자가 임시 비밀번호를 발급한다. 자가 재설정은 메일 인프라가 없어 범위 밖이다."""
+    from votelink import control
+
+    control.accounts.set_password(args.account_id, args.password)
+    n = control.sessions.end_all(args.account_id)
+    control.audit.log("set_password", target=str(args.account_id))
+    print(f"비밀번호 변경 · 기존 세션 {n}개 종료")
+    return 0
+
+
 def cmd_camp_new(args: argparse.Namespace) -> int:
     """캠프 온보딩. 관할이 실재하는지 여기서 확인하고 못 만들면 아무것도 남기지 않는다."""
     try:
@@ -735,6 +847,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--dry-run", action="store_true", help="저장 없이 계약 검증만")
     p_analyze.add_argument("--sync", action="store_true", help="analyzers/registry.yaml 재생성")
     p_analyze.set_defaults(func=cmd_analyze)
+
+    p_acct = sub.add_parser("account", help="계정·세션·승인 (P-002 control plane)")
+    a_sub = p_acct.add_subparsers(dest="account_command", required=True)
+
+    p_op = a_sub.add_parser("create-operator", help="운영자 계정 생성 (웹에 가입 폼이 없다)")
+    p_op.add_argument("email")
+    p_op.add_argument("password")
+    p_op.set_defaults(func=cmd_account_create_operator)
+
+    a_sub.add_parser("list", help="계정 목록과 활성 세션 수").set_defaults(func=cmd_account_list)
+    a_sub.add_parser("signups", help="승인 대기 큐").set_defaults(func=cmd_account_signups)
+
+    p_ok = a_sub.add_parser("approve", help="가입 신청 승인 → 캠프 공간 생성")
+    p_ok.add_argument("request_id", type=int)
+    p_ok.add_argument("--operator", type=int, required=True, help="승인하는 운영자 계정 id")
+    p_ok.add_argument("--camp-id", help="생략하면 이메일에서 만든다")
+    p_ok.add_argument("--note", help="판단 근거")
+    p_ok.set_defaults(func=cmd_account_approve)
+
+    p_no = a_sub.add_parser("reject", help="가입 신청 거절 (사유 필수)")
+    p_no.add_argument("request_id", type=int)
+    p_no.add_argument("--operator", type=int, required=True)
+    p_no.add_argument("--note", required=True, help="거절 사유. 신청자가 무엇을 고칠지 알아야 한다")
+    p_no.set_defaults(func=cmd_account_reject)
+
+    p_lo = a_sub.add_parser("logout", help="그 계정의 세션을 전부 끊는다")
+    p_lo.add_argument("account_id", type=int)
+    p_lo.set_defaults(func=cmd_account_logout)
+
+    p_pw = a_sub.add_parser("passwd", help="임시 비밀번호 발급 (기존 세션도 끊는다)")
+    p_pw.add_argument("account_id", type=int)
+    p_pw.add_argument("password")
+    p_pw.set_defaults(func=cmd_account_passwd)
 
     p_camp = sub.add_parser("camp", help="캠프 공간 (P-001)")
     c_sub = p_camp.add_subparsers(dest="camp_command", required=True)
