@@ -72,8 +72,38 @@ def test_serve_honours_host_and_port(monkeypatch):
     calls = {}
     monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls.update(kw))
 
-    assert cli.main(["serve", "--host", "0.0.0.0", "--port", "9000"]) == 0
-    assert (calls["host"], calls["port"]) == ("0.0.0.0", 9000)
+    assert cli.main(["serve", "--host", "127.0.0.1", "--port", "9000"]) == 0
+    assert (calls["host"], calls["port"]) == ("127.0.0.1", 9000)
+
+
+def test_serve_refuses_to_expose_without_auth(monkeypatch, capsys):
+    """**인증이 꺼져 있으면 로컬 밖으로 열지 않는다** (P-002 §2).
+
+    예전에는 비노출 자체가 인증을 대신했다. 이제 인증이 그 일을 하므로 노출을
+    허용하되, 인증 없이 노출하는 조합만은 막는다 — 미검토 산출물이 경고와 함께
+    뜨는 화면을 아무나 열 수 있으면 그게 의도치 않은 공표다.
+    """
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: pytest.fail("띄우면 안 된다"))
+
+    assert cli.main(["serve", "--host", "0.0.0.0"]) == 1
+    assert "--auth" in capsys.readouterr().err
+
+
+def test_serve_with_auth_needs_an_operator(monkeypatch, capsys):
+    """운영자가 없으면 아무도 캠프를 승인할 수 없다. 그 상태로 열지 않는다."""
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: pytest.fail("띄우면 안 된다"))
+
+    assert cli.main(["serve", "--auth", "--host", "0.0.0.0"]) == 1
+    assert "create-operator" in capsys.readouterr().err
+
+
+def test_serve_refuses_auth_with_a_pinned_camp(monkeypatch, capsys):
+    """캠프를 두 곳에서 정하면 화면이 어느 쪽을 따르는지 알 수 없다.
+    인증이 켜지면 캠프는 세션이 정한다."""
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: pytest.fail("띄우면 안 된다"))
+
+    assert cli.main(["serve", "--auth", "--camp", "아무캠프"]) == 1
+    assert "함께 쓸 수 없다" in capsys.readouterr().err
 
 
 def test_serve_warns_but_still_starts_with_no_records(monkeypatch, tmp_path, capsys):

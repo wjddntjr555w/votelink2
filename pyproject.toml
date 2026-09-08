@@ -15,6 +15,10 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "jinja2>=3.1",
+    # 로그인·가입 폼. 이 앱 최초의 POST 라우트가 로그인이다 (P-002 §11).
+    # 인증에 필요한 새 의존성은 이것 하나뿐이다 — 비밀번호는 stdlib hashlib.scrypt,
+    # 세션은 DB 조회라 서명 쿠키(itsdangerous)가 필요 없다.
+    "python-multipart>=0.0.9",
     # `.env` 를 매번 export 하지 않아도 되게 자동으로 읽는다 (DATA_GO_KR_SERVICE_KEY 등).
     "python-dotenv>=1.0",
 ]

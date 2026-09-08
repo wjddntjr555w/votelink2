@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}캠프 설정 — votelink{% endblock %}
+
+{# 승인 뒤 한 번 채우는 화면. 여기서 `cycles/<주기>/` 가 만들어지고, 그때부터
+   데이터 화면이 열린다 (P-002 §6).
+
+   **관할이 이 폼의 심장이다.** 관할이 틀리면 에러가 나지 않고 그냥 다른 답이
+   나온다 — P-001 §16 이 가장 위험한 실패로 지목한 자리다. #}
+{% block content %}
+<section class="gate gate--wide">
+  <h1>캠프 설정</h1>
+  <p class="muted small">
+    한 번만 채우면 됩니다. 다음 선거 때는 주기를 새로 추가합니다 —
+    캠프는 남고 선거가 그 안에서 바뀝니다.
+  </p>
+
+  {% if error %}
+  <div class="banner banner--blocked">
+    <strong>저장하지 않았다</strong>
+    <pre class="errdetail">{{ error }}</pre>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/onboarding" class="form">
+    <fieldset>
+      <legend>선거</legend>
+      <label>
+        선거 계열
+        <select name="election_type" required>
+          {% for value, label in type_options %}
+          <option value="{{ value }}" {{ 'selected' if form.election_type == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        직위
+        <select name="office" required>
+          {% for value, label in office_options %}
+          <option value="{{ value }}" {{ 'selected' if form.office == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        선거일
+        <input type="date" name="election_date" value="{{ form.election_date|default('') }}">
+        <span class="muted small">
+          모르면 비워 둡니다. 임의 날짜로 채우지 않습니다 — 공표 금지기간(§108)처럼
+          기간에 의존하는 판정은 이 값 없이 계산할 수 없고, 그런 산출물은 전부
+          미검토로 떨어집니다.
+        </span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>우리 후보</legend>
+      <label>
+        진영
+        <select name="lineage" required>
+          {% for value, label in lineage_options %}
+          <option value="{{ value }}" {{ 'selected' if form.lineage == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <span class="muted small">
+          이 한 줄이 렌즈입니다. 공용 데이터의 동별 진영 구성이 그 즉시 우세·열세로
+          읽힙니다 — 숫자는 어느 캠프가 보든 같고 읽는 방식만 달라집니다.
+        </span>
+      </label>
+      <label>
+        정당
+        <input type="text" name="party" value="{{ form.party|default('') }}" required>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="incumbent" value="1" {{ 'checked' if form.incumbent }}>
+        현직입니다
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>관할</legend>
+      <p class="muted small">
+        셋을 함께 쓸 수 있습니다. 프리셋으로 채운 뒤 몇 개를 더 붙이는 식입니다.
+        기초의원 선거구(가·나·다)처럼 프리셋이 없는 경우는 직접 입력만으로 만듭니다.
+      </p>
+      <label>
+        선거구 프리셋
+        <select name="preset">
+          <option value="">(쓰지 않음)</option>
+          {% for value, label in presets %}
+          <option value="{{ value }}" {{ 'selected' if form.preset == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        자치구 전체
+        <select name="sigungu">
+          <option value="">(쓰지 않음)</option>
+          {% for name in sigungus %}
+          <option value="{{ name }}" {{ 'selected' if form.sigungu == name }}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <span class="muted small">구청장처럼 선거구 여럿을 아우르는 경우입니다.</span>
+      </label>
+      <label>
+        행정동코드 직접 입력
+        <textarea name="emd_codes" rows="4"
+          placeholder="1171051000 1171052000 …">{{ form.emd_codes|default('') }}</textarea>
+        <span class="muted small">
+          줄바꿈·쉼표·공백 아무거나로 구분합니다.
+          <code>uv run votelink district list --emd</code> 의 코드와 같아야 합니다.
+        </span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>법률 검토</legend>
+      <label>
+        검토자 <span class="muted small">(선택)</span>
+        <input type="text" name="legal_reviewer" value="{{ form.legal_reviewer|default('') }}">
+        <span class="muted small">
+          산출물 검토 서명의 주체가 됩니다. <strong>시스템은 이 서명을 보증하지
+          않습니다</strong> — 캠프당 계정이 하나라 그 이름이 그 사람인지 확인할 수
+          없습니다. 최종 판단자는 캠프의 법률 검토입니다.
+        </span>
+      </label>
+    </fieldset>
+
+    <button type="submit">저장하고 시작</button>
+  </form>
+</section>
+{% endblock %}

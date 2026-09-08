@@ -104,6 +104,29 @@ def test_blocked_keeps_the_numbers_out_of_the_html(tmp_path):
     assert f"동{CODES[0][-4:]}" not in html
 
 
+def test_the_output_macro_refuses_a_missing_verdict():
+    """**판정 없음은 "안전"이 아니라 "모름"이다** (P-002 §10).
+
+    예전에는 `verdict is none` 이면 매크로가 콘텐츠를 그냥 그렸다. 화면들이 각자
+    "산출물이 0건이면 매크로를 부르지 않는다"를 지키고 있어 실제 누출은 없었지만,
+    그 규칙은 매크로가 아니라 **호출자**에 있었다 — 새 화면 하나가 verdict 를
+    계산하지 않고 넘기면 절대 규칙 5가 조용히 비껴간다.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    from votelink.web.app import TEMPLATES_DIR
+
+    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
+    html = env.from_string(
+        '{% from "_output.html" import output %}'
+        "{% call output(None) %}절대나가면안되는수치 12345{% endcall %}"
+    ).render()
+
+    assert "절대나가면안되는수치" not in html
+    assert "12345" not in html
+    assert "판정이 없어" in html
+
+
 def test_cleared_shows_the_signature_not_a_warning(tmp_path):
     html = build(tmp_path).get("/").text
     assert "검토 완료" in html

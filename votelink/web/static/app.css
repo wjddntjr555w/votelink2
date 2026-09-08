@@ -355,3 +355,76 @@ rect.camp--ours { stroke: var(--ink); stroke-width: 0.6; }
 /* 우세/열세는 어느 진영이냐와 무관하다 — 진영색이 아니라 중립 신호색을 쓴다. */
 td.lens--ahead { color: var(--ok-line); font-variant-numeric: tabular-nums; }
 td.lens--behind { color: var(--block-line); font-variant-numeric: tabular-nums; }
+
+/* --- 인증 화면 (P-002) -----------------------------------------------------
+   로그인·가입·대기·온보딩. 여기에는 산출물이 없다 — 화면이 단순한 것이
+   그 자체로 규약이다. */
+
+.gate {
+  max-width: 460px;
+  margin: 48px auto;
+}
+.gate--wide { max-width: 720px; }
+.gate h1 { margin: 0 0 12px; font-size: 20px; }
+
+.form { display: flex; flex-direction: column; gap: 14px; margin: 20px 0; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.form label.check { flex-direction: row; align-items: center; gap: 6px; }
+.form input[type="text"],
+.form input[type="email"],
+.form input[type="password"],
+.form input[type="date"],
+.form select,
+.form textarea {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.form textarea { resize: vertical; font-variant-numeric: tabular-nums; }
+.form button[type="submit"] {
+  align-self: flex-start;
+  padding: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--note-bg);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.form fieldset {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form fieldset legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
+
+/* 검증 실패 메시지. pydantic 은 여러 줄로 말한다 — 줄바꿈을 살린다. */
+.errdetail {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+
+/* 로그아웃은 폼이다(GET 로그아웃 금지). 생긴 것만 링크처럼 둔다. */
+.logout { display: inline; margin: 0; }
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+}

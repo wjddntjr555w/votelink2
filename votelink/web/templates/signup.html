@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}가입 신청 — votelink{% endblock %}
+
+{# **신청은 가볍게 받는다.** 관할·진영·선거일은 승인 뒤 온보딩에서 받는다 —
+   캠프가 아직 확정하지 못한 값을 신청서에 억지로 적게 하지 않는다 (P-002 §6). #}
+{% block content %}
+<section class="gate">
+  <h1>가입 신청</h1>
+  <p class="muted small">
+    운영자가 확인한 뒤 캠프 공간을 엽니다. 승인 전에는 아무 데이터도 보이지 않습니다.
+  </p>
+
+  {% if error %}
+  <div class="banner banner--blocked"><strong>{{ error }}</strong></div>
+  {% endif %}
+
+  <form method="post" action="/signup" class="form">
+    <label>
+      이메일 <span class="muted small">— 캠프 계정 하나를 캠프원이 함께 씁니다</span>
+      <input type="email" name="email" value="{{ email|default('') }}" required autofocus>
+    </label>
+    <label>
+      비밀번호
+      <input type="password" name="password" required>
+    </label>
+    <label>
+      후보 이름
+      <input type="text" name="candidate_name" value="{{ candidate_name|default('') }}" required>
+    </label>
+    <label>
+      연락처
+      <input type="text" name="contact" value="{{ contact|default('') }}" required>
+    </label>
+    <label>
+      희망 선거 <span class="muted small">— 정해졌다면. 예: 2028 총선 (선택)</span>
+      <input type="text" name="wanted_election" value="{{ wanted_election|default('') }}">
+    </label>
+    <button type="submit">신청</button>
+  </form>
+
+  <p class="muted small">
+    이미 계정이 있다면 <a href="/login">로그인</a>.
+  </p>
+</section>
+{% endblock %}

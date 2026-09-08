@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}관할 밖 — votelink{% endblock %}
+
+{# 로그인은 했으나 그 캠프의 것이 아니다. 리다이렉트가 아니라 403 이다 —
+   다시 로그인해도 달라지지 않는 일에 로그인 화면을 보여주면 거짓말이 된다.
+   이 화면이 뜨는 순간은 감사 로그에 `denied` 로 남는다 (P-002 §10). #}
+{% block content %}
+<section class="gate">
+  <h1>이 캠프의 관할이 아니다</h1>
+
+  <div class="banner banner--blocked">
+    <strong>{{ message }}</strong>
+    <p>
+      캠프 화면은 세션이 정하는 캠프의 관할로만 열린다. 관할은 온보딩에서 등록한
+      행정동 목록이다.
+    </p>
+  </div>
+
+  {% if lens %}
+  <p class="muted small">
+    현재 관할: {{ lens.territory|length }}개 동 ({{ lens.cycle_id }}).
+    관할이 잘못됐다면 운영자에게 알린다 — 관할이 틀리면 에러 없이 모든 분석이
+    조용히 틀린다.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

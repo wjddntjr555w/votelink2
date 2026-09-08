@@ -491,10 +491,7 @@ def cmd_account_list(args: argparse.Namespace) -> int:
     for a in rows:
         n = control.sessions.active_count(a.id)
         camp = a.camp_id or "—"
-        print(
-            f"{a.id:>3}  {a.email:<28} {a.role.value:<9} "
-            f"{a.status.value:<10} {camp:<20} {n}"
-        )
+        print(f"{a.id:>3}  {a.email:<28} {a.role.value:<9} {a.status.value:<10} {camp:<20} {n}")
     return 0
 
 
@@ -704,7 +701,45 @@ def cmd_serve(args: argparse.Namespace) -> int:
         port=args.port,
         camp_id=args.camp,
         cycle_id=args.cycle,
+        auth=args.auth,
     )
+
+    # **인증이 꺼져 있으면 로컬 밖으로 열지 않는다** (P-002 §2).
+    # 예전에는 비노출 자체가 인증을 대신했다. 이제 인증이 그 일을 하므로 노출을
+    # 허용하되, 인증 없이 노출하는 조합만은 막는다 — 미검토 산출물이 경고와 함께
+    # 뜨는 화면을 아무나 열 수 있으면 그게 의도치 않은 공표다.
+    if not args.auth and args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"--host {args.host} 는 --auth 없이 쓸 수 없다. 인증이 없으면 미검토 "
+            "산출물이 뜨는 화면이 그대로 공개된다 (docs/90-compliance.md §6).\n"
+            "`uv run votelink account create-operator` 로 운영자를 만들고 --auth 를 붙여라",
+            file=sys.stderr,
+        )
+        return 1
+    if args.auth and args.camp:
+        # 캠프를 두 곳에서 정하면 화면이 어느 쪽을 따르는지 알 수 없다.
+        print(
+            "--auth 와 --camp 는 함께 쓸 수 없다. 인증이 켜지면 어느 캠프의 눈으로 "
+            "보는지는 세션이 정한다 (P-002 §8)",
+            file=sys.stderr,
+        )
+        return 1
+    if args.auth:
+        from votelink import control
+
+        if not control.db.exists(settings.control_db):
+            print(
+                "control.db 가 없다. `uv run votelink account create-operator` 를 먼저 "
+                "실행하라. 운영자가 없으면 아무도 캠프를 승인할 수 없다",
+                file=sys.stderr,
+            )
+            return 1
+        if not control.accounts.has_operator(path=settings.control_db):
+            print(
+                "운영자 계정이 없다. `uv run votelink account create-operator` 를 먼저 실행하라",
+                file=sys.stderr,
+            )
+            return 1
 
     # 기동 전 점검. 여기서 걸리는 것은 전부 사용자가 고칠 일이라 트레이스백을 보여주지 않는다.
     try:
@@ -949,6 +984,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_serve.add_argument("--cycle", help="선거 주기. 생략하면 그 캠프의 가장 최근 주기")
+    p_serve.add_argument(
+        "--auth",
+        action="store_true",
+        help=(
+            "로그인을 요구한다 (P-002). 캠프를 여럿 받으려면 필수다 — 어느 캠프의 "
+            "눈으로 보는지를 세션이 정하므로 --camp 와 함께 쓸 수 없다. "
+            "이걸 켜야만 127.0.0.1 밖으로 열 수 있다"
+        ),
+    )
     p_serve.set_defaults(func=cmd_serve)
 
     return parser

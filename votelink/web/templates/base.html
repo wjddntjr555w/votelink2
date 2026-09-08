@@ -14,6 +14,10 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/">votelink</a>
+    {# 데이터 화면 링크는 그것을 볼 수 있는 사람에게만 보인다. 인증이 켜져 있고
+       아직 로그인 전이거나 승인·온보딩 대기 중이면 목적지가 전부 리다이렉트라,
+       띄워 두면 눌러도 되돌아오는 링크가 된다 (P-002 §9). #}
+    {% if not auth_on or lens or (account and account.is_operator) %}
     <nav>
       {% if district_id %}
       <a href="/d/{{ district_id }}/" class="{{ 'on' if active == 'dashboard' }}">대시보드</a>
@@ -23,6 +27,7 @@
       <a href="/compare" class="{{ 'on' if active == 'compare' }}">선거구 비교</a>
       <a href="/nation" class="{{ 'on' if active == 'nation' }}">전국 동</a>
     </nav>
+    {% endif %}
     <span class="spacer"></span>
     {% if election_types %}
     {# 선거 계열 전환. onchange 한 줄뿐 — 외부 요청 0건 규칙에 걸리지 않는다.
@@ -47,8 +52,21 @@
     {% if lens %}
     <span class="muted" title="{{ lens.camp_id }} · {{ lens.cycle_id }}">
       {{ lens.label }} 캠프 · 내부 열람</span>
-    {% else %}
+    {% elif account and account.is_operator %}
+    <span class="muted" title="{{ account.email }}">운영자 · 전 캠프 열람</span>
+    {% elif not auth_on %}
     <span class="muted">진영 중립 보기 · 캠프 내부 열람</span>
+    {% endif %}
+    {% if auth_on %}
+      {% if account %}
+      {# GET 으로 로그아웃하면 남의 페이지에 심은 이미지 한 장으로 세션이 끊긴다.
+         그래서 링크가 아니라 폼이다. #}
+      <form class="logout" method="post" action="/logout">
+        <button type="submit" class="linkish">로그아웃</button>
+      </form>
+      {% else %}
+      <a href="/login">로그인</a>
+      {% endif %}
     {% endif %}
   </header>
 

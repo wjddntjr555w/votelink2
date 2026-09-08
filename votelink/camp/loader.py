@@ -122,7 +122,7 @@ def load_cycle(
             "날짜를 고쳤으면 폴더도 함께 옮겨야 한다 — 둘이 어긋나면 어느 쪽이 진실인지 알 수 없다"
         )
 
-    unknown = sorted(set(cycle.territory.emd_codes) - _known_emd_codes(districts_path))
+    unknown = sorted(set(cycle.territory.emd_codes) - known_emd_codes(districts_path))
     if unknown:
         raise CampConfigError(
             f"{path}: districts.yaml 에 없는 행정동코드가 관할에 있다: {unknown}. "
@@ -147,10 +147,14 @@ def cycle_id_for(cycle: Cycle) -> str | None:
     return f"{cycle.election.date.isoformat()}-{cycle.election.type.value}"
 
 
-def _known_emd_codes(districts_path: Path | None = None) -> set[str]:
+def known_emd_codes(districts_path: Path | None = None) -> set[str]:
     """districts.yaml 이 아는 모든 행정동코드.
 
     선거구 단위가 아니라 합집합인 이유: 캠프 관할은 선거구와 일치하지 않는다.
     구청장은 국회의원 선거구 셋을 아우르고, 기초의원 선거구는 아예 없다 (P-001 §6).
+
+    공개 함수인 이유는 **쓰기 전에 막기 위해서다.** 읽기 경로의 검증(`load_cycle`)은
+    손으로 고친 파일까지 잡아주지만, 웹 온보딩 폼은 저장하기 **전에** 같은 검증을
+    해야 한다 — 관할이 틀리면 에러 없이 모든 분석이 조용히 틀린다 (P-001 §16).
     """
     return {c for d in load_districts(districts_path).values() for c in d.emd_codes}

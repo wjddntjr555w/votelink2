@@ -63,6 +63,22 @@ class WebSettings(BaseModel):
     boundaries_path: Path | None = None
     """`data/shared/reference/emd_boundaries.geojson`. 없으면 격자로 그린다."""
 
+    auth: bool = False
+    """로그인을 요구하는가 (P-002).
+
+    **기본이 꺼짐인 이유는 노출 범위다.** 인증이 꺼진 앱은 `127.0.0.1` 에만 붙을 수
+    있고(`cli.py` 의 기동 점검), 그 상태는 지금까지의 1인 로컬 사용과 정확히 같다.
+    캠프를 여럿 받는 순간 `--auth` 가 필요해지고, 그때부터 화면은 세션이 정하는
+    캠프로 스코프된다 — `camp_id` 로 기동 시 한 번 정하는 방식과 섞어 쓰지 않는다.
+    """
+
+    control_db: Path | None = None
+    """계정·세션·감사 (`data/control.db`). `None` 이면 `control.db.CONTROL_DB`.
+
+    레코드 저장소와 **다른 파일이다** — control plane 과 data plane 은 목적도 수명도
+    다르다 (P-002 §4). 주입은 테스트용이다.
+    """
+
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
 
