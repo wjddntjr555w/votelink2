@@ -32,7 +32,11 @@
   <table class="compare">
     <thead>
       <tr>
-        <th>선거구</th><th>진영 구성</th><th>투표율</th><th>스윙</th>
+        <th>선거구</th><th>진영 구성</th>
+        {% if lens %}
+        <th title="우리 진영 − 나머지 전부(중도·기타 포함). 집계 근사다">우리 우열</th>
+        {% endif %}
+        <th>투표율</th><th>스윙</th>
         <th>{{ view.gap_labels['nation'] }} 대비</th><th>인구</th><th>동</th><th>검토</th>
       </tr>
     </thead>
@@ -48,6 +52,10 @@
             {% endfor %}
           </svg>
         </td>
+        {% if lens %}
+        <td class="{{ 'lens--ahead' if row.agg.lens_read and row.agg.lens_read.ahead else 'lens--behind' }}">
+          {{ row.agg.lens_read.lead_text if row.agg.lens_read else '—' }}</td>
+        {% endif %}
         <td>{{ '%.1f'|format(row.agg.turnout) }}%</td>
         <td>{{ '%.1f'|format(row.agg.swing) }}%p</td>
         <td>{{ row.agg.gaps['nation'].text }}</td>

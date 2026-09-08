@@ -9,6 +9,19 @@
 <section class="head">
   <h1>{{ view.district_name }} <span class="muted">· {{ view.election_type_label }}</span></h1>
 
+  {# 렌즈 — 무엇이 "우리"인지 화면이 먼저 밝힌다. 숫자는 공용 그대로다 (P-001 §5). #}
+  {% if view.lens %}
+  <p class="banner banner--lens">
+    <strong>{{ view.lens.label }}</strong> 캠프의 관점으로 보고 있다 —
+    <i class="swatch camp--{{ view.lens.lineage.value }}"></i>{{ view.lens.lineage.value }} 진영을 "우리"로 읽는다.
+    <span class="muted small">
+      숫자 자체는 진영 중립으로 계산된 공용 값이며 캠프마다 같다.
+      <strong>"상대"는 우리 진영을 뺀 전부</strong>다 — 중도·기타가 함께 들어간다.
+      이 시스템은 개별 상대 후보의 득표를 모르고 진영 단위 값만 안다.
+    </span>
+  </p>
+  {% endif %}
+
   {% if view.is_empty %}
     {# 서버가 안 뜨면 *왜* 비었는지 볼 화면조차 없다. 빈 상태에서 무엇을 할지 말해준다. #}
     <div class="banner banner--warn">
@@ -30,6 +43,11 @@
       <div><dt>인구 기준월</dt><dd>{{ view.population_month_text }}</dd></div>
       <div><dt>분석 기준월</dt><dd>{{ view.as_of_months|join(' · ') }}</dd></div>
       <div><dt>최근 선거</dt><dd>{{ view.latest_election_date }}</dd></div>
+      {# 운영자가 매일 수집하므로 어제 본 숫자가 오늘 달라질 수 있다 (P-001 §11). #}
+      {% if view.last_updated %}
+      <div><dt>마지막 갱신</dt><dd title="이 화면이 읽은 레코드 중 가장 최근 수집 시각">
+        {{ view.last_updated }}</dd></div>
+      {% endif %}
     </dl>
 
     <p class="muted small">

@@ -321,3 +321,37 @@ table.news-table a { color: var(--ink); }
   font-size: 12px; color: var(--muted);
 }
 .issues__places { margin: 4px 0 0; }
+
+/* --- 렌즈 (P-001 §5) -----------------------------------------------------
+   공용 숫자를 캠프 관점으로 읽은 표시. 값은 바뀌지 않고 강조만 붙는다. */
+.banner--lens { border-color: var(--line); background: var(--note-bg); }
+
+.lens {
+  margin: 6px 0 0;
+  padding: 4px 8px;
+  border-left: 3px solid var(--line);
+  font-size: 12px;
+}
+.lens strong { font-variant-numeric: tabular-nums; }
+.lens--ahead { border-left-color: var(--ok-line); }
+.lens--behind { border-left-color: var(--block-line); }
+
+.legend-inline li.ours { font-weight: 600; }
+
+.tag {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 15px;
+  vertical-align: 1px;
+}
+.tag--ours { background: var(--note-bg); border: 1px solid var(--note-line); }
+.tag--outside { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--muted); }
+
+/* SVG 막대에서 우리 진영 조각에 테두리를 준다 — 색만으로 구분하지 않는다. */
+rect.camp--ours { stroke: var(--ink); stroke-width: 0.6; }
+
+/* 우세/열세는 어느 진영이냐와 무관하다 — 진영색이 아니라 중립 신호색을 쓴다. */
+td.lens--ahead { color: var(--ok-line); font-variant-numeric: tabular-nums; }
+td.lens--behind { color: var(--block-line); font-variant-numeric: tabular-nums; }

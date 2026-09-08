@@ -44,7 +44,12 @@
       {% endfor %}
     </select>
     {% endif %}
-    <span class="muted">로컬 전용 · 캠프 내부 열람</span>
+    {% if lens %}
+    <span class="muted" title="{{ lens.camp_id }} · {{ lens.cycle_id }}">
+      {{ lens.label }} 캠프 · 내부 열람</span>
+    {% else %}
+    <span class="muted">진영 중립 보기 · 캠프 내부 열람</span>
+    {% endif %}
   </header>
 
   <main>{% block content %}{% endblock %}</main>

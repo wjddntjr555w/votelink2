@@ -34,6 +34,19 @@ class WebSettings(BaseModel):
     `data/camps/<camp_id>/` 가 들어온다.
     """
 
+    camp_id: str | None = None
+    """어느 캠프의 눈으로 볼 것인가 (`P-001` §5 렌즈). `None` 이면 진영 중립으로 그린다.
+
+    지금은 `serve --camp` 로 기동 시 한 번 정해진다. 세션이 캠프를 정하는 것은
+    인증이 붙는 P-002 의 일이다 — 그때 이 필드는 요청별 값으로 옮겨간다.
+    """
+
+    cycle_id: str | None = None
+    """선거 주기. `None` 이면 그 캠프의 가장 최근 주기."""
+
+    camps_root: Path | None = None
+    """`camps/` 의 부모(`data/`). `None` 이면 `store.DATA_DIR`. 주입은 테스트용이다."""
+
     districts_path: Path | None = None
     """`data/shared/reference/districts.yaml`."""
 

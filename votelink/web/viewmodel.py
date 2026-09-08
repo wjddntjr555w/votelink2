@@ -20,6 +20,7 @@ from votelink.contract.enums import AgeBand, Camp, ElectionType, IssueTrend, Tre
 from votelink.contract.payloads import LeanPoint
 from votelink.reference.compliance import Policy, ReviewStatus, Verdict, review_with
 from votelink.reference.districts import District
+from votelink.web.lens import Lens
 from votelink.web.loader import (
     ComparisonProfiles,
     DistrictNews,
@@ -242,6 +243,8 @@ class BarSlice(BaseModel):
     pct: float
     offset: float
     css_class: str
+    ours: bool = False
+    """렌즈가 있을 때 이 조각이 우리 진영인가 (`P-001` §5). 렌즈가 없으면 전부 False."""
 
 
 class AgeBar(BaseModel):
@@ -252,19 +255,25 @@ class AgeBar(BaseModel):
     height_pct: float
 
 
-def camp_bar(point: LeanPoint) -> list[BarSlice]:
-    """진영 구성 누적 막대. 계약(`_check_shares`)이 4개 키를 전부 보장한다."""
+def camp_bar(point: LeanPoint, lens: Lens | None = None) -> list[BarSlice]:
+    """진영 구성 누적 막대. 계약(`_check_shares`)이 4개 키를 전부 보장한다.
+
+    렌즈를 주면 우리 진영 조각에 표시가 붙는다. **숫자는 바뀌지 않는다** — 같은
+    공용 계산 결과를 읽는 방식만 달라진다 (`P-001` §5).
+    """
     slices: list[BarSlice] = []
     offset = 0.0
     for camp in CAMP_ORDER:
         pct = point.camp_share[camp]
+        ours = lens is not None and lens.is_ours(camp)
         slices.append(
             BarSlice(
                 camp=camp,
                 label=CAMP_LABELS[camp],
                 pct=pct,
                 offset=offset,
-                css_class=f"camp camp--{camp.value}",
+                css_class=f"camp camp--{camp.value}" + (" camp--ours" if ours else ""),
+                ours=ours,
             )
         )
         offset += pct
@@ -288,6 +297,45 @@ def gap_labels(district: District) -> dict[str, str]:
         "sido": district.sido,
         "nation": "전국",
     }
+
+
+class LensRead(BaseModel):
+    """공용 숫자를 캠프 관점으로 읽은 것. **원래 숫자를 바꾸지 않는다.**
+
+    `ours` 는 우리 진영 득표, `theirs` 는 나머지 전부다. 나머지를 한 덩어리로 세는
+    이유: 이 시스템은 개별 상대 후보의 득표를 모른다 — `party_lineage.yaml` 이
+    후보를 진영으로 환원한 뒤의 값만 있다. "가장 큰 상대 진영"을 따로 세면 3자
+    구도에서 오해를 부른다(중도가 크면 보수가 약한 것처럼 보인다).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ours: float
+    theirs: float
+    lead: float
+    """ours − theirs (%p). 음수면 열세다."""
+
+    in_territory: bool = True
+    """이 동이 캠프 관할인가. 관할 밖 동도 보여주되 그 사실을 표시한다."""
+
+    @property
+    def ahead(self) -> bool:
+        return self.lead > 0
+
+    @property
+    def lead_text(self) -> str:
+        return f"{self.lead:+.1f}%p"
+
+    @classmethod
+    def of(cls, point: LeanPoint, lens: Lens, geo_code: str | None = None) -> LensRead:
+        ours = point.camp_share[lens.lineage]
+        theirs = sum(v for c, v in point.camp_share.items() if c is not lens.lineage)
+        return cls(
+            ours=ours,
+            theirs=theirs,
+            lead=ours - theirs,
+            in_territory=lens.covers(geo_code),
+        )
 
 
 class EmdCard(BaseModel):
@@ -327,6 +375,8 @@ class EmdCard(BaseModel):
     evidence_count: int
     evidence_ids: list[str]
     verdict: Verdict
+    lens_read: LensRead | None = None
+    """렌즈가 있을 때만 채워진다. 없으면 카드는 지금까지처럼 진영 중립이다."""
 
 
 def build_card(
@@ -336,6 +386,7 @@ def build_card(
     *,
     levels: Sequence[str] = GAP_LEVELS,
     primary: str = "district",
+    lens: Lens | None = None,
 ) -> EmdCard:
     """`labels` 는 편차 기준 단위의 이름 dict (`gap_labels(district)` 또는 `{"nation": "전국"}`).
     `levels` 는 이 카드가 보여줄 편차 단위, `primary` 는 요약·스파크라인의 기준 단위."""
@@ -350,7 +401,8 @@ def build_card(
         latest_election_id=latest.election_id,
         latest_election_date=latest.election_date,
         election_count=len(series),
-        camp_bar=camp_bar(latest),
+        camp_bar=camp_bar(latest, lens),
+        lens_read=LensRead.of(latest, lens, profile.geo_code) if lens else None,
         turnout=latest.turnout,
         swing=payload.swing,
         trend=payload.trend,
@@ -396,6 +448,8 @@ class AggregateCard(BaseModel):
     label: str
     member_count: int
     camp_bar: list[BarSlice]
+    lens_read: LensRead | None = None
+    """렌즈가 있을 때만. 집계 자체가 근사라 이 읽기도 근사다 (`approx` 배지 참조)."""
     turnout: float
     turnout_known: int
     turnout_total: int
@@ -441,6 +495,7 @@ def aggregate_profiles(
     policy: Policy,
     levels: Sequence[str] = GAP_LEVELS,
     primary: str = "district",
+    lens: Lens | None = None,
 ) -> AggregateCard | None:
     """동 프로파일 여러 개 → 집계 카드 하나. 빈 입력이면 None."""
     profiles = list(profiles)
@@ -505,7 +560,10 @@ def aggregate_profiles(
     return AggregateCard(
         label=label,
         member_count=len(profiles),
-        camp_bar=camp_bar(latest_point),
+        camp_bar=camp_bar(latest_point, lens),
+        # 집계 카드의 렌즈 읽기도 근사다 — camp_share 자체가 가중 근사이기 때문이다
+        # (approx 배지가 그 사실을 이미 말한다). 관할 판정은 동 단위가 아니라 생략한다.
+        lens_read=LensRead.of(latest_point, lens) if lens else None,
         turnout=latest_turnout,
         turnout_known=turnout_known,
         turnout_total=len(profiles),
@@ -603,6 +661,17 @@ class DistrictView(BaseModel):
     summary_card: AggregateCard | None = None
     """이 선거구 전체를 한 장으로 묶은 집계 (근사). 카드가 없으면 None."""
 
+    lens: Lens | None = None
+    """어느 캠프의 눈으로 보는가 (`P-001` §5). `None` 이면 진영 중립."""
+
+    last_updated: str = ""
+    """이 화면이 읽은 레코드 중 가장 최근 `ingested_at` (KST, 분 단위).
+
+    호스팅에서는 운영자가 매일 수집하므로 캠프가 어제 본 숫자가 오늘 달라질 수 있다.
+    **왜 달라졌는지**(참조 데이터 변경 등)는 변경이 일어나는 곳에서만 붙일 수 있어
+    P-003(운영자 콘솔)의 몫이다. 여기서는 언제 바뀌었는지까지 말한다 (`P-001` §11).
+    """
+
     population_total: int = 0
     population_months: list[str] = Field(default_factory=list)
     as_of_months: list[str] = Field(default_factory=list)
@@ -635,16 +704,23 @@ def worst_verdict(verdicts: Sequence[Verdict]) -> Verdict | None:
     return max(verdicts, key=lambda v: _STATUS_SEVERITY[v.status])
 
 
+def last_ingested(profiles: Sequence[EmdProfile]) -> str:
+    """읽은 레코드 중 가장 최근 수집 시각. 없으면 빈 문자열."""
+    stamps = [p.record.ingested_at for p in profiles]
+    return max(stamps).strftime("%Y-%m-%d %H:%M") if stamps else ""
+
+
 def build_view(
     profiles: DistrictProfiles,
     policy: Policy,
     *,
     sort: str = "code",
     election_type: ElectionType = DEFAULT_ELECTION_TYPE,
+    lens: Lens | None = None,
 ) -> DistrictView:
     district = profiles.district
     labels = gap_labels(district)
-    cards = [build_card(p, labels, policy) for p in profiles.profiles]
+    cards = [build_card(p, labels, policy, lens=lens) for p in profiles.profiles]
     ordered = sort_cards(cards, sort)
     latest = cards[0] if cards else None
 
@@ -657,7 +733,7 @@ def build_view(
         election_type=election_type.value,
         election_type_label=ELECTION_TYPE_LABELS[election_type],
         summary_card=aggregate_profiles(
-            profiles.profiles, label=f"{district.name} 종합", policy=policy
+            profiles.profiles, label=f"{district.name} 종합", policy=policy, lens=lens
         ),
         population_total=sum(c.population_total for c in cards),
         population_months=sorted({p.payload.population_month for p in profiles.profiles}),
@@ -668,6 +744,8 @@ def build_view(
         source_licenses=sorted({p.record.source_license for p in profiles.profiles}),
         missing_gaps=sum(c.missing_gaps for c in cards),
         verdict=worst_verdict([c.verdict for c in cards]),
+        lens=lens,
+        last_updated=last_ingested(profiles.profiles),
     )
 
 
@@ -738,7 +816,11 @@ def _sort_comparison(rows: Sequence[ComparisonRow], key: str) -> list[Comparison
 
 
 def build_comparison(
-    comparison: ComparisonProfiles, policy: Policy, *, sort: str = "name"
+    comparison: ComparisonProfiles,
+    policy: Policy,
+    *,
+    sort: str = "name",
+    lens: Lens | None = None,
 ) -> ComparisonView:
     rows: list[ComparisonRow] = []
     for dp in comparison.rows:
@@ -748,6 +830,7 @@ def build_comparison(
             policy=policy,
             levels=("nation",),
             primary="nation",
+            lens=lens,
         )
         if agg is None:  # comparison.rows 는 비지 않은 것만 담지만 방어적으로
             continue
@@ -808,10 +891,13 @@ class NationView(BaseModel):
         return f"표시 {self.diagnostics.loaded}곳"
 
 
-def build_nation_view(nation: NationProfiles, policy: Policy, *, sort: str = "code") -> NationView:
+def build_nation_view(
+    nation: NationProfiles, policy: Policy, *, sort: str = "code", lens: Lens | None = None
+) -> NationView:
     labels = {"nation": "전국"}
     cards = [
-        build_card(p, labels, policy, levels=("nation",), primary="nation") for p in nation.profiles
+        build_card(p, labels, policy, levels=("nation",), primary="nation", lens=lens)
+        for p in nation.profiles
     ]
     ordered = sort_cards(cards, sort)
     latest = cards[0] if cards else None
@@ -825,6 +911,7 @@ def build_nation_view(nation: NationProfiles, policy: Policy, *, sort: str = "co
             policy=policy,
             levels=("nation",),
             primary="nation",
+            lens=lens,
         ),
         diagnostics=nation.diagnostics,
         sort=sort if sort in SORTS else "code",

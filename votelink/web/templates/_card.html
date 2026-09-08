@@ -21,9 +21,23 @@
   </div>
   <ul class="legend-inline">
     {% for s in c.camp_bar %}
-    <li><i class="swatch {{ s.css_class }}"></i>{{ s.label }} {{ '%.1f'|format(s.pct) }}%</li>
+    <li{{ ' class="ours"'|safe if s.ours }}>
+      <i class="swatch {{ s.css_class }}"></i>{{ s.label }} {{ '%.1f'|format(s.pct) }}%
+      {%- if s.ours %} <span class="tag tag--ours">우리</span>{% endif %}</li>
     {% endfor %}
   </ul>
+
+  {# 렌즈 — 같은 숫자를 캠프 관점으로 읽는다. 값은 바뀌지 않는다 (P-001 §5). #}
+  {% if c.lens_read %}
+  <p class="lens {{ 'lens--ahead' if c.lens_read.ahead else 'lens--behind' }}">
+    우리 {{ '%.1f'|format(c.lens_read.ours) }}%
+    · 상대 {{ '%.1f'|format(c.lens_read.theirs) }}%
+    <strong>{{ c.lens_read.lead_text }}</strong>
+    {%- if not c.lens_read.in_territory %}
+    <span class="tag tag--outside" title="이 캠프의 관할 행정동이 아니다">관할 밖</span>
+    {%- endif %}
+  </p>
+  {% endif %}
 
   <dl class="facts">
     <div><dt>투표율</dt><dd>{{ '%.1f'|format(c.turnout) }}%</dd></div>

@@ -24,6 +24,7 @@ from starlette.responses import Response
 from votelink.contract.enums import ElectionType
 from votelink.reference.compliance import load_policy
 from votelink.reference.districts import DistrictNotFound
+from votelink.web.lens import load_lens
 from votelink.web.loader import (
     AmbiguousDistrict,
     available_districts,
@@ -68,6 +69,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     )
     app.state.settings = settings or WebSettings()
     app.state.templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    # 렌즈는 기동 시 한 번 읽는다. 캠프 설정이 깨져 있으면 여기서 죽는 것이 맞다 —
+    # 관할이 틀린 채로 화면을 그리면 조용히 다른 답을 보여준다 (P-001 §16).
+    # 세션이 캠프를 정하게 되면(P-002) 이 자리는 요청별로 옮겨간다.
+    s = app.state.settings
+    app.state.lens = (
+        load_lens(s.camp_id, s.cycle_id, s.camps_root, s.districts_path) if s.camp_id else None
+    )
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/", response_class=Response)
@@ -149,7 +157,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         et = resolve_election_type(election_type)
         comparison = load_comparison(settings, election_type=et)
         policy = load_policy(settings.policy_path)
-        view = build_comparison(comparison, policy, sort=sort)
+        view = build_comparison(comparison, policy, sort=sort, lens=request.app.state.lens)
         return _render(request, "compare.html", _ctx(request, view=view))
 
     @app.get("/nation", response_class=Response)
@@ -160,7 +168,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         et = resolve_election_type(election_type)
         profiles = load_all_emd(settings, election_type=et)
         policy = load_policy(settings.policy_path)
-        view = build_nation_view(profiles, policy, sort=sort)
+        view = build_nation_view(profiles, policy, sort=sort, lens=request.app.state.lens)
         return _render(request, "nation.html", _ctx(request, view=view))
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -183,16 +191,19 @@ def _view(
     settings: WebSettings = request.app.state.settings
     profiles = load_profiles(settings, district_id, election_type=election_type)
     policy = load_policy(settings.policy_path)
-    return build_view(profiles, policy, sort=sort, election_type=election_type)
+    return build_view(
+        profiles, policy, sort=sort, election_type=election_type, lens=request.app.state.lens
+    )
 
 
 def _ctx(request: Request, district_id: str | None = None, **extra) -> dict:
-    """모든 화면이 공유하는 컨텍스트 — 현재 선거구, 전환 목록, 선거 계열 목록."""
+    """모든 화면이 공유하는 컨텍스트 — 현재 선거구, 전환 목록, 선거 계열 목록, 렌즈."""
     settings: WebSettings = request.app.state.settings
     return {
         "district_id": district_id,
         "districts": available_districts(settings),
         "election_types": election_type_choices(),
+        "lens": request.app.state.lens,
         **extra,
     }
 

@@ -579,11 +579,18 @@ def cmd_serve(args: argparse.Namespace) -> int:
         import uvicorn
 
         from votelink.web.app import create_app
+        from votelink.web.lens import load_lens
     except ImportError as exc:
         print(f"웹 의존성이 없다 ({exc}). `uv sync` 를 먼저 실행하라", file=sys.stderr)
         return 1
 
-    settings = WebSettings(district_id=args.district, host=args.host, port=args.port)
+    settings = WebSettings(
+        district_id=args.district,
+        host=args.host,
+        port=args.port,
+        camp_id=args.camp,
+        cycle_id=args.cycle,
+    )
 
     # 기동 전 점검. 여기서 걸리는 것은 전부 사용자가 고칠 일이라 트레이스백을 보여주지 않는다.
     try:
@@ -592,6 +599,25 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except FileNotFoundError as exc:
         print(f"참조 데이터가 없다: {exc}", file=sys.stderr)
         return 1
+
+    # 렌즈를 기동 전에 읽어 본다. 관할이 틀린 채로 화면을 그리면 조용히 다른 답을
+    # 보여주므로(P-001 §16), 여기서 걸러 트레이스백 없이 알린다.
+    if args.camp:
+        try:
+            lens = load_lens(args.camp, args.cycle, settings.camps_root, settings.districts_path)
+        except (
+            camp.CampNotFound,
+            camp.CycleNotFound,
+            camp.CampConfigError,
+            FileNotFoundError,
+            ValidationError,
+        ) as exc:
+            print(f"캠프 설정을 읽을 수 없다: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"렌즈: {lens.label} · {lens.lineage.value} 진영 · "
+            f"관할 {len(lens.territory)}개 동 ({lens.cycle_id})"
+        )
 
     # --district 를 줬으면 그 하나만, 아니면 정의된 선거구를 전부 점검한다. 선거구가
     # 여럿이어도 죽이지 않는다 — 웹앱의 `/` 가 선거구 선택 화면을 띄운다.
@@ -768,6 +794,14 @@ def build_parser() -> argparse.ArgumentParser:
             "(선거구가 하나뿐이면 그리로 바로 이동)"
         ),
     )
+    p_serve.add_argument(
+        "--camp",
+        help=(
+            "이 캠프의 관점으로 본다 (렌즈). 생략하면 진영 중립으로 그린다 — "
+            "숫자는 어느 쪽이든 같고 읽는 방식만 달라진다"
+        ),
+    )
+    p_serve.add_argument("--cycle", help="선거 주기. 생략하면 그 캠프의 가장 최근 주기")
     p_serve.set_defaults(func=cmd_serve)
 
     return parser
