@@ -305,7 +305,7 @@ class NewsPulsePayload(_Payload):
 
 # --- local_issue (L2 파생) --------------------------------------------------
 #
-# news_article 을 어휘집(data/reference/issue_lexicon.yaml)으로 분류해 언급 빈도·
+# news_article 을 어휘집(data/shared/reference/issue_lexicon.yaml)으로 분류해 언급 빈도·
 # 최근성으로 세운 지역 현안 랭킹. news_pulse 가 "얼마나"를 답한다면 이건 "무엇을".
 # LLM 을 쓰지 않는다 — 순수 substring 매칭이라 재현 가능하다. 감성·유불리는
 # 판정하지 않는다 (그건 별도 분석기). 선거구당 레코드 1건, geo_level 은 sigungu 고정.

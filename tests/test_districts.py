@@ -1,12 +1,13 @@
 """선거구 정의 — 획정이 바뀌면 코드가 아니라 데이터를 고친다."""
 
 import json
-from pathlib import Path
 
 import pytest
 
+from votelink import store
 from votelink.reference import districts as mod
 from votelink.reference import resolve_district
+from votelink.store import DataSpace
 
 TARGET = "seoul_songpa_gap"
 
@@ -76,7 +77,11 @@ def test_internal_codes_match_what_mois_actually_collected():
     — 다른 선거구를 collect 하면 같은 파일에 쌓인다(D-001, 47개 선거구 백필).
     그래서 '정확히 일치'가 아니라 'TARGET 의 코드가 전부 그 안에 있다'로 확인한다.
     """
-    records = Path("data/records/mois_population.jsonl")
+    # 경로를 손으로 적지 않는다 — 레이아웃이 바뀌면 이 테스트가 실패가 아니라 조용한
+    # skip 으로 변한다 (P-001 1b 이전 때 실제로 그랬다). DataSpace 가 레이아웃의 진실이다.
+    # 루트 conftest 의 가드가 store.SHARED_DIR 을 tmp 로 돌리므로 실제 공간을 직접 만든다 —
+    # 이 테스트는 저장소에 **실제로 쌓인** 레코드를 보는 것이 목적이다.
+    records = DataSpace(store.DATA_DIR / "shared").record_file("mois_population")
     if not records.exists():
         pytest.skip("mois_population 레코드가 아직 없다")
 

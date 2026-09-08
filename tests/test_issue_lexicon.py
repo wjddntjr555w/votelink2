@@ -96,7 +96,7 @@ def test_unknown_field_rejected(tmp_path):
 
 
 def test_repo_lexicon_is_valid():
-    """저장소에 커밋된 data/reference/issue_lexicon.yaml 이 계약을 지키는지."""
+    """저장소에 커밋된 data/shared/reference/issue_lexicon.yaml 이 계약을 지키는지."""
     lexicon = lex.load_lexicon(force=True)
     assert lexicon.version
     assert lexicon.categories

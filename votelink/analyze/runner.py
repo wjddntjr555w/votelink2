@@ -81,7 +81,7 @@ def run(
         report.failed = True
         report.failure_reason = (
             f"입력 레코드가 0건이다 (기대 kind: {[str(k) for k in analyzer.meta.inputs]}). "
-            "수집기를 먼저 돌렸는지 확인하라 — data/records/ 가 비어 있다"
+            "수집기를 먼저 돌렸는지 확인하라 — data/shared/records/ 가 비어 있다"
         )
         return report
 

@@ -1,6 +1,6 @@
 """D-002 — 22대(2024)를 47개 선거구로 확장하며 추가한 자동 유도 부분.
 
-`_auto_district_match` 는 실제 `data/reference/districts.yaml` 의 name 에서 값을
+`_auto_district_match` 는 실제 `data/shared/reference/districts.yaml` 의 name 에서 값을
 유도한다 — 합성 데이터로는 이 신뢰 관계 자체를 검증할 수 없다.
 """
 

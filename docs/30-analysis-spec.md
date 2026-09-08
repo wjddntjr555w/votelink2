@@ -9,7 +9,7 @@
 공통 레코드를 읽어 **파생 레코드**를 만드는 것. 그게 전부다.
 
 ```
-data/records/*.jsonl  →  분석기  →  data/records/<analyzer_id>.jsonl
+data/shared/records/*.jsonl  →  분석기  →  data/shared/records/<analyzer_id>.jsonl
    (원천 + 다른 파생)              (파생. 형식은 원천과 동일)
 ```
 
@@ -25,7 +25,7 @@ data/records/*.jsonl  →  분석기  →  data/records/<analyzer_id>.jsonl
 | `fetch()` 네트워크만 | `load()` **디스크만** | 부작용을 한 곳에 가둔다 |
 | `parse()` 순수 함수 | `compute()` **순수 함수** | 재실행하면 같은 결과 |
 | `map_items` 항목 격리 | 동일 | 9개 중 1개 실패가 8개를 죽이지 않게 |
-| `data/rejected/` | 동일 | 조용한 누락을 만들지 않는다 |
+| `data/shared/rejected/` | 동일 | 조용한 누락을 만들지 않는다 |
 | `collectors/<id>/` | `analyzers/<id>/` | 하나 고치는 비용이 개수와 무관하게 |
 | `collect <id>` | `analyze <id>` | |
 | `registry.yaml` | 동일 | 전체 목록은 파일 하나만 본다 |
@@ -111,7 +111,7 @@ store.load_records(self.meta.inputs, exclude_owners=[self.id])
 
 ## 8. 참조 데이터는 코드에 박지 않는다
 
-판단이 들어가는 값은 `data/reference/` 에 두고 분석기는 읽기만 한다.
+판단이 들어가는 값은 `data/shared/reference/` 에 두고 분석기는 읽기만 한다.
 
 | 파일 | 무엇 | 왜 데이터인가 |
 |---|---|---|

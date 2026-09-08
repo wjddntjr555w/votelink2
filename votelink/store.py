@@ -29,6 +29,15 @@ from votelink.contract.models import KST, Record, Rejected, load_record
 log = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
+"""저장소의 데이터 뿌리. 공간 밖에 사는 것(P-002 의 `control.db` 등)도 여기 있다."""
+
+SHARED_DIR = DATA_DIR / "shared"
+"""공용 공간 — 운영자가 소유하고 전 캠프가 읽기 전용으로 본다 (`P-001` §4).
+
+캠프 전용 공간은 `data/camps/<camp_id>/` 로 이 옆에 선다. 둘을 형제로 두는 것이
+`data/records/` 를 `data/shared/records/` 로 옮긴 이유다 — 최상위에 `records/` 가
+그냥 놓여 있으면 그게 공용인지 어느 캠프 것인지 경로가 말해주지 않는다.
+"""
 
 
 @dataclass(frozen=True)
@@ -53,8 +62,8 @@ class DataSpace:
 
     @classmethod
     def default(cls) -> DataSpace:
-        """저장소 기본 공간. CLI 진입점이 쓴다."""
-        return cls(DATA_DIR)
+        """공용 공간. CLI 진입점이 쓴다 — 지금 있는 데이터는 전부 공용이다 (`P-001` §3)."""
+        return cls(SHARED_DIR)
 
     @property
     def records(self) -> Path:

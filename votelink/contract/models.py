@@ -42,7 +42,7 @@ RECORD_ID_LEN = 16
 # 그래서 모든 레벨이 10자리이고, 레벨 구분은 뒤쪽 0의 개수로 드러난다.
 #
 # 다른 체계(행정기관코드 7자리, 통계청 행정구역코드 8자리)는 내부 표준이 아니며
-# 매핑표(data/reference/geo_mapping.csv)의 source_code 로만 존재한다.
+# 매핑표(data/shared/reference/geo_mapping.csv)의 source_code 로만 존재한다.
 #
 # 이 값은 프로젝트에서 단 한 곳이다. 주 출처가 바뀌어 체계가 달라지면 여기만 고친다.
 GEO_CODE_DIGITS = 10
@@ -200,7 +200,7 @@ class Record(BaseModel):
 
 
 class Rejected(BaseModel):
-    """계약을 위반해 격리되는 항목. data/rejected/ 로 간다.
+    """계약을 위반해 격리되는 항목. data/shared/rejected/ 로 간다.
 
     L1(수집)과 L2(분석)가 같이 쓴다. '계약을 통과하지 못한 것'은 계약의 개념이라
     어느 한쪽 계층에 두지 않는다.

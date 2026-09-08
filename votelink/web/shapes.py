@@ -1,6 +1,6 @@
 """지도 칸의 배치 좌표. **격자와 실제 경계 사이의 이음매다.**
 
-`data/reference/emd_boundaries.geojson` 이 있으면 그걸 쓰고, 없으면 격자를 만든다.
+`data/shared/reference/emd_boundaries.geojson` 이 있으면 그걸 쓰고, 없으면 격자를 만든다.
 템플릿과 라우트는 둘 다 `svg_path` 만 보므로, 나중에 경계 파일 한 장을 떨구면
 화면 코드는 바뀌지 않는다 (`docs/40-webapp-spec.md §11`).
 
@@ -9,7 +9,7 @@ A-001이 기준선에 대해 쓴 것과 같은 수법이다 — "지금 없으�
 
 **격자 칸을 손으로 배치하지 않는다.** `geo_code` 오름차순 고정이다. 대충 실제 위치처럼
 놓는 것은 근거 없는 지리를 지어내는 것이고, 배치가 판단이 되는 순간 그건
-`data/reference/` 에 있어야 할 데이터가 된다.
+`data/shared/reference/` 에 있어야 할 데이터가 된다.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-BOUNDARIES_PATH = Path("data/reference/emd_boundaries.geojson")
+BOUNDARIES_PATH = Path("data/shared/reference/emd_boundaries.geojson")
 
 CANVAS = 300.0
 """SVG viewBox 한 변. 좌표계는 이 안에서만 의미가 있다."""

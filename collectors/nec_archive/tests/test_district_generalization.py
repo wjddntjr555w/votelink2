@@ -1,6 +1,6 @@
 """D-002 — 송파구 하드코딩을 없애고 districts.yaml 에서 유도하는 부분.
 
-실제 `data/reference/districts.yaml`(커밋된, D-001 로 admmCd 가 채워진 것)을 그대로
+실제 `data/shared/reference/districts.yaml`(커밋된, D-001 로 admmCd 가 채워진 것)을 그대로
 쓴다 — 이 유도 로직 자체가 그 데이터를 신뢰하는 게 핵심이라 합성 데이터로는 의미가
 옅다. 네트워크·raw 파일은 필요 없다(전부 config 해석 단계).
 """

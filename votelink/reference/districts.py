@@ -1,7 +1,7 @@
 """선거구 ↔ 행정동 매핑.
 
 선거구 획정은 매 선거마다 바뀐다. 그래서 코드가 아니라 데이터
-(`data/reference/districts.yaml`)로 둔다.
+(`data/shared/reference/districts.yaml`)로 둔다.
 
 L1은 '어디를 수집할지', L2는 '어디를 분석할지'를 여기서 가져온다.
 두 계층이 각자 목록을 들고 있으면 반드시 어긋난다.
@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from votelink.contract.models import GEO_CODE_DIGITS
 
-DISTRICTS_PATH = Path("data/reference/districts.yaml")
+DISTRICTS_PATH = Path("data/shared/reference/districts.yaml")
 
 _lock = threading.Lock()
 _cache: dict[str, District] | None = None

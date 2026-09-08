@@ -58,7 +58,7 @@ raw 를 고치면 이 되돌리기가 불가능해지고, 그 순간 `records/` 
 **따라서 비대칭이 있다**: `records/<id>.jsonl` 을 지우는 것은 회복 가능하고(재파싱),
 `raw/<id>/` 를 지우는 것은 회복 불가능하다(재수집이 되면 다행이고, 과거 시점 데이터면
 영영 못 구한다). 은퇴한 수집기의 raw 를 남겨두는 것도 같은 이유다 —
-`data/raw/nec_election_result/` 는 그 수집기가 `collectors/_retired/` 로 간 뒤에도 남아 있고,
+`data/shared/raw/nec_election_result/` 는 그 수집기가 `collectors/_retired/` 로 간 뒤에도 남아 있고,
 `records/nec_election_result.jsonl` 만 지워졌다.
 
 ## 4. append(L1) vs upsert(L2)
@@ -88,7 +88,7 @@ raw 를 고치면 이 되돌리기가 불가능해지고, 그 순간 `records/` 
 함께 두면 다음 사람이 헤매지 않는다.
 
 **알려진 예외**: `nec_archive` 와 `nec_archive_assembly` 는 선관위 개표자료 아카이브
-(9,584 파일 / 651MB)를 `data/raw/nec_archive/01_대통령선거(대선)/` 처럼 `raw/` 아래에서
+(9,584 파일 / 651MB)를 `data/shared/raw/nec_archive/01_대통령선거(대선)/` 처럼 `raw/` 아래에서
 읽는다 (`meta.yaml` 의 `config.archive_dir`). 규약대로면 `incoming/` 이다.
 
 지금 문제를 일으키지 않는 이유는 `storage.iter_raw` 가 `*.json.gz` 만 훑기 때문이다 —

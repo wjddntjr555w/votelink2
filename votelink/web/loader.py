@@ -253,7 +253,7 @@ def load_comparison(
                     else "분석 결과 0건 — voter_profile 미실행"
                 ),
                 fix=(
-                    "data/reference/districts.yaml 의 emd[].code 를 채운다"
+                    "data/shared/reference/districts.yaml 의 emd[].code 를 채운다"
                     if no_codes
                     else f"uv run votelink analyze voter_profile --district {district.id}"
                 ),

@@ -2,7 +2,7 @@
 
 정당명은 회차마다 바뀐다(1992 민자당 … 2025 국민의힘). 동별 성향을 시계열로
 비교하려면 공통 축이 필요한데, **그 축을 정하는 일은 정치적 판단이다.**
-그래서 코드가 아니라 데이터(`data/reference/party_lineage.yaml`)에 둔다 —
+그래서 코드가 아니라 데이터(`data/shared/reference/party_lineage.yaml`)에 둔다 —
 이견이 있으면 그 파일만 고치고 재분석하면 된다. `districts.py` 와 같은 구조다.
 
 기본 키는 `(election_id, candidate)` 다. 정당이 아니다:
@@ -30,7 +30,7 @@ from pydantic import BaseModel, ConfigDict
 
 from votelink.contract.enums import Camp
 
-LINEAGE_PATH = Path("data/reference/party_lineage.yaml")
+LINEAGE_PATH = Path("data/shared/reference/party_lineage.yaml")
 
 _lock = threading.Lock()
 _cache: _Table | None = None
@@ -117,7 +117,7 @@ def camp_of(
         raise CampNotFound(
             f"진영 매핑에 없는 후보다: {election_id} / {candidate}"
             + (f" ({district_name})" if district_name else "")
-            + ". data/reference/party_lineage.yaml 에 추가하라 "
+            + ". data/shared/reference/party_lineage.yaml 에 추가하라 "
             "(추측으로 other 처리하지 않는다)"
         )
     return entry.camp

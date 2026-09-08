@@ -2,7 +2,7 @@
 
 제안서: docs/proposals/A-001-voter-profile.md
 
-load: data/records/ 에서 election_result + population 을 읽는다 (기반 클래스 구현)
+load: data/shared/records/ 에서 election_result + population 을 읽는다 (기반 클래스 구현)
 compute: 동 하나당 segment_profile 레코드 하나. **순수 함수.**
 
 이 분석기는 **예측이 아니다.** 표본이 8회 × 9동뿐이고 인구는 단일 시점이라

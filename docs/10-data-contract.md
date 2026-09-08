@@ -84,12 +84,12 @@ Record = Envelope(공통 15필드) + Payload(kind별)
 주 출처가 바뀌어 체계가 달라지면 그 한 곳만 고친다. 이 문서가 아니다.
 
 각 수집기는 자기 출처의 코드를 내부 표준으로 변환할 책임이 있다.
-변환표는 `data/reference/geo_mapping.csv`에 둔다. 매핑 실패는 조용히 넘기지 않고
+변환표는 `data/shared/reference/geo_mapping.csv`에 둔다. 매핑 실패는 조용히 넘기지 않고
 수집 실패로 처리한다.
 
 > 현재(v0.1) 매핑표는 **비어 있어도 된다.** `mois_population` 은 응답에
 > `admmCd` 가 들어 있어 그대로 쓰고, `nec_election_result` 는 이름만 받으므로
-> `data/reference/districts.yaml` 의 `emd[].code` 를 조회한다. 그 코드가
+> `data/shared/reference/districts.yaml` 의 `emd[].code` 를 조회한다. 그 코드가
 > `mois_population` 의 실제 응답에서 나온 값이라 두 수집기의 `geo_code` 가
 > 정의상 일치한다. 매핑표는 송파갑 밖으로 나갈 때 채운다 (`docs/SETUP.md`).
 
@@ -295,11 +295,11 @@ unclassified_count >= total_articles` (한 기사가 여러 카테고리에 걸�
 
 ```
 원본 파일(불변)              공통 레코드                질의용
-data/raw/{collector}/     →  data/records/*.jsonl  →  data/votelink.db
+data/shared/raw/{collector}/     →  data/shared/records/*.jsonl  →  data/votelink.db
 {YYYY-MM-DD}/*.jsonl.gz                                (SQLite)
 ```
 
-`data/raw/`는 절대 수정하지 않는다. 파싱 로직이 틀렸다는 걸 6개월 뒤에 알아도
+`data/shared/raw/`는 절대 수정하지 않는다. 파싱 로직이 틀렸다는 걸 6개월 뒤에 알아도
 원본에서 다시 만들 수 있어야 한다. 상세는 `docs/11-storage.md`.
 
 ## 7. 계약 위반 처리

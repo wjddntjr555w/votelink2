@@ -2,7 +2,7 @@
 
 지역 현안을 어떤 축으로 나누고 어떤 낱말을 그 축에 넣을지는 **지역적·정치적
 편집 판단이다.** `party_lineage.py` 와 같은 이유로 코드가 아니라 데이터
-(`data/reference/issue_lexicon.yaml`)에 둔다 — 이견이 있으면 그 파일만 고치고
+(`data/shared/reference/issue_lexicon.yaml`)에 둔다 — 이견이 있으면 그 파일만 고치고
 `uv run votelink analyze issue_ranker` 를 다시 돌리면 된다.
 
 매칭은 형태소 분석도 개체명 인식도 아니다. 기사 `title + summary` 문자열에
@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-LEXICON_PATH = Path("data/reference/issue_lexicon.yaml")
+LEXICON_PATH = Path("data/shared/reference/issue_lexicon.yaml")
 
 _lock = threading.Lock()
 _cache: Lexicon | None = None

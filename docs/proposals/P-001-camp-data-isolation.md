@@ -223,6 +223,7 @@ data/
   shared/
     reference/                              공용 참조 (git 추적)
     raw/<collector_id>/<YYYY-MM-DD>/        불변, 공개 출처만
+    incoming/<collector_id>/                사람이 손으로 넣는 원본 (access: file 수집기)
     records/<owner_id>.jsonl                공용 L1 + 공용 L2
     rejected/<owner_id>/<YYYY-MM-DD>.jsonl
   camps/<camp_id>/
@@ -390,7 +391,7 @@ fail-closed 는 그대로 유지한다.
 | 단계 | 내용 | 관찰 가능한 결과 |
 |---|---|---|
 | 1a ✅ | `store.py` 경로 헬퍼화 + `DataSpace` 도입 (2026-09-08) | 동작 변화 없음. 588 tests pass · ruff clean · 실제 데이터로 `analyze`·`serve` 확인 |
-| 1b | `data/` → `data/shared/` 이전 | 경로만 바뀐다. raw 는 불변이라 이동이 아니라 복사 |
+| 1b ✅ | `data/` → `data/shared/` 이전 (2026-09-08) | 12,148 파일 · 1.06GB 이동. 파일 수·바이트 대조로 무결성 확인 |
 | 2 | `camp.yaml`/`election.yaml`/`candidates.yaml` 로더 + `votelink camp new` 온보딩 CLI | 캠프 등록이 된다 |
 | 3 | 렌즈 — 웹에 "우리/상대" 주석 + 갱신 이력 노출 | 캠프가 자기 관점으로 본다 |
 | 4 | `compliance.yaml` 분리 | 캠프별 법률 검토가 성립한다 |
@@ -415,8 +416,12 @@ fail-closed 는 그대로 유지한다.
   수집이 선행되어야 한다. 온보딩은 전국을 받게 설계하되 **데이터가 없는 관할은 기동 시 막는다.**
 - **지선 개표 데이터가 미수집이다**(`docs/00-overview.md:49`). `election.yaml` 이 지선을 받게
   설계하지만 분석할 입력이 없다. 등록은 되되 fail-closed 로 경고해야 한다.
-- **`data/` → `data/shared/` 이전은 되돌리기 번거롭다.** `raw/` 는 불변이므로 이동이 아니라
-  복사로만 한다(절대 규칙 1).
+- ~~**`data/` → `data/shared/` 이전은 되돌리기 번거롭다.** `raw/` 는 불변이므로 이동이 아니라
+  복사로만 한다(절대 규칙 1).~~
+  **2026-09-08 정정 — 같은 볼륨 안 rename 으로 했다.** 복사는 881MB·12,148 파일을 두 벌로
+  만들고 중간에 끊기면 raw 가 반쯤 쓰인 상태가 남는다. rename 은 메타데이터 연산이라 그
+  상태가 생길 수 없다. 절대 규칙 1이 막는 것은 raw 의 **수정·삭제**이지 트리의 이동이
+  아니다 — 바이트는 그대로다. 이전 전후 파일 수와 총 바이트를 대조해 확인했다.
 
 ## 17. 이번 범위 아님
 

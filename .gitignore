@@ -5,14 +5,20 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
-# 수집 데이터 — 저장소에 커밋하지 않는다
-data/raw/
-data/records/
-data/rejected/
-data/*.db
+# 수집 데이터 — 저장소에 커밋하지 않는다.
+# 공용 공간(운영자 소유, 전 캠프 읽기 전용). data/shared/reference/ 만 추적한다.
+data/shared/raw/
+data/shared/records/
+data/shared/rejected/
 
 # 사람이 손으로 내려받아 넣는 원본 (access: file 수집기의 입력)
-data/incoming/
+data/shared/incoming/
+
+# 캠프 전용 공간 — 캠프의 데이터는 어떤 경우에도 커밋하지 않는다 (P-001 §10)
+data/camps/
+
+# control plane (P-002 의 계정·세션·감사). 아직 없다
+data/*.db
 
 # 비밀값
 .env

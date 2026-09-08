@@ -3,7 +3,7 @@
 load:    news_article 레코드를 디스크에서 읽는다 (네트워크 금지)
 compute: 그 선거구 시군구의 기사를 어휘집으로 분류해 local_issue 레코드 1건 (순수 함수)
 
-어휘집(data/reference/issue_lexicon.yaml)이 곧 편집 판단이므로 그 version 을
+어휘집(data/shared/reference/issue_lexicon.yaml)이 곧 편집 판단이므로 그 version 을
 payload 에 박는다. LLM 을 쓰지 않는다 — 순수 substring 매칭이라 재현 가능하다.
 """
 
@@ -84,7 +84,7 @@ class Analyzer(BaseAnalyzer):
 
         unit = self._fold(articles, district, sigungu_codes, lexicon, {r.record_id: r for r in raw})
         yield from self.map_items([unit], self._to_record)
-        # 격리된 기사도 data/rejected/ 로 남긴다 — 조용한 누락을 만들지 않는다.
+        # 격리된 기사도 data/shared/rejected/ 로 남긴다 — 조용한 누락을 만들지 않는다.
         yield from rejected
 
     # --- 파싱 (레코드 → calc.Article) -------------------------------------------

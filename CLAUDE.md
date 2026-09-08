@@ -20,7 +20,7 @@
 | 산출물이 선거법에 걸리는지 | `docs/90-compliance.md` |
 | 프로젝트 전체 파악 | `docs/00-overview.md` (이것만) |
 | API 키·계정이 필요한지 | `docs/SETUP.md` |
-| 선거구에 어느 동이 속하는지 | `data/reference/districts.yaml` (코드에 박지 말 것) |
+| 선거구에 어느 동이 속하는지 | `data/shared/reference/districts.yaml` (코드에 박지 말 것) |
 | 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
@@ -28,7 +28,7 @@
 
 ## 절대 규칙
 
-1. **`data/raw/` 는 읽기 전용.** 어떤 경우에도 수정·삭제하지 않는다.
+1. **`data/shared/raw/` 는 읽기 전용.** 어떤 경우에도 수정·삭제하지 않는다.
 2. **수집기는 해석하지 않는다.** 감성분석·분류·추정은 전부 L2의 파생 레코드로.
 3. **개인 단위 데이터 없음.** 최소 집계 단위는 행정동. 개인 식별 정보는 수집하지 않는다.
 4. **`geo_code` 매핑 실패는 에러다.** null로 넘어가지 않는다.

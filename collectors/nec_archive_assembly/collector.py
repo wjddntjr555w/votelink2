@@ -51,7 +51,7 @@ class Collector(BaseCollector):
         if not base.is_dir():
             raise FetchError(
                 f"아카이브 폴더가 없다: {base}. "
-                "선관위 개표자료를 data/raw/nec_archive_assembly/ 옆에 두어야 한다"
+                "선관위 개표자료를 data/shared/raw/nec_archive_assembly/ 옆에 두어야 한다"
             )
         for election in self.config["elections"]:
             election = self._resolve(election)

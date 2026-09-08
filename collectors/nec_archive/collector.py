@@ -47,7 +47,7 @@ class Collector(BaseCollector):
         if not base.is_dir():
             raise FetchError(
                 f"아카이브 폴더가 없다: {base}. "
-                "선관위 개표자료를 data/raw/nec_archive/ 아래에 두어야 한다 (docs/SETUP.md)"
+                "선관위 개표자료를 data/shared/raw/nec_archive/ 아래에 두어야 한다 (docs/SETUP.md)"
             )
         for election in self.config["elections"]:
             path = base / election["file"]
@@ -127,7 +127,7 @@ class Collector(BaseCollector):
         # 파일의 자체 총계(구 합계의 합)를 서울 몫과 더한다.
         #
         # region_grids 가 없는 raw 배치를 만나면(이 기능을 추가하기 전에 fetch 된
-        # 배치) **건너뛴다.** data/raw/ 는 절대 수정·삭제하지 않으므로 옛 배치가
+        # 배치) **건너뛴다.** data/shared/raw/ 는 절대 수정·삭제하지 않으므로 옛 배치가
         # 남아 있는 것은 정상이고, --reparse 는 새 배치도 함께 읽어 그쪽에서
         # 전국 레코드를 만든다. 조용히 넘어가는 게 아니라 옛 스키마는 이 필드를
         # 낼 수 없다는 사실을 반영할 뿐이다.

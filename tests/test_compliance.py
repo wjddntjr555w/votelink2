@@ -208,7 +208,7 @@ def test_review_is_pure(tmp_path):
 
 
 def test_shipped_policy_loads():
-    """`data/reference/compliance.yaml` 이 유효하다."""
+    """`data/shared/reference/compliance.yaml` 이 유효하다."""
     policy = mod.load_policy()
     assert policy.default_status is ReviewStatus.UNREVIEWED
     assert policy.for_kind("segment_profile") is not None

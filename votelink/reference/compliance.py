@@ -2,7 +2,7 @@
 
 `CLAUDE.md` 절대 규칙 5: "선거법 검증을 통과하지 않은 산출물은 웹앱에 경고 없이
 표시하지 않는다." 그 '통과했다'의 정의는 `docs/90-compliance.md` 에 있고, 정책 자체는
-코드가 아니라 데이터(`data/reference/compliance.yaml`)에 둔다 —
+코드가 아니라 데이터(`data/shared/reference/compliance.yaml`)에 둔다 —
 **법률 검토는 사람의 판단이고, 변호사가 파이썬을 읽지 않아도 고칠 수 있어야 한다.**
 `districts.py`(획정이 바뀐다)·`party_lineage.py`(정치적 판단이다)와 같은 구조다.
 
@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from votelink.contract.enums import RecordKind
 from votelink.contract.models import Record
 
-POLICY_PATH = Path("data/reference/compliance.yaml")
+POLICY_PATH = Path("data/shared/reference/compliance.yaml")
 
 _lock = threading.Lock()
 _cache: Policy | None = None
@@ -213,7 +213,7 @@ def review_with(policy: Policy, record: Record) -> Verdict:
         # 사유 없는 경고는 사용자가 무엇을 해야 하는지 알려주지 않는다.
         reasons = (
             "정책표에 unreviewed 로 기록돼 있다 — 아직 법률 검토를 받지 않았다. "
-            "검토를 마치면 data/reference/compliance.yaml 에 서명을 남긴다",
+            "검토를 마치면 data/shared/reference/compliance.yaml 에 서명을 남긴다",
         )
 
     return Verdict(

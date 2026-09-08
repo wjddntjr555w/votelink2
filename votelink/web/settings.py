@@ -26,20 +26,22 @@ class WebSettings(BaseModel):
     """
 
     data_root: Path | None = None
-    """데이터 공간의 뿌리 (`records/`·`raw/`·`rejected/` 의 부모). `None` 이면 `data/`.
+    """데이터 공간의 뿌리 (`records/`·`raw/`·`rejected/` 의 부모).
+    `None` 이면 공용 공간 `data/shared/` (`store.SHARED_DIR`).
 
     `records/` 가 아니라 그 부모를 받는다 — `DataSpace` 가 세 하위 디렉터리를 함께
-    들기 때문이다 (`docs/proposals/P-001` §10).
+    들기 때문이다 (`docs/proposals/P-001` §10). 캠프 공간이 생기면 여기에
+    `data/camps/<camp_id>/` 가 들어온다.
     """
 
     districts_path: Path | None = None
-    """`data/reference/districts.yaml`."""
+    """`data/shared/reference/districts.yaml`."""
 
     policy_path: Path | None = None
-    """`data/reference/compliance.yaml`."""
+    """`data/shared/reference/compliance.yaml`."""
 
     boundaries_path: Path | None = None
-    """`data/reference/emd_boundaries.geojson`. 없으면 격자로 그린다."""
+    """`data/shared/reference/emd_boundaries.geojson`. 없으면 격자로 그린다."""
 
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
@@ -52,4 +54,4 @@ class WebSettings(BaseModel):
         import DATA_DIR` 은 이름을 복사하므로 테스트의 monkeypatch 가 먹지 않는다
         (루트 `conftest.py` 가 기록한 함정과 같은 것).
         """
-        return DataSpace(self.data_root or store.DATA_DIR)
+        return DataSpace(self.data_root or store.SHARED_DIR)

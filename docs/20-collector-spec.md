@@ -8,7 +8,7 @@
 수집기는 **반드시 두 단계**로 나뉜다.
 
 ```
-fetch(네트워크)  →  data/raw/ 에 원본 그대로 저장  →  parse(순수 함수)  →  Record
+fetch(네트워크)  →  data/shared/raw/ 에 원본 그대로 저장  →  parse(순수 함수)  →  Record
 ```
 
 | 단계 | 성격 | 규칙 |
@@ -115,7 +115,7 @@ config:
 |---|---|
 | fetch 실패 (네트워크·인증) | 실행 중단. raw 미저장. 종료코드 1 |
 | fetch 성공, 일부 응답 깨짐 | raw는 **그대로 저장**. parse 단계에서 판정 |
-| parse 중 개별 레코드 계약 위반 | `data/rejected/<collector>/` 로 사유와 함께 격리 (`map_items` 가 처리) |
+| parse 중 개별 레코드 계약 위반 | `data/shared/rejected/<collector>/` 로 사유와 함께 격리 (`map_items` 가 처리) |
 | 격리 비율 > 5% | 실행을 실패로 처리. 유효분도 커밋하지 않는다 |
 | `geo_code` 매핑 실패 | 계약 위반으로 간주 → 격리 |
 

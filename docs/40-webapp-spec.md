@@ -9,7 +9,7 @@
 저장된 레코드를 **읽어서 화면으로 만드는 것**. 그게 전부다.
 
 ```
-data/records/*.jsonl  →  로더  →  뷰모델  →  템플릿  →  HTML
+data/shared/records/*.jsonl  →  로더  →  뷰모델  →  템플릿  →  HTML
      (파생 레코드)      디스크만   순수 함수
 ```
 
@@ -85,8 +85,8 @@ votelink/web/
 
 | # | 필터 | 왜 |
 |---|---|---|
-| 1 | `iter_records(kinds=[...])` — **kind를 반드시 준다** | 인자 없이 부르면 `data/records/` 전체를 먹는다 |
-| 2 | `District.contains(geo_code)` | 위생 조치가 아니라 **원래 맞는 동작**이다. 한 화면은 선거구 하나만 보여준다 — `data/records/` 한 파일에 여러 선거구 레코드가 섞여 있어도 이 필터가 갈라낸다 |
+| 1 | `iter_records(kinds=[...])` — **kind를 반드시 준다** | 인자 없이 부르면 `data/shared/records/` 전체를 먹는다 |
+| 2 | `District.contains(geo_code)` | 위생 조치가 아니라 **원래 맞는 동작**이다. 한 화면은 선거구 하나만 보여준다 — `data/shared/records/` 한 파일에 여러 선거구 레코드가 섞여 있어도 이 필터가 갈라낸다 |
 | 3 | `payload.election_type == 요청값` (기본 `presidential`) | 한 동에 대선·총선·지선 레코드가 별도로 있다. 계열을 섞으면 편차의 의미가 무너진다 (A-001) |
 | 4 | `(profile_type, election_type, geo_code)` 별 **최신 `as_of` 하나** | §6 참조 |
 
@@ -283,7 +283,7 @@ EmdShape(geo_code, geo_name, svg_path, label_xy)
 shapes_for(codes) -> list[EmdShape]
 ```
 
-`data/reference/emd_boundaries.geojson` 이 **있으면** 그걸 쓰고, 없으면 격자를 만든다.
+`data/shared/reference/emd_boundaries.geojson` 이 **있으면** 그걸 쓰고, 없으면 격자를 만든다.
 템플릿과 라우트는 둘 다 `svg_path` 만 본다 →
 **나중에 파일 한 장 떨구고 로더만 붙이면 화면 코드가 안 바뀐다.**
 
@@ -296,7 +296,7 @@ shapes_for(codes) -> list[EmdShape]
 1. 경계 파일이 없을 때만 화면에 **"실제 행정동 경계가 아니다 — 격자 배치"** 고지를 띄운다.
    파일이 들어오면 자동으로 사라진다.
 2. **칸을 손으로 배치하지 않는다.** `geo_code` 오름차순 고정. 대충 실제 위치처럼 놓는 것은
-   근거 없는 지리를 지어내는 것이고, 배치가 판단이 되는 순간 그건 `data/reference/` 에 있어야 할
+   근거 없는 지리를 지어내는 것이고, 배치가 판단이 되는 순간 그건 `data/shared/reference/` 에 있어야 할
    데이터가 된다. 지금은 그 판단을 **하지 않는 쪽**을 택한다.
 
 ## 12. 실행

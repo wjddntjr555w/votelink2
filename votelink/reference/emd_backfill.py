@@ -2,8 +2,9 @@
 
 D-001 (`docs/proposals/D-001-seoul-emd-backfill.md`).
 
-입력은 **`data/raw/mois_population/` 의 원본 응답**이지 `data/records/mois_population.jsonl`
-이 아니다 — raw 는 `lv=3` 조회라 그 자치구의 모든 행정동이 각자의 admmCd 와 함께 들어
+입력은 **`data/shared/raw/mois_population/` 의 원본 응답**이지
+`data/shared/records/mois_population.jsonl` 이 아니다 —
+raw 는 `lv=3` 조회라 그 자치구의 모든 행정동이 각자의 admmCd 와 함께 들어
 있어 이름 불일치까지 진단할 수 있다(parse 가 실패해도 raw 는 fetch 시점에 이미 저장돼
 있다). jsonl 은 이름이 이미 맞은 동만 들어 있어 그럴 수 없다.
 

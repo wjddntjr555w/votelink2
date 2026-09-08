@@ -1,6 +1,6 @@
 # 법적 제약과 검증 규칙
 
-> 상태: v1 구현됨 (`votelink/reference/compliance.py`) · 정책표는 `data/reference/compliance.yaml`
+> 상태: v1 구현됨 (`votelink/reference/compliance.py`) · 정책표는 `data/shared/reference/compliance.yaml`
 > 산출물이 선거법에 걸리는지 확인할 때 읽을 문서는 **이것 + 그 YAML 뿐**이다.
 
 ## 1. 이 문서가 있는 이유
@@ -76,7 +76,7 @@ v0.1이 저위험 화면 둘로 시작하는 것은 우연이 아니다. 검증 
 빠진 것들(현수막 수량·위치 규정, 선거공보 규격)은 **고위험 산출물이 생길 때** 이 표에 들어온다.
 지금 적어두면 집행되지 않는 규칙이 문서에만 쌓인다.
 
-## 7. 정책표는 데이터다 — `data/reference/compliance.yaml`
+## 7. 정책표는 데이터다 — `data/shared/reference/compliance.yaml`
 
 `districts.yaml`(획정이 바뀐다)·`party_lineage.yaml`(정치적 판단이다)과 **같은 이유**로 데이터다:
 

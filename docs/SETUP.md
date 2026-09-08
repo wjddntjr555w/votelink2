@@ -12,7 +12,7 @@
 > 행정기관코드 7자리(`3230040`)도 내부 표준이 아니다 — `districts.yaml` 에
 > `org_code` 로 참고용으로만 남아 있다.
 
-**지금은 이 매핑표(`data/reference/geo_mapping.csv`)가 비어 있어도 된다.**
+**지금은 이 매핑표(`data/shared/reference/geo_mapping.csv`)가 비어 있어도 된다.**
 두 수집기가 각자 코드를 얻는 방식이 다르기 때문이다.
 
 | 수집기 | geo_code 를 어디서 얻나 |
@@ -50,7 +50,7 @@ uv run votelink geo lookup 풍납1동          # 확인
    (현재 `https://apis.data.go.kr/1741000/admmSexdAgePpltn`)
 5. `config.reference_month` 를 받으려는 기준월로 맞춘다 (예: `2026-07`)
 6. 조회 범위는 `config.district: seoul_songpa_gap` 이며 행정동 목록은
-   `data/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
+   `data/shared/reference/districts.yaml` 에 있다 (`votelink district list --emd` 로 확인)
 
 ### ✅ 검증 완료 (2026-09-01)
 
@@ -153,7 +153,7 @@ uv run votelink collect mois_population                     # 실제 수집
 
 `districts.yaml` 에 서울 48개 선거구가 전부 들어 있다. 행정동 목록은
 **제22대 국회의원선거 개표결과(지역구) 전국 xlsx** 에서 프로그램으로 추출했다
-(`data/raw/nec_archive/.../제22대 국회의원선거/1. 개표단위별 개표결과(지역구) -전국.xlsx`,
+(`data/shared/raw/nec_archive/.../제22대 국회의원선거/1. 개표단위별 개표결과(지역구) -전국.xlsx`,
 선거구명 × 읍면동명). `seoul_songpa_gap` 만 admmCd 가 검증돼 있고, 나머지 47개는
 `code: null`(pending) 이다.
 
@@ -180,8 +180,8 @@ uv run votelink district list --emd                  # pending 이 0 이 됐는�
 `naver_news` 서울 25개 자치구)는 `--all-districts` 한 줄로 전부 돈다:
 `uv run votelink collect naver_news --all-districts`.
 
-`backfill-codes` 는 `data/raw/mois_population/` 의 원본 응답에서 admmCd 를 읽는다
-(`data/records/mois_population.jsonl` 이 아니다 — jsonl 은 이름이 이미 맞은 동만 있어
+`backfill-codes` 는 `data/shared/raw/mois_population/` 의 원본 응답에서 admmCd 를 읽는다
+(`data/shared/records/mois_population.jsonl` 이 아니다 — jsonl 은 이름이 이미 맞은 동만 있어
 불일치를 진단할 수 없다). **정확히 이름이 일치하는 동만 자동으로 채운다.** 행정동명이
 MOIS 응답과 다르면(예: `창신제1동` vs `창신1동`) 그 동은 채워지지 않고 리포트의
 "이름 불일치" / "응답에만 있는 동" 에 나온다 — `districts.yaml` 의 `name` 을 MOIS
@@ -217,14 +217,14 @@ MOIS 응답과 다르면(예: `창신제1동` vs `창신1동`) 그 동은 채워
 ```bash
 uv run python -c "
 import csv, yaml
-p='data/incoming/nec_election_result/중앙선거관리위원회_국회의원선거 개표결과_20240410.csv'
+p='data/shared/incoming/nec_election_result/중앙선거관리위원회_국회의원선거 개표결과_20240410.csv'
 nec=set()
 with open(p, encoding='cp949', newline='') as fh:
     for row in csv.DictReader(fh):
         if (row['선거구명'] or '').strip() == '송파구갑':
             e=(row['법정읍면동명'] or '').strip()
             if e.endswith('동'): nec.add(e)
-d=yaml.safe_load(open('data/reference/districts.yaml', encoding='utf-8'))
+d=yaml.safe_load(open('data/shared/reference/districts.yaml', encoding='utf-8'))
 blk=next(x for x in d['districts'] if x['id']=='seoul_songpa_gap')
 ours={e['name'] for e in blk['emd']}
 print('yaml에만:', sorted(ours-nec))
@@ -254,22 +254,22 @@ uv run votelink district list --emd
 
 ## 4. 선관위 개표자료 아카이브 (`nec_archive`) ← **현재 쓰는 것**
 
-`data/raw/nec_archive/` 에 선관위 개표자료가 통째로 들어 있다.
+`data/shared/raw/nec_archive/` 에 선관위 개표자료가 통째로 들어 있다.
 **사용자가 직접 넣었고, 이미 자리에 있다. 지금 할 일은 없다.**
 
 ```
-data/raw/nec_archive/
+data/shared/raw/nec_archive/
 ├── 01_대통령선거(대선)/          제14~21대 (1992~2025)   ← nec_archive 가 쓴다
 ├── 02_국회의원선거(총선,재보궐선거)/ 제16~22대 (2000~2024)   ← C-005 예정
 └── 03_지방선거(지선,재보궐선거)/    제3~8회  (2002~2022)   ← 나중
 ```
 
-9,584개 파일 / 645MB. `.gitignore` 의 `data/raw/` 에 걸려 저장소에 올라가지 않는다.
+9,584개 파일 / 645MB. `.gitignore` 의 `data/shared/raw/` 에 걸려 저장소에 올라가지 않는다.
 
-### 4-1. 왜 `data/incoming/` 이 아니라 `data/raw/` 인가
+### 4-1. 왜 `data/shared/incoming/` 이 아니라 `data/shared/raw/` 인가
 
-관례상 사람이 넣는 원본은 `data/incoming/` 이다. 그런데 이 아카이브는 645MB 이고
-**이미 불변 상태**다. `fetch` 가 이걸 다시 `data/raw/` 로 복사하는 것은 낭비다.
+관례상 사람이 넣는 원본은 `data/shared/incoming/` 이다. 그런데 이 아카이브는 645MB 이고
+**이미 불변 상태**다. `fetch` 가 이걸 다시 `data/shared/raw/` 로 복사하는 것은 낭비다.
 그래서 **아카이브 자체를 이 수집기의 raw 저장소로 간주한다.**
 `iter_raw` 는 `*.json.gz` 만 훑으므로 원본 `.xls` 와 섞이지 않는다.
 
@@ -340,11 +340,11 @@ L2 에서 개표결과 × 인구 조인이 성립한다.
 ### 4-2. 넣을 자리
 
 ```
-data/incoming/nec_election_result/
+data/shared/incoming/nec_election_result/
 ```
 
 파일명은 그대로 둔다 — `meta.yaml` 의 `elections[].file_match` 가 파일명 일부로 찾는다.
-이 폴더는 `.gitignore` 에 있다. 수집기가 원본을 `data/raw/` 로 옮겨 담아 불변 보관하므로
+이 폴더는 `.gitignore` 에 있다. 수집기가 원본을 `data/shared/raw/` 로 옮겨 담아 불변 보관하므로
 수집 후에는 지워도 된다.
 
 ### 4-3. 실행

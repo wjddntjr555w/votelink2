@@ -14,7 +14,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-REFERENCE_CSV = Path("data/reference/geo_mapping.csv")
+REFERENCE_CSV = Path("data/shared/reference/geo_mapping.csv")
 CSV_HEADER = ["source_system", "source_code", "source_name", "emd_code", "emd_name"]
 
 _WS_RE = re.compile(r"\s+")
