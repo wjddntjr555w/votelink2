@@ -22,6 +22,25 @@ def client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+def bootstrap_password(request: Request) -> bool:
+    """운영자가 아직 배포 기본 비밀번호를 쓰는가. **처음 물을 때만 센다.**
+
+    `app.state.bootstrap_password` 가 `None` 이면 아직 안 세어 본 것이다. 검사가
+    운영자 수만큼의 scrypt 라 기동 때마다 돌릴 것이 못 되고, 이 값을 보는 화면은
+    `/me` 와 `/ops/` 둘뿐이다. 비밀번호가 바뀌는 자리가 결과를 갱신한다.
+    """
+    from votelink import control
+
+    settings = request.app.state.settings
+    if not settings.auth:
+        return False
+    if request.app.state.bootstrap_password is None:
+        request.app.state.bootstrap_password = control.accounts.uses_bootstrap_password(
+            path=settings.control_db
+        )
+    return request.app.state.bootstrap_password
+
+
 def base_ctx(request: Request, **extra) -> dict:
     """`base.html` 이 요구하는 최소 컨텍스트.
 

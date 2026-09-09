@@ -63,7 +63,8 @@ uv run votelink camp new <id> --candidate <이름> --party <정당> --type <계�
                                  # 캠프 온보딩. 관할은 프리셋·자치구·직접지정을 합칠 수 있다
 uv run votelink camp list        # 캠프와 선거 주기 목록
 uv run votelink camp show <캠프> [<주기>]  # 한 주기의 설정 (관할 검증 포함)
-uv run votelink account create-operator <email> <pw>  # 첫 운영자. 웹에 운영자 가입 폼은 없다
+uv run votelink account create-operator <email> <pw>  # 운영자 추가. 웹에 운영자 가입 폼은 없다
+                                         # (첫 운영자는 serve --auth 가 root/root 로 만든다)
 uv run votelink account list             # 계정과 활성 세션 수
 uv run votelink account signups          # 승인 대기 큐
 uv run votelink account approve <신청id> --operator <운영자id> [--camp-id <id>]  # 승인 → 캠프 공간 생성
@@ -74,7 +75,8 @@ uv run votelink serve            # 로컬 웹앱 (기본 8420). `/` 선거구 �
 uv run votelink serve --district <선거구>  # `/` 를 이 선거구로 바로 보낸다
 uv run votelink serve --camp <캠프>       # 이 캠프의 렌즈로 본다 (단일 캠프 로컬 사용)
 uv run votelink serve --auth              # 로그인을 요구한다. 멀티캠프는 이것이 필수이고,
-                                          # 이걸 켜야만 127.0.0.1 밖으로 열 수 있다. --camp 와 못 섞는다
+                                          # 운영자가 없으면 root/root 로 만든다. --camp 와 못 섞는다.
+                                          # 127.0.0.1 밖으로 열려면 --auth + 기본 비밀번호 변경이 둘 다 필요
 uv run pytest                    # 테스트
 uv run ruff check . && uv run ruff format .
 ```

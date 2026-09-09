@@ -30,9 +30,7 @@ def db(tmp_path):
 
 @pytest.fixture
 def operator(db):
-    return acc.create(
-        "op@test", "pw", role=acc.Role.OPERATOR, status=acc.Status.ACTIVE, path=db
-    )
+    return acc.create("op@test", "pw", role=acc.Role.OPERATOR, status=acc.Status.ACTIVE, path=db)
 
 
 # --- 비밀번호 ---------------------------------------------------------------------
@@ -123,6 +121,55 @@ def test_has_operator(db, operator):
 
 def test_no_operator_on_a_fresh_db(db):
     assert not acc.has_operator(path=db)
+
+
+# --- 부트스트랩 운영자 ---------------------------------------------------------------
+
+
+def test_the_bootstrap_operator_is_an_active_operator(db):
+    """`serve --auth` 가 운영자 없는 서버에서 만드는 계정. 곧바로 쓸 수 있어야 한다."""
+    account = acc.create_bootstrap_operator(path=db)
+    assert account.email == acc.BOOTSTRAP_ID
+    assert account.role is acc.Role.OPERATOR
+    assert account.is_active
+
+
+def test_the_bootstrap_password_is_detected(db):
+    """**아는 비밀번호가 서버에 있으면 인증이 없는 것과 같다.** 기동 점검이 이걸 보고
+    로컬 밖 바인딩을 거부한다 (P-002 §8-1)."""
+    assert not acc.uses_bootstrap_password(path=db)
+    acc.create_bootstrap_operator(path=db)
+    assert acc.uses_bootstrap_password(path=db)
+
+
+def test_changing_it_clears_the_detection(db):
+    account = acc.create_bootstrap_operator(path=db)
+    acc.set_password(account.id, "제대로된비번", path=db)
+    assert not acc.uses_bootstrap_password(path=db)
+
+
+def test_putting_it_back_is_detected_again(db):
+    """플래그 컬럼이 아니라 **검사가 진실이라서** 되돌려도 잡힌다.
+    플래그였다면 그때 거짓말을 한다."""
+    account = acc.create_bootstrap_operator(path=db)
+    acc.set_password(account.id, "제대로된비번", path=db)
+    acc.set_password(account.id, acc.BOOTSTRAP_PASSWORD, path=db)
+    assert acc.uses_bootstrap_password(path=db)
+
+
+def test_a_camp_using_the_same_password_does_not_count(db):
+    """판정은 **운영자** 계정만 본다. 캠프가 무엇을 쓰든 서버가 열리는 것과 무관하다."""
+    acc.create("a@test", acc.BOOTSTRAP_PASSWORD, path=db)
+    assert not acc.uses_bootstrap_password(path=db)
+
+
+def test_one_stale_operator_among_many_still_counts(db):
+    """운영자가 여럿이면 **하나라도** 기본 비밀번호면 막는다. 그 하나로 뚫린다."""
+    acc.create_bootstrap_operator(path=db)
+    acc.create(
+        "ops2@test", "제대로된비번", role=acc.Role.OPERATOR, status=acc.Status.ACTIVE, path=db
+    )
+    assert acc.uses_bootstrap_password(path=db)
 
 
 # --- 세션 -------------------------------------------------------------------------

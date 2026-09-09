@@ -12,6 +12,17 @@
   </p>
 </section>
 
+{% if bootstrap %}
+<div class="banner banner--blocked">
+  <strong>배포 기본 비밀번호를 그대로 쓰고 있습니다</strong>
+  <p>
+    아는 비밀번호가 서버에 있으면 인증이 없는 것과 같습니다. 바꾸기 전까지 이 서버는
+    <code>127.0.0.1</code> 밖으로 열리지 않습니다 —
+    <a href="/me">내 계정</a>에서 지금 바꾸십시오.
+  </p>
+</div>
+{% endif %}
+
 {{ flash(ok, err) }}
 
 <section class="ops-block">

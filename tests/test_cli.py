@@ -89,12 +89,55 @@ def test_serve_refuses_to_expose_without_auth(monkeypatch, capsys):
     assert "--auth" in capsys.readouterr().err
 
 
-def test_serve_with_auth_needs_an_operator(monkeypatch, capsys):
-    """운영자가 없으면 아무도 캠프를 승인할 수 없다. 그 상태로 열지 않는다."""
+def test_serve_with_auth_bootstraps_the_first_operator(monkeypatch, capsys):
+    """서버를 띄우기 전에 명령을 하나 더 기억하지 않아도 되게 한다.
+    운영자가 하나도 없을 때만 만든다."""
+    from votelink.control import accounts as acc
+
+    calls = {}
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls.update(kw))
+
+    assert cli.main(["serve", "--auth"]) == 0
+    made = acc.by_email(acc.BOOTSTRAP_ID)
+    assert made is not None
+    assert made.role is acc.Role.OPERATOR and made.is_active
+    assert acc.BOOTSTRAP_ID in capsys.readouterr().out, "만들었으면 알려준다"
+
+
+def test_serve_does_not_touch_an_existing_operator(monkeypatch, capsys):
+    from votelink.control import accounts as acc
+
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: None)
+    assert cli.main(["account", "create-operator", "ops@test", "제대로된비번"]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["serve", "--auth"]) == 0
+    assert acc.by_email(acc.BOOTSTRAP_ID) is None, "이미 운영자가 있으면 만들지 않는다"
+    assert acc.BOOTSTRAP_ID not in capsys.readouterr().out
+
+
+def test_serve_refuses_to_expose_with_the_bootstrap_password(monkeypatch, capsys):
+    """**아는 비밀번호가 서버에 있으면 인증이 없는 것과 같다.**
+
+    `--auth` 가 `0.0.0.0` 을 허용하는 근거(P-002 §2)는 "인증이 비노출을 대신한다"인데,
+    배포 기본 비밀번호가 그대로면 그 근거가 무너진다.
+    """
     monkeypatch.setattr("uvicorn.run", lambda app, **kw: pytest.fail("띄우면 안 된다"))
 
     assert cli.main(["serve", "--auth", "--host", "0.0.0.0"]) == 1
-    assert "create-operator" in capsys.readouterr().err
+    assert "기본 비밀번호" in capsys.readouterr().err
+
+
+def test_changing_the_bootstrap_password_opens_the_bind(monkeypatch, capsys):
+    from votelink.control import accounts as acc
+
+    calls = {}
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls.update(kw))
+    assert cli.main(["serve", "--auth"]) == 0  # root/root 를 만든다
+    acc.set_password(acc.by_email(acc.BOOTSTRAP_ID).id, "이제바꿨다")
+
+    assert cli.main(["serve", "--auth", "--host", "0.0.0.0"]) == 0
+    assert calls["host"] == "0.0.0.0"
 
 
 def test_serve_refuses_auth_with_a_pinned_camp(monkeypatch, capsys):

@@ -26,7 +26,7 @@ from starlette.responses import Response
 
 from votelink import control
 from votelink.control import accounts as acc
-from votelink.web.render import base_ctx, client_ip, render
+from votelink.web.render import base_ctx, bootstrap_password, client_ip, render
 from votelink.web.settings import WebSettings
 
 router = APIRouter(prefix="/ops")
@@ -45,6 +45,7 @@ def _ctx(request: Request, **extra) -> dict:
         request,
         ok=request.query_params.get("ok"),
         err=request.query_params.get("err"),
+        bootstrap=bootstrap_password(request),
         **extra,
     )
 
@@ -244,6 +245,10 @@ def set_password(
         detail={"sessions_ended": n},
         ip=client_ip(request),
         path=s.control_db,
+    )
+    # 운영자의 비밀번호가 바뀌었을 수 있다. 배너 판정을 다시 센다 (`app.py` 참조).
+    request.app.state.bootstrap_password = control.accounts.uses_bootstrap_password(
+        path=s.control_db
     )
     return _back(
         "/ops/", ok=f"계정 {account_id} 비밀번호 재발급 (세션 {n}개 종료). 캠프에 전달하라"

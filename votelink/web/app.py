@@ -53,7 +53,7 @@ from votelink.web.loader import (
     load_news_pulse,
     load_profiles,
 )
-from votelink.web.render import base_ctx
+from votelink.web.render import base_ctx, bootstrap_password
 from votelink.web.render import client_ip as _client_ip
 from votelink.web.render import render as _render
 from votelink.web.settings import WebSettings
@@ -122,6 +122,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         # 웹은 테이블이 없다"는 어긋남이 생기지 않는다. 레코드가 아니므로
         # "L3 는 레코드를 쓰지 않는다"(web/__init__.py)를 깨지 않는다.
         control.init(s.control_db)
+    # 운영자가 아직 배포 기본 비밀번호를 쓰는가. `None` 은 "아직 안 세어 봤다"는 뜻이다 —
+    # 검사가 scrypt 라 요청마다는 물론이고 기동 때마다 돌릴 것도 아니다. 이 값을 보는
+    # 화면(`/me`·`/ops/`)이 처음 열릴 때 한 번 세고, 비밀번호가 바뀌는 자리가 갱신한다.
+    app.state.bootstrap_password = None
 
     @app.middleware("http")
     async def _authenticate(request: Request, call_next):
@@ -646,6 +650,76 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         )
         return RedirectResponse("/cycles", status_code=303)
 
+    # --- 내 계정 -------------------------------------------------------------------
+    #
+    # **로그인한 사람은 누구나 연다** — 승인 대기든 온보딩 전이든 운영자든.
+    # 비밀번호를 바꾸는 일은 계정 상태와 무관하고, 특히 부트스트랩 운영자는
+    # 여기 말고는 바꿀 데가 없다.
+
+    @app.get("/me", response_class=Response)
+    def me(request: Request) -> Response:
+        return _render(request, "me.html", _me_ctx(request))
+
+    @app.post("/me", response_class=Response)
+    def change_password(
+        request: Request,
+        # 셋 다 기본값이 `""` 다. FastAPI 는 빈 폼 값을 **누락으로 보고 422 를 내는데**,
+        # 그러면 사용자가 우리 오류 화면 대신 JSON 을 마주한다. 여기까지 오게 두고
+        # 아래에서 우리 말로 거절한다.
+        current: Annotated[str, Form()] = "",
+        new: Annotated[str, Form()] = "",
+        confirm: Annotated[str, Form()] = "",
+    ) -> Response:
+        """비밀번호 변경. 이 앱에서 **자기 비밀번호를 바꾸는 유일한 통로**다."""
+        s: WebSettings = request.app.state.settings
+        account = request.state.account
+
+        def fail(message: str) -> Response:
+            return _render(request, "me.html", _me_ctx(request, error=message), status_code=400)
+
+        # **현재 비밀번호를 확인한다.** 세션이 탈취돼도 비밀번호까지 바꾸지는 못하게 —
+        # 그러지 않으면 잠깐의 세션 탈취가 계정 탈취가 된다.
+        if control.accounts.authenticate(account.email, current, path=s.control_db) is None:
+            control.audit.log(
+                "change_password_failed",
+                account_id=account.id,
+                camp_id=account.camp_id,
+                ip=_client_ip(request),
+                path=s.control_db,
+            )
+            return fail("지금 쓰는 비밀번호가 맞지 않는다")
+        if new != confirm:
+            return fail("새 비밀번호 두 개가 서로 다르다")
+        if new == control.accounts.BOOTSTRAP_PASSWORD:
+            # 되돌리면 기동 가드(`cli.py`)가 무의미해진다. 아는 비밀번호는 인증이 아니다.
+            return fail("배포 기본 비밀번호로는 되돌릴 수 없다")
+        try:
+            control.accounts.set_password(account.id, new, path=s.control_db)
+        except control.AccountError as exc:
+            return fail(str(exc))
+
+        # **다른 기기의 세션을 전부 끊는다.** 비밀번호를 바꾸는 이유가 유출일 수 있고,
+        # 그때 남은 세션을 살려두면 바꾼 의미가 없다. 대신 지금 이 세션은 새로 발급해
+        # 바꾼 사람이 자기도 로그아웃되는 일이 없게 한다.
+        control.sessions.end_all(account.id, path=s.control_db)
+        token = control.sessions.start(
+            account.id,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+            path=s.control_db,
+        )
+        control.audit.log(
+            "change_password",
+            account_id=account.id,
+            camp_id=account.camp_id,
+            ip=_client_ip(request),
+            path=s.control_db,
+        )
+        request.app.state.bootstrap_password = control.accounts.uses_bootstrap_password(
+            path=s.control_db
+        )
+        return _with_session(RedirectResponse("/me?ok=1", status_code=303), request, token)
+
     @app.get("/healthz", response_class=PlainTextResponse)
     def healthz() -> str:
         return "ok"
@@ -780,6 +854,22 @@ def _onboarding_ctx(
         type_options=election_type_choices(),
         office_options=[(o.value, OFFICE_LABELS[o]) for o in Office],
         lineage_options=[(c.value, CAMP_LABELS[c]) for c in Camp],
+    )
+
+
+def _me_ctx(request: Request, *, error: str | None = None) -> dict:
+    """내 계정 화면. **참조 데이터도 산출물도 읽지 않는다** — 계정 정보뿐이다."""
+    settings: WebSettings = request.app.state.settings
+    account = request.state.account
+    return _auth_ctx(
+        request,
+        error=error,
+        ok=request.query_params.get("ok"),
+        sessions=control.sessions.active_count(account.id, path=settings.control_db)
+        if account
+        else 0,
+        bootstrap=bootstrap_password(request),
+        bootstrap_id=control.accounts.BOOTSTRAP_ID,
     )
 
 

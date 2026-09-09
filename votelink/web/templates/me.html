@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% set active = 'me' %}
+{% block title %}내 계정 — votelink{% endblock %}
+
+{# 로그인만 했으면 누구나 여는 화면 — 승인 대기든 온보딩 전이든 운영자든.
+   자기 비밀번호를 바꾸는 일은 계정 상태와 무관하다.
+   **산출물은 없다.** 계정 정보뿐이라 참조 데이터도 읽지 않는다. #}
+{% block content %}
+<section class="gate">
+  <h1>내 계정</h1>
+
+  {% if bootstrap and account.is_operator %}
+  <div class="banner banner--blocked">
+    <strong>배포 기본 비밀번호를 그대로 쓰고 있습니다</strong>
+    <p>
+      아는 비밀번호가 서버에 있으면 인증이 없는 것과 같습니다. 바꾸기 전까지 이 서버는
+      <code>127.0.0.1</code> 밖으로 열리지 않습니다.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if ok %}
+  <div class="banner banner--note">
+    <strong>비밀번호를 바꿨습니다</strong>
+    <p>다른 기기의 로그인은 전부 끊겼습니다. 이 창은 그대로 쓰시면 됩니다.</p>
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <div class="banner banner--blocked"><strong>{{ error }}</strong></div>
+  {% endif %}
+
+  <dl class="kv">
+    <dt>아이디</dt><dd>{{ account.email }}</dd>
+    <dt>역할</dt><dd>{{ '운영자' if account.is_operator else '캠프' }}</dd>
+    {% if account.camp_id %}
+    <dt>캠프</dt><dd><code>{{ account.camp_id }}</code></dd>
+    {% endif %}
+    <dt>가입</dt><dd>{{ account.created_at }}</dd>
+    <dt>마지막 로그인</dt><dd>{{ account.last_login_at or '없음' }}</dd>
+    <dt>지금 열린 로그인</dt><dd>{{ sessions }}개</dd>
+  </dl>
+
+  <h2>비밀번호 변경</h2>
+  <form method="post" action="/me" class="form">
+    <label>
+      지금 쓰는 비밀번호
+      <input type="password" name="current" required autocomplete="current-password">
+    </label>
+    <label>
+      새 비밀번호
+      <input type="password" name="new" required autocomplete="new-password">
+    </label>
+    <label>
+      새 비밀번호 확인
+      <input type="password" name="confirm" required autocomplete="new-password">
+    </label>
+    <button type="submit">바꾸기</button>
+  </form>
+
+  <p class="muted small">
+    바꾸면 <strong>다른 기기의 로그인이 전부 끊깁니다.</strong> 비밀번호를 바꾸는 이유가
+    유출일 수 있고, 그때 남은 세션을 살려두면 바꾼 의미가 없습니다. 지금 보고 계신
+    이 창은 끊기지 않습니다.
+  </p>
+  {% if not account.is_operator %}
+  <p class="muted small">
+    비밀번호를 잊으면 운영자가 임시 비밀번호를 발급합니다 — 메일 발송을 두지 않아
+    자가 재설정 통로가 없습니다.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

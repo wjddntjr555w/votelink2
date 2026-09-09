@@ -25,7 +25,7 @@ from votelink.contract.models import GEO_CODE_DIGITS, KST
 from votelink.reference import compliance, districts, emd_backfill
 from votelink.reference.districts import DistrictNotFound
 from votelink.store import DataSpace
-from votelink.web import DEFAULT_HOST, DEFAULT_PORT
+from votelink.web import DEFAULT_HOST, DEFAULT_PORT, LOOPBACK_HOSTS
 from votelink.web.loader import AmbiguousDistrict, load_profiles
 from votelink.web.settings import WebSettings
 
@@ -708,11 +708,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # 예전에는 비노출 자체가 인증을 대신했다. 이제 인증이 그 일을 하므로 노출을
     # 허용하되, 인증 없이 노출하는 조합만은 막는다 — 미검토 산출물이 경고와 함께
     # 뜨는 화면을 아무나 열 수 있으면 그게 의도치 않은 공표다.
-    if not args.auth and args.host not in ("127.0.0.1", "localhost", "::1"):
+    if not args.auth and args.host not in LOOPBACK_HOSTS:
         print(
             f"--host {args.host} 는 --auth 없이 쓸 수 없다. 인증이 없으면 미검토 "
             "산출물이 뜨는 화면이 그대로 공개된다 (docs/90-compliance.md §6).\n"
-            "`uv run votelink account create-operator` 로 운영자를 만들고 --auth 를 붙여라",
+            "--auth 를 붙여라. 운영자 계정은 없으면 자동으로 만들어진다",
             file=sys.stderr,
         )
         return 1
@@ -726,17 +726,38 @@ def cmd_serve(args: argparse.Namespace) -> int:
         return 1
     if args.auth:
         from votelink import control
+        from votelink.control.accounts import BOOTSTRAP_ID, BOOTSTRAP_PASSWORD
 
-        if not control.db.exists(settings.control_db):
-            print(
-                "control.db 가 없다. `uv run votelink account create-operator` 를 먼저 "
-                "실행하라. 운영자가 없으면 아무도 캠프를 승인할 수 없다",
-                file=sys.stderr,
-            )
-            return 1
+        # **첫 운영자를 여기서 만든다.** 예전에는 없으면 거부했는데, 그러면 서버를
+        # 띄우기 전에 명령을 하나 더 기억해야 한다. 운영자가 하나도 없을 때만 만들고
+        # 이미 있으면 손대지 않는다.
+        control.init(settings.control_db)
         if not control.accounts.has_operator(path=settings.control_db):
+            account = control.accounts.create_bootstrap_operator(path=settings.control_db)
+            control.audit.log(
+                "bootstrap_operator",
+                account_id=account.id,
+                target=account.email,
+                path=settings.control_db,
+            )
             print(
-                "운영자 계정이 없다. `uv run votelink account create-operator` 를 먼저 실행하라",
+                f"\n  운영자 계정을 만들었다 — 아이디 {BOOTSTRAP_ID} / 비밀번호 "
+                f"{BOOTSTRAP_PASSWORD}\n"
+                "  로그인한 뒤 '내 계정' 에서 비밀번호를 바꿔라. 바꾸기 전까지는\n"
+                f"  {DEFAULT_HOST} 밖으로 열리지 않는다.\n"
+            )
+
+        # **기본 비밀번호를 그대로 둔 채로는 로컬 밖으로 열지 않는다.**
+        # 아는 비밀번호가 서버에 있으면 인증이 없는 것과 같고, 그러면 --auth 가
+        # 0.0.0.0 을 허용하는 근거(P-002 §2)가 무너진다.
+        if args.host not in LOOPBACK_HOSTS and control.accounts.uses_bootstrap_password(
+            path=settings.control_db
+        ):
+            print(
+                f"운영자가 아직 배포 기본 비밀번호({BOOTSTRAP_PASSWORD})를 쓰고 있어 "
+                f"--host {args.host} 로 열 수 없다.\n"
+                f"먼저 `uv run votelink serve --auth` 로 띄우고 {BOOTSTRAP_ID} 로 "
+                "로그인해 '내 계정' 에서 비밀번호를 바꿔라",
                 file=sys.stderr,
             )
             return 1
@@ -990,7 +1011,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "로그인을 요구한다 (P-002). 캠프를 여럿 받으려면 필수다 — 어느 캠프의 "
             "눈으로 보는지를 세션이 정하므로 --camp 와 함께 쓸 수 없다. "
-            "이걸 켜야만 127.0.0.1 밖으로 열 수 있다"
+            "운영자가 없으면 root/root 로 만든다. 이걸 켜야만 127.0.0.1 밖으로 "
+            "열 수 있고, 기본 비밀번호를 바꾼 뒤에야 열린다"
         ),
     )
     p_serve.set_defaults(func=cmd_serve)

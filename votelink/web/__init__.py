@@ -31,4 +31,8 @@ LAN에 열어두면 그게 의도치 않은 공표가 된다 (`docs/90-complianc
 
 DEFAULT_PORT = 8420
 
-__all__ = ["DEFAULT_HOST", "DEFAULT_PORT"]
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+"""이 밖으로 바인딩하는 것이 "노출"이다. `cli.py` 의 기동 점검 둘이 이 목록을 본다 —
+인증이 꺼져 있을 때, 그리고 운영자가 아직 배포 기본 비밀번호를 쓸 때."""
+
+__all__ = ["DEFAULT_HOST", "DEFAULT_PORT", "LOOPBACK_HOSTS"]

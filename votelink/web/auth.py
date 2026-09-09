@@ -36,10 +36,17 @@ PUBLIC_PATHS = frozenset({"/login", "/signup", "/healthz"})
 "의도치 않은 공표"가 되지 않는다 (P-002 §2). 새 경로를 여기 넣기 전에 그 화면에
 산출물이 있는지 먼저 본다."""
 
-PENDING_PATHS = frozenset({"/pending", "/logout"})
+SELF_PATHS = frozenset({"/me", "/logout"})
+"""**로그인만 했으면 누구나** — 승인 대기든 온보딩 전이든 운영자든.
+
+자기 비밀번호를 바꾸는 일과 나가는 일은 계정 상태와 무관하다. 특히 부트스트랩
+운영자(`root`)는 `/me` 말고는 비밀번호를 바꿀 데가 없다.
+"""
+
+PENDING_PATHS = SELF_PATHS | {"/pending"}
 """승인 대기 계정이 볼 수 있는 전부. 공용 데이터도 안 보인다 (P-002 §6)."""
 
-ONBOARDING_PATHS = frozenset({"/onboarding", "/logout"})
+ONBOARDING_PATHS = SELF_PATHS | {"/onboarding"}
 """승인은 됐으나 관할을 아직 안 채운 캠프. 관할이 없으면 무엇을 보여줄지 알 수 없다."""
 
 OPS_PREFIX = "/ops"
@@ -124,7 +131,8 @@ def gate(account: acc.Account | None, path: str, *, onboarded: bool) -> str | No
         return None
     if not account.camp_id:
         # 활성 캠프 계정인데 캠프가 없다. 승인이 중간에 끊긴 상태다 (P-002 §6).
-        return "/pending" if path != "/pending" else None
+        # 이 상태에서도 나가고 비밀번호를 바꿀 수는 있어야 한다.
+        return None if path in PENDING_PATHS else "/pending"
     if not onboarded:
         return None if path in ONBOARDING_PATHS else "/onboarding"
     if path == "/onboarding":

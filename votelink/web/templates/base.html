@@ -66,6 +66,7 @@
     {% endif %}
     {% if auth_on %}
       {% if account %}
+      <a href="/me" class="{{ 'on' if active == 'me' }}">내 계정</a>
       {# GET 으로 로그아웃하면 남의 페이지에 심은 이미지 한 장으로 세션이 끊긴다.
          그래서 링크가 아니라 폼이다. #}
       <form class="logout" method="post" action="/logout">

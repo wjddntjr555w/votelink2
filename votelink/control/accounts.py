@@ -24,6 +24,19 @@ from votelink.control.db import connect, now
 _N, _R, _P = 2**14, 8, 1
 _DKLEN = 32
 
+BOOTSTRAP_ID = "root"
+BOOTSTRAP_PASSWORD = "root"
+"""첫 운영자. `serve --auth` 가 운영자가 하나도 없을 때만 만든다.
+
+**아는 비밀번호가 서버에 있으면 인증이 없는 것과 같다.** P-002 §2 는 `0.0.0.0`
+바인딩을 허용한 근거를 "인증이 비노출을 대신한다"로 세웠는데, 이 값이 그대로 남아
+있으면 그 근거가 무너진다. 그래서 `cli.py` 가 **이것을 바꾸기 전까지 로컬 밖
+바인딩을 거부한다** — 편의는 로컬에서만 값이 있고, 그 밖으로는 나가지 않는다.
+
+`email` 컬럼에 형식 검증이 없어서(아래 `create` 는 strip+lower 만 한다) `root` 를
+식별자로 쓸 수 있다. 로그인 폼도 그래서 `type="email"` 이 아니다.
+"""
+
 
 class Role(StrEnum):
     CAMP = "camp"
@@ -213,3 +226,31 @@ def has_operator(*, path: Path | None = None) -> bool:
             "SELECT 1 FROM accounts WHERE role = ? LIMIT 1", (Role.OPERATOR.value,)
         ).fetchone()
     return row is not None
+
+
+def uses_bootstrap_password(*, path: Path | None = None) -> bool:
+    """배포 기본 비밀번호(`BOOTSTRAP_PASSWORD`)를 아직 쓰는 운영자가 있는가.
+
+    **플래그 컬럼을 두지 않는다.** 검사가 곧 진실이라 스키마를 바꿀 필요가 없고,
+    누가 나중에 다시 `root` 로 되돌려도 잡힌다 — 플래그였다면 그때 거짓말을 한다.
+
+    운영자 수만큼 scrypt 를 돌리므로(계정당 ≈100ms) **요청마다 부르지 않는다.**
+    기동 점검과 `create_app` 이 한 번씩 부르고, 결과는 `app.state` 가 들고 있다가
+    비밀번호가 바뀌는 자리에서 갱신한다.
+    """
+    with connect(path) as conn:
+        rows = conn.execute(
+            "SELECT password_hash FROM accounts WHERE role = ?", (Role.OPERATOR.value,)
+        ).fetchall()
+    return any(verify_password(BOOTSTRAP_PASSWORD, r["password_hash"]) for r in rows)
+
+
+def create_bootstrap_operator(*, path: Path | None = None) -> Account:
+    """첫 운영자를 만든다. **운영자가 하나도 없을 때만 부른다** (호출자가 확인한다)."""
+    return create(
+        BOOTSTRAP_ID,
+        BOOTSTRAP_PASSWORD,
+        role=Role.OPERATOR,
+        status=Status.ACTIVE,
+        path=path,
+    )

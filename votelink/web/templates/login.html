@@ -14,8 +14,11 @@
 
   <form method="post" action="/login" class="form">
     <label>
-      이메일
-      <input type="email" name="email" value="{{ email|default('') }}" required autofocus>
+      {# `type="email"` 이 아니다. 운영자 계정의 아이디는 `root` 처럼 이메일이 아닐 수
+         있고, 그러면 브라우저가 제출 자체를 막는다. #}
+      이메일 또는 아이디
+      <input type="text" name="email" value="{{ email|default('') }}" required autofocus
+             autocomplete="username">
     </label>
     <label>
       비밀번호
