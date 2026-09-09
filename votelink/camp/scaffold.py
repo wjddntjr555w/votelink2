@@ -10,8 +10,8 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from votelink.camp.loader import camp_dir, cycle_dir
-from votelink.camp.models import CampInfo, Cycle
+from votelink.camp.loader import camp_dir, cycle_dir, cycle_id_for
+from votelink.camp.models import CampInfo, Candidate, Cycle, Roster
 from votelink.reference.districts import load_districts
 
 CAMP_YAML = """\
@@ -87,8 +87,7 @@ ours:
 #     lineage: centrist
 #     incumbent: false
 #     note: 국민의힘 경선 불복 탈당. 계보는 보수이나 중도 표방으로 완주 중.
-opponents: []
-"""
+{opponents}"""
 
 
 REVIEW_YAML = """\
@@ -185,6 +184,58 @@ def write_camp(info: CampInfo, root: Path | None = None) -> Path:
     return path
 
 
+def _quote(value: str) -> str:
+    """YAML 스칼라로 안전하게. 후보 이름·정당명은 사람이 폼에 치는 값이라
+    `:` 나 `#` 이 섞이면 파일이 통째로 깨진다."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def render_election(cycle: Cycle) -> str:
+    """`election.yaml` 본문. 만들 때와 고칠 때가 같은 것을 낸다."""
+    reviewer = cycle.legal_reviewer
+    reviewer_block = (
+        "\n# 법률 검토 서명 주체. **시스템은 이 서명을 보증하지 않는다** —\n"
+        "# 캠프당 계정이 하나라 그 이름이 그 사람인지 확인할 수 없다. 사람이 적는 값이다.\n"
+        f"legal_reviewer: {_quote(reviewer)}\n"
+        if reviewer
+        else "\n# 법률 검토자가 정해지면 여기 적는다. compliance 검토 서명의 주체가 된다.\n"
+        "legal_reviewer: null\n"
+    )
+    return ELECTION_YAML.format(
+        etype=cycle.election.type.value,
+        office=cycle.election.office.value,
+        edate=cycle.election.date.isoformat() if cycle.election.date else "null",
+        lineage=cycle.lineage.value,
+        preset=_quote(cycle.territory.preset) if cycle.territory.preset else "null",
+        emd_lines="\n".join(f'    - "{c}"' for c in cycle.territory.emd_codes),
+        reviewer_block=reviewer_block,
+    )
+
+
+def render_candidates(roster: Roster) -> str:
+    """`candidates.yaml` 본문. 주석 블록은 템플릿이 지키고 값만 갈아끼운다."""
+    if roster.opponents:
+        lines = ["opponents:"]
+        for o in roster.opponents:
+            lines.append(f"  - name: {_quote(o.name)}")
+            lines.append(f"    party: {_quote(o.party)}")
+            lines.append(f"    lineage: {o.lineage.value}")
+            lines.append(f"    incumbent: {'true' if o.incumbent else 'false'}")
+            if o.note:
+                lines.append(f"    note: {_quote(o.note)}")
+        opponents = "\n".join(lines) + "\n"
+    else:
+        opponents = "opponents: []\n"
+
+    return CANDIDATES_YAML.format(
+        name=_quote(roster.ours.name),
+        party=_quote(roster.ours.party),
+        lineage=roster.ours.lineage.value,
+        incumbent="true" if roster.ours.incumbent else "false",
+        opponents=opponents,
+    )
+
+
 def write_cycle(
     camp_id: str,
     cycle_id: str,
@@ -199,39 +250,16 @@ def write_cycle(
         raise ScaffoldError(f"선거 주기가 이미 있다: {target}")
     target.mkdir(parents=True, exist_ok=True)
 
-    reviewer = cycle.legal_reviewer
-    reviewer_block = (
-        f"\n# 법률 검토 서명 주체. **시스템은 이 서명을 보증하지 않는다** —\n"
-        f"# 캠프당 계정이 하나라 그 이름이 그 사람인지 확인할 수 없다. 사람이 적는 값이다.\n"
-        f"legal_reviewer: {reviewer}\n"
-        if reviewer
-        else "\n# 법률 검토자가 정해지면 여기 적는다. compliance 검토 서명의 주체가 된다.\n"
-        "legal_reviewer: null\n"
-    )
-
-    (target / "election.yaml").write_text(
-        ELECTION_YAML.format(
-            etype=cycle.election.type.value,
-            office=cycle.election.office.value,
-            edate=cycle.election.date.isoformat() if cycle.election.date else "null",
-            lineage=cycle.lineage.value,
-            preset=cycle.territory.preset or "null",
-            emd_lines="\n".join(f'    - "{c}"' for c in cycle.territory.emd_codes),
-            reviewer_block=reviewer_block,
-        ),
-        encoding="utf-8",
-    )
-
-    (target / "candidates.yaml").write_text(
-        CANDIDATES_YAML.format(
+    (target / "election.yaml").write_text(render_election(cycle), encoding="utf-8")
+    roster = Roster(
+        ours=Candidate(
             name=ours_name,
             party=ours_party,
-            lineage=cycle.lineage.value,
-            incumbent="true" if ours_incumbent else "false",
-        ),
-        encoding="utf-8",
+            lineage=cycle.lineage,
+            incumbent=ours_incumbent,
+        )
     )
-
+    (target / "candidates.yaml").write_text(render_candidates(roster), encoding="utf-8")
     (target / "compliance.review.yaml").write_text(
         REVIEW_YAML.format(version=cycle_id), encoding="utf-8"
     )
@@ -240,6 +268,64 @@ def write_cycle(
     for sub in ("records", "rejected", "incoming"):
         (target / sub).mkdir(exist_ok=True)
     return target
+
+
+def write_election(camp_id: str, cycle_id: str, cycle: Cycle, root: Path | None = None) -> Path:
+    """이미 있는 주기의 `election.yaml` 을 **덮어쓴다.**
+
+    `write_cycle` 과 달리 존재를 요구한다 — 없는 주기를 수정할 수는 없다.
+
+    **사람이 손으로 넣은 주석은 사라진다.** 템플릿이 표준 주석을 다시 깔지만 캠프가
+    따로 적어둔 메모는 남지 않는다. 화면이 그 사실을 먼저 말한다.
+    """
+    path = cycle_dir(camp_id, cycle_id, root) / "election.yaml"
+    if not path.exists():
+        raise ScaffoldError(f"고칠 선거 주기가 없다: {path}")
+    path.write_text(render_election(cycle), encoding="utf-8")
+    return path
+
+
+def write_roster(camp_id: str, cycle_id: str, roster: Roster, root: Path | None = None) -> Path:
+    """이미 있는 주기의 `candidates.yaml` 을 덮어쓴다."""
+    target = cycle_dir(camp_id, cycle_id, root)
+    if not (target / "election.yaml").exists():
+        raise ScaffoldError(f"고칠 선거 주기가 없다: {target}")
+    path = target / "candidates.yaml"
+    path.write_text(render_candidates(roster), encoding="utf-8")
+    return path
+
+
+def rename_cycle(camp_id: str, old_id: str, new_id: str, root: Path | None = None) -> Path:
+    """주기 폴더를 옮긴다. **선거일이나 계열이 바뀌면 폴더 이름도 바뀐다.**
+
+    `cycle_id` 는 `{선거일}-{계열}` 에서 나온 파생값이고 `load_cycle` 이 그 일치를
+    강제한다. 폴더를 안 옮기면 그 주기가 통째로 안 읽힌다.
+
+    폴더 안에는 `compliance.review.yaml` 과 `records/`·`rejected/`·`incoming/` 이
+    함께 있다 — **검토 기록과 캠프 스코프 레코드가 주기를 따라간다.** 그게 맞다.
+    검토는 그 선거에 대한 것이지 폴더 이름에 대한 것이 아니다.
+    """
+    src = cycle_dir(camp_id, old_id, root)
+    dst = cycle_dir(camp_id, new_id, root)
+    if src == dst:
+        return dst
+    if not src.exists():
+        raise ScaffoldError(f"옮길 주기가 없다: {src}")
+    if dst.exists():
+        raise ScaffoldError(
+            f"선거 주기 '{new_id}' 가 이미 있다. 같은 날 같은 계열의 선거를 두 번 둘 수 없다"
+        )
+    src.rename(dst)
+    return dst
+
+
+def cycle_id_or_undated(cycle: Cycle) -> str:
+    """폴더 이름. 선거일을 알면 `{선거일}-{계열}`, 모르면 `미정-{계열}`.
+
+    **한 곳에 둔다.** 이 규칙이 갈라지면 만들 때 붙인 이름과 고칠 때 기대하는 이름이
+    달라지고, 그러면 `load_cycle` 의 폴더명 검증이 멀쩡한 주기를 거부한다.
+    """
+    return cycle_id_for(cycle) or f"미정-{cycle.election.type.value}"
 
 
 def default_cycle_id(cycle: Cycle, fallback: str | None = None) -> str:

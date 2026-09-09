@@ -15,14 +15,16 @@
 화면 축은 셋이다 (§7): 선거구(대시보드+지도) · 비교(`/compare`) · 전국 동(`/nation`).
 각 화면은 `?election_type=` 로 재필터한다 (기본 presidential).
 그 앞에 인증 화면 넷이 붙는다: `/login` · `/signup` · `/pending` · `/onboarding`.
-캠프 설정은 `/cycles`(주기 목록)와 `/cycles/new`(다음 주기 추가) 둘이고, 운영자 화면은
-`ops.py` 에 따로 있다.
+캠프 설정은 `/cycles` 아래에 있다 — 주기 목록, 추가(`new`), 수정(`{id}/edit` → 미리보기 →
+`{id}/apply`), 후보 로스터(`{id}/roster`). 운영자 화면은 `ops.py` 에 따로 있다.
+
+**수정만 두 단계다.** 관할이 틀리면 에러 없이 모든 분석이 조용히 틀리므로(P-001 §16),
+저장 전에 무엇이 달라지는지 보여주고 확인받는다. 그 계산은 `camp/changes.py` 에 있다.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import re
 from pathlib import Path
 from typing import Annotated
 
@@ -30,15 +32,16 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from votelink import control
+from votelink.camp import CampConfigError
 from votelink.contract.enums import Camp, ElectionType
 from votelink.reference.compliance import EMPTY_REVIEW, Compliance, load_policy, load_review
 from votelink.reference.districts import DistrictNotFound
 from votelink.web import auth, ops
+from votelink.web.forms import CycleForm, RosterForm, build_cycle, parse_roster, roster_text
 from votelink.web.lens import load_lens
 from votelink.web.loader import (
     AmbiguousDistrict,
@@ -73,8 +76,11 @@ HERE = Path(__file__).resolve().parent
 TEMPLATES_DIR = HERE / "templates"
 STATIC_DIR = HERE / "static"
 
-SETUP_ERRORS = (AmbiguousDistrict, DistrictNotFound, FileNotFoundError, ShapeError)
-"""설정·참조 데이터가 어긋난 경우. 트레이스백 대신 무엇을 고쳐야 하는지 보여준다."""
+SETUP_ERRORS = (AmbiguousDistrict, DistrictNotFound, FileNotFoundError, ShapeError, CampConfigError)
+"""설정·참조 데이터가 어긋난 경우. 트레이스백 대신 무엇을 고쳐야 하는지 보여준다.
+
+`CampConfigError` 는 캠프 설정이 스스로 모순되는 경우다 — 폴더 이름과 선거일이 다르거나
+관할에 없는 행정동코드가 있다. 사람이 고칠 일이라 여기 함께 둔다."""
 
 OFFICE_LABELS = {
     "president": "대통령",
@@ -87,32 +93,6 @@ OFFICE_LABELS = {
 }
 """온보딩 폼의 직위 라벨. `Office` enum 이 유일한 출처이고 여기는 표기만 붙인다 —
 `viewmodel.py` 의 라벨표들과 달리 캠프 설정 전용이라 화면 계층에 둔다."""
-
-
-class CycleForm(BaseModel):
-    """선거 주기 폼. `/onboarding` 과 `/cycles/new` 가 **같은 것을 받는다.**
-
-    필드가 열 개라 라우트마다 늘어놓으면 언젠가 한쪽만 고친다. 첫 주기와 두 번째
-    주기가 다른 값을 받을 이유가 없다 — 관할도 진영도 당적도 주기마다 다시 정한다
-    (P-001 §7).
-
-    `extra="ignore"` 다. 계약 모델들이 `forbid` 인 것과 다른데, 여기는 레코드가 아니라
-    브라우저 폼이라서다 — 제출 버튼 이름 하나가 딸려 와도 422 로 죽는 대신 무시한다.
-    검증은 `_build_cycle` 이 값으로 한다.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    election_type: str
-    office: str
-    lineage: str
-    party: str
-    election_date: str = ""
-    incumbent: str = ""
-    preset: str = ""
-    sigungu: str = ""
-    emd_codes: str = ""
-    legal_reviewer: str = ""
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -439,7 +419,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             except (camp_mod.CampConfigError, FileNotFoundError, ValidationError) as exc:
                 rows.append({"id": cid, "error": str(exc), "current": cid == current})
                 continue
-            rows.append({"id": cid, "cycle": cycle, "current": cid == current})
+            try:
+                roster = camp_mod.load_roster(camp_id, cid, s.camps_root)
+            except (FileNotFoundError, ValidationError):
+                # 로스터가 깨져도 주기 설정은 보여준다. 고치러 갈 링크가 필요하다.
+                roster = None
+            rows.append({"id": cid, "cycle": cycle, "roster": roster, "current": cid == current})
 
         return _render(request, "cycles.html", _auth_ctx(request, rows=rows, today=dt.date.today()))
 
@@ -463,9 +448,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         account = request.state.account
         values = form.model_dump()
         try:
-            cycle = _build_cycle(s, values)
+            cycle = build_cycle(s, values)
             info = camp_mod.load_camp(account.camp_id, s.camps_root)
-            cycle_id = camp_mod.cycle_id_for(cycle) or f"미정-{cycle.election.type.value}"
+            cycle_id = scaffold.cycle_id_or_undated(cycle)
             scaffold.write_cycle(
                 account.camp_id,
                 cycle_id,
@@ -495,6 +480,172 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         # 주기를 더했으면 목록으로 — 새 주기가 현재가 됐는지 아닌지를 바로 보여준다.
         return RedirectResponse("/" if first else "/cycles", status_code=303)
 
+    # --- 주기 수정 — 저장 전에 무엇이 바뀌는지 보여주고 확인받는다 -------------------
+    #
+    # **관할이 틀리면 에러 없이 모든 분석이 조용히 틀린다** (P-001 §16). 그래서 수정은
+    # 두 단계다: 폼 → 미리보기(확인) → 저장. 미리보기는 상태를 어디에도 저장하지 않고
+    # 폼 값을 hidden 으로 다시 넘긴다 — 확인 화면 하나 때문에 세션 저장소를 들이지 않는다.
+
+    def _own_cycle(request: Request, cycle_id: str) -> str:
+        """이 캠프의 주기가 맞는지 확인하고 그 id 를 돌려준다.
+
+        **경로 파라미터를 파일 경로에 그대로 쓰지 않는다.** Starlette 가 `%2F` 를
+        라우팅 전에 풀어서 탈출은 실제로 닿지 않지만, 그 사실에 기대지 않는다 —
+        `list_cycles` 화이트리스트가 유일하게 안전한 검사이고, 덤으로 모르는 주기에
+        깔끔한 404 를 준다.
+        """
+        from votelink import camp as camp_mod
+
+        s: WebSettings = request.app.state.settings
+        camp_id = request.state.account.camp_id
+        if cycle_id not in camp_mod.list_cycles(camp_id, s.camps_root):
+            raise camp_mod.CycleNotFound(f"선거 주기 '{cycle_id}' 가 이 캠프에 없다")
+        return cycle_id
+
+    @app.get("/cycles/{cycle_id}/edit", response_class=Response)
+    def edit_cycle_form(request: Request, cycle_id: str) -> Response:
+        from votelink import camp as camp_mod
+
+        s: WebSettings = request.app.state.settings
+        cid = _own_cycle(request, cycle_id)
+        cycle = camp_mod.load_cycle(
+            request.state.account.camp_id, cid, s.camps_root, districts_path=s.districts_path
+        )
+        return _render(request, "cycle_edit.html", _edit_ctx(request, cid, cycle))
+
+    @app.post("/cycles/{cycle_id}/edit", response_class=Response)
+    def preview_cycle(
+        request: Request, cycle_id: str, form: Annotated[CycleForm, Form()]
+    ) -> Response:
+        """**저장하지 않는다.** 무엇이 바뀌는지 계산해 보여주고 확인을 받는다."""
+        from votelink import camp as camp_mod
+        from votelink.camp.changes import diff_cycle
+
+        s: WebSettings = request.app.state.settings
+        cid = _own_cycle(request, cycle_id)
+        values = form.model_dump()
+        before = camp_mod.load_cycle(
+            request.state.account.camp_id, cid, s.camps_root, districts_path=s.districts_path
+        )
+        try:
+            after = build_cycle(s, values)
+        except ValueError as exc:
+            return _render(
+                request,
+                "cycle_edit.html",
+                _edit_ctx(request, cid, before, error=str(exc), form=values),
+                status_code=400,
+            )
+
+        change = diff_cycle(before, after, cid, s.districts_path)
+        if change.is_empty:
+            return RedirectResponse("/cycles", status_code=303)
+        return _render(
+            request,
+            "cycle_preview.html",
+            _auth_ctx(request, cycle_id=cid, change=change, form=values),
+        )
+
+    @app.post("/cycles/{cycle_id}/apply", response_class=Response)
+    def apply_cycle(
+        request: Request, cycle_id: str, form: Annotated[CycleForm, Form()]
+    ) -> Response:
+        """확인을 거친 수정을 저장한다.
+
+        **폴더를 먼저 옮기고 내용을 쓴다.** 이동이 더 실패하기 쉬운 연산이라(대상이 이미
+        있을 수 있다) 먼저 실패하면 아무것도 안 바뀐다. 반대로 이동 뒤 쓰기가 실패하면
+        폴더 이름과 내용이 어긋나는데, 그건 `load_cycle` 의 폴더명 검증이 다음 읽기에서
+        곧바로 드러낸다 — 조용히 틀린 답을 주지 않는다.
+        """
+        from votelink import camp as camp_mod
+        from votelink.camp import scaffold
+        from votelink.camp.changes import diff_cycle
+
+        s: WebSettings = request.app.state.settings
+        account = request.state.account
+        cid = _own_cycle(request, cycle_id)
+        values = form.model_dump()
+        before = camp_mod.load_cycle(
+            account.camp_id, cid, s.camps_root, districts_path=s.districts_path
+        )
+        try:
+            after = build_cycle(s, values)
+            change = diff_cycle(before, after, cid, s.districts_path)
+            new_id = change.cycle_id_after
+            target = scaffold.rename_cycle(account.camp_id, cid, new_id, s.camps_root)
+            scaffold.write_election(account.camp_id, new_id, after, s.camps_root)
+        except (ValueError, scaffold.ScaffoldError, camp_mod.CampConfigError) as exc:
+            return _render(
+                request,
+                "cycle_edit.html",
+                _edit_ctx(request, cid, before, error=str(exc), form=values),
+                status_code=400,
+            )
+
+        control.audit.log(
+            "edit_cycle",
+            account_id=account.id,
+            camp_id=account.camp_id,
+            target=change.cycle_id_after,
+            # **무엇이 바뀌었는지 남긴다** — P-001 §11 의 "갱신 이력 노출"이 여기서도
+            # 필요하다. 관할이 바뀌면 그 뒤의 모든 숫자가 달라지므로, 나중에 "왜
+            # 지난주와 다른가"를 물을 때 답할 수 있어야 한다.
+            detail={
+                "from": cid,
+                "added": len(change.added),
+                "removed": len(change.removed),
+                "lineage": (
+                    f"{change.lineage_before.value}→{change.lineage_after.value}"
+                    if change.lineage_flipped
+                    else None
+                ),
+                "moved": str(target.name) if change.moved else None,
+            },
+            ip=_client_ip(request),
+            path=s.control_db,
+        )
+        return RedirectResponse("/cycles", status_code=303)
+
+    @app.get("/cycles/{cycle_id}/roster", response_class=Response)
+    def roster_form(request: Request, cycle_id: str) -> Response:
+        return _render(request, "cycle_roster.html", _roster_ctx(request, cycle_id))
+
+    @app.post("/cycles/{cycle_id}/roster", response_class=Response)
+    def save_roster(
+        request: Request, cycle_id: str, form: Annotated[RosterForm, Form()]
+    ) -> Response:
+        """후보 로스터를 저장한다.
+
+        관할과 달리 **틀려도 분석을 바꾸지 않는다** — 로스터는 화면 표기에만 쓰이고
+        진영별 집계는 `party_lineage.yaml` 이 한다. 그래서 확인 단계를 두지 않는다.
+        """
+        from votelink.camp import scaffold
+
+        s: WebSettings = request.app.state.settings
+        account = request.state.account
+        cid = _own_cycle(request, cycle_id)
+        try:
+            roster = parse_roster(form)
+            scaffold.write_roster(account.camp_id, cid, roster, s.camps_root)
+        except (ValueError, scaffold.ScaffoldError) as exc:
+            return _render(
+                request,
+                "cycle_roster.html",
+                _roster_ctx(request, cid, error=str(exc), form=form.model_dump()),
+                status_code=400,
+            )
+
+        control.audit.log(
+            "edit_roster",
+            account_id=account.id,
+            camp_id=account.camp_id,
+            target=cid,
+            detail={"opponents": len(roster.opponents)},
+            ip=_client_ip(request),
+            path=s.control_db,
+        )
+        return RedirectResponse("/cycles", status_code=303)
+
     @app.get("/healthz", response_class=PlainTextResponse)
     def healthz() -> str:
         return "ok"
@@ -506,6 +657,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     for error in SETUP_ERRORS:
         app.add_exception_handler(error, _setup_error)
+
+    # 없는 캠프·주기는 **404 다.** 설정 오류(500)와 구분한다 — "고칠 것이 있다"와
+    # "그런 것이 없다"는 사람이 할 일이 다르다. URL 을 손으로 친 경우가 대부분이다.
+    from votelink.camp import CampNotFound, CycleNotFound
+
+    for error in (CampNotFound, CycleNotFound):
+        app.add_exception_handler(error, _not_found)
 
     return app
 
@@ -625,6 +783,63 @@ def _onboarding_ctx(
     )
 
 
+def _edit_ctx(request: Request, cycle_id: str, cycle, *, error=None, form=None) -> dict:
+    """수정 폼. 폼 값을 안 주면 **지금 저장된 값**으로 채운다.
+
+    빈 폼을 주면 사람이 안 건드린 항목까지 다시 입력해야 하고, 그러다 관할을 새로
+    치는 순간 P-001 §16 의 사고가 난다.
+    """
+    ctx = _onboarding_ctx(request, error=error, form=form, first=False)
+    if form is None:
+        ctx["form"] = {
+            "election_type": cycle.election.type.value,
+            "office": cycle.election.office.value,
+            "election_date": cycle.election.date.isoformat() if cycle.election.date else "",
+            "lineage": cycle.lineage.value,
+            # `party` 는 로스터(candidates.yaml)에 있고 여기서는 안 고친다.
+            # 주기 폼과 로스터 폼이 같은 값을 두 곳에서 쓰면 어긋난다.
+            "party": "",
+            "preset": cycle.territory.preset or "",
+            "sigungu": "",
+            "emd_codes": "\n".join(cycle.territory.emd_codes),
+            "legal_reviewer": cycle.legal_reviewer or "",
+        }
+    ctx["cycle_id"] = cycle_id
+    ctx["editing"] = True
+    return ctx
+
+
+def _roster_ctx(request: Request, cycle_id: str, *, error=None, form=None) -> dict:
+    """로스터 폼. 폼 값을 안 주면 저장된 로스터를 풀어서 채운다."""
+    from pydantic import ValidationError
+
+    from votelink import camp as camp_mod
+    from votelink.web.forms import CAMP_ALIASES
+
+    settings: WebSettings = request.app.state.settings
+    camp_id = request.state.account.camp_id
+    if form is None:
+        try:
+            roster = camp_mod.load_roster(camp_id, cycle_id, settings.camps_root)
+            form = {
+                "ours_name": roster.ours.name,
+                "ours_party": roster.ours.party,
+                "ours_lineage": roster.ours.lineage.value,
+                "ours_incumbent": "1" if roster.ours.incumbent else "",
+                "opponents": roster_text(roster),
+            }
+        except (FileNotFoundError, ValidationError):
+            # 로스터 파일이 깨졌거나 없다. 빈 폼으로 다시 만들 수 있게 둔다.
+            form = {}
+    return _auth_ctx(
+        request,
+        cycle_id=cycle_id,
+        error=error,
+        form=form,
+        lineage_options=[(c.value, label) for label, c in CAMP_ALIASES.items()],
+    )
+
+
 def _with_session(response: Response, request: Request, token: str) -> Response:
     """세션 쿠키를 붙인다.
 
@@ -646,47 +861,13 @@ def _with_session(response: Response, request: Request, token: str) -> Response:
     return response
 
 
-def _build_cycle(settings: WebSettings, form: dict):
-    """온보딩 폼 → `Cycle`. 저장하기 **전에** 전부 검증한다.
-
-    `load_cycle` 이 읽기 경로에서도 같은 검증을 하지만, 그때는 이미 파일이 디스크에
-    있다. **관할이 틀리면 에러 없이 모든 분석이 조용히 틀리므로**(P-001 §16) 잘못된
-    값이 파일이 되는 일 자체를 막는다.
-    """
-    from votelink.camp import known_emd_codes
-    from votelink.camp.models import Cycle, Election, Office, Territory
-    from votelink.camp.scaffold import resolve_territory
-
-    raw_date = (form.get("election_date") or "").strip()
-    try:
-        election_date = dt.date.fromisoformat(raw_date) if raw_date else None
-    except ValueError as exc:
-        raise ValueError(f"선거일은 YYYY-MM-DD 형식이어야 한다: '{raw_date}'") from exc
-
-    # 줄바꿈·쉼표·공백 아무거나 구분자로 받는다. 사람이 표에서 복사해 붙인다.
-    codes = [c for c in re.split(r"[\s,]+", form.get("emd_codes") or "") if c]
-    preset_label, resolved = resolve_territory(
-        (form.get("preset") or "").strip() or None,
-        (form.get("sigungu") or "").strip() or None,
-        codes,
-        settings.districts_path,
-    )
-    unknown = sorted(set(resolved) - known_emd_codes(settings.districts_path))
-    if unknown:
-        raise ValueError(
-            f"districts.yaml 이 모르는 행정동코드다: {', '.join(unknown)}. "
-            "`uv run votelink district list --emd` 로 대조하라"
-        )
-
-    return Cycle(
-        election=Election(
-            type=ElectionType(form["election_type"]),
-            office=Office(form["office"]),
-            date=election_date,
-        ),
-        lineage=Camp(form["lineage"]),
-        territory=Territory(preset=preset_label, emd_codes=resolved),
-        legal_reviewer=(form.get("legal_reviewer") or "").strip() or None,
+def _not_found(request: Request, exc: Exception) -> Response:
+    """없는 캠프·주기. 설정이 깨진 것이 아니라 그런 것이 없는 것이다."""
+    return _render(
+        request,
+        "error.html",
+        base_ctx(request, message=str(exc), kind="찾을 수 없다"),
+        status_code=404,
     )
 
 

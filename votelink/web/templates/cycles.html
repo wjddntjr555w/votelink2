@@ -23,6 +23,9 @@
     <header>
       <strong>{{ row.id }}</strong>
       {% if row.current %}<span class="tag tag--ours">지금 보는 주기</span>{% endif %}
+      <span class="spacer"></span>
+      <a class="small" href="/cycles/{{ row.id }}/edit">주기 수정</a>
+      <a class="small" href="/cycles/{{ row.id }}/roster">후보 로스터</a>
     </header>
 
     {% if row.error %}
@@ -68,6 +71,17 @@
         {% if row.cycle.legal_reviewer %}{{ row.cycle.legal_reviewer }}
         {% else %}<span class="muted">미지정</span>{% endif %}
       </dd>
+      {% if row.roster %}
+      <dt>후보</dt>
+      <dd>
+        {{ row.roster.ours.name }} ({{ row.roster.ours.party }})
+        {% if row.roster.opponents %}
+        <span class="muted">· 상대 {{ row.roster.opponents|length }}명</span>
+        {% else %}
+        <span class="muted">· 상대 미등록</span>
+        {% endif %}
+      </dd>
+      {% endif %}
     </dl>
     {% endif %}
   </article>

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% set active = 'cycles' %}
+{% block title %}바뀌는 내용 확인 — votelink{% endblock %}
+
+{# **이 화면이 수정 기능의 값이다.**
+
+   P-001 §16 이 가장 위험한 실패로 지목한 것은 "관할 입력이 틀리면 모든 분석이
+   조용히 틀린다"이다 — 틀린 관할은 에러를 내지 않고 그냥 다른 답을 준다.
+   수정을 열어주는 대가로, 저장 전에 무엇이 달라지는지 전부 보여준다.
+
+   폼 값은 hidden 으로 다시 넘긴다. 확인 화면 하나 때문에 세션 저장소를 들이지 않는다. #}
+{% block content %}
+<section class="gate gate--wide">
+  <h1>이대로 저장할까요?</h1>
+  <p class="muted small">
+    <code>{{ cycle_id }}</code> · 아직 아무것도 바뀌지 않았습니다.
+  </p>
+
+  <div class="changes">
+    {% if change.moved %}
+    <div class="banner banner--warn">
+      <strong>주기 폴더가 옮겨집니다</strong>
+      <p><code>{{ change.cycle_id_before }}</code> &rarr; <code>{{ change.cycle_id_after }}</code></p>
+      <p class="small">
+        폴더 이름은 선거일과 계열에서 나온 값이라 함께 바뀝니다. 법률 검토 기록과
+        이 주기의 레코드가 폴더를 따라 함께 옮겨갑니다 — 검토는 그 선거에 대한 것이지
+        폴더 이름에 대한 것이 아닙니다.
+      </p>
+    </div>
+    {% endif %}
+
+    {% if change.lineage_flipped %}
+    <div class="banner banner--warn">
+      <strong>진영이 바뀝니다 — 모든 화면의 우세·열세가 뒤집힙니다</strong>
+      <p>{{ change.lineage_before.value }} &rarr; {{ change.lineage_after.value }}</p>
+      <p class="small">
+        숫자 자체는 그대로입니다. 공용 데이터는 진영 단위로 중립 계산되고, 이 값은
+        그것을 "우리 / 상대"로 읽는 방식만 정합니다.
+      </p>
+    </div>
+    {% endif %}
+
+    {% if change.closed %}
+    <div class="banner banner--blocked">
+      <strong>더 이상 볼 수 없게 되는 선거구</strong>
+      <ul>{% for did, name in change.closed %}<li>{{ name }} (<code>{{ did }}</code>)</li>{% endfor %}</ul>
+      <p class="small">관할 밖이 되므로 저장 뒤에는 이 화면들이 403 으로 막힙니다.</p>
+    </div>
+    {% endif %}
+
+    <dl class="kv">
+      {% if change.date_before != change.date_after %}
+      <dt>선거일</dt>
+      <dd>
+        {{ change.date_before or '미정' }} &rarr; <strong>{{ change.date_after or '미정' }}</strong>
+        {% if not change.date_after %}
+        <br><span class="warn-text">
+          미정으로 되돌리면 공표 금지기간(§108) 같은 기간 판정을 계산할 수 없어
+          그 산출물들이 전부 미검토로 떨어집니다.
+        </span>
+        {% endif %}
+      </dd>
+      {% endif %}
+
+      {% if change.type_before != change.type_after %}
+      <dt>선거 계열</dt>
+      <dd>{{ change.type_before.value }} &rarr; <strong>{{ change.type_after.value }}</strong></dd>
+      {% endif %}
+
+      {% if change.office_before != change.office_after %}
+      <dt>직위</dt>
+      <dd>{{ change.office_before.value }} &rarr; <strong>{{ change.office_after.value }}</strong></dd>
+      {% endif %}
+
+      {% if change.reviewer_before != change.reviewer_after %}
+      <dt>법률 검토자</dt>
+      <dd>{{ change.reviewer_before or '미지정' }} &rarr;
+        <strong>{{ change.reviewer_after or '미지정' }}</strong></dd>
+      {% endif %}
+
+      {% if change.opened %}
+      <dt>열리는 선거구</dt>
+      <dd>{% for did, name in change.opened %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}</dd>
+      {% endif %}
+    </dl>
+
+    {% if change.territory_changed %}
+    <h2>관할 {{ change.kept + change.added|length }}개 동
+      <span class="muted">(그대로 {{ change.kept }} · 추가 {{ change.added|length }} ·
+      제외 {{ change.removed|length }})</span></h2>
+    <div class="emd-diff">
+      {% if change.added %}
+      <div>
+        <h3 class="added">추가되는 동 {{ change.added|length }}개</h3>
+        <ul>{% for e in change.added %}<li>{{ e.label }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if change.removed %}
+      <div>
+        <h3 class="removed">빠지는 동 {{ change.removed|length }}개</h3>
+        <ul>{% for e in change.removed %}<li>{{ e.label }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="muted">관할은 그대로입니다 ({{ change.kept }}개 동).</p>
+    {% endif %}
+  </div>
+
+  <form method="post" action="/cycles/{{ cycle_id }}/apply" class="form form--inline">
+    {% for key, value in form.items() %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+    <button type="submit">이대로 저장</button>
+  </form>
+  <p class="muted small">
+    <a href="/cycles/{{ cycle_id }}/edit">&larr; 돌아가서 고치기</a>
+  </p>
+</section>
+{% endblock %}

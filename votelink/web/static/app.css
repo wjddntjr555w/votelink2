@@ -497,3 +497,22 @@ button.danger, .danger { color: var(--block-line); }
   font-size: 14px;
   text-decoration: none;
 }
+
+/* --- 주기 수정 미리보기 -----------------------------------------------------
+   이 화면이 수정 기능의 값이다. 관할이 틀리면 에러 없이 모든 분석이 조용히
+   틀리므로, 저장 전에 무엇이 달라지는지 전부 보여준다 (P-001 §16). */
+
+.changes { margin: 18px 0; }
+.changes h2 { margin: 18px 0 8px; }
+
+.emd-diff { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.emd-diff h3 { font-size: 13px; margin: 0 0 6px; }
+.emd-diff h3.added { color: var(--ok-line); }
+.emd-diff h3.removed { color: var(--block-line); }
+.emd-diff ul {
+  margin: 0; padding-left: 18px;
+  font-size: 13px; max-height: 260px; overflow-y: auto;
+}
+
+.cycle header .spacer { flex: 1; }
+.cycle header a { font-size: 13px; margin-left: 10px; }
