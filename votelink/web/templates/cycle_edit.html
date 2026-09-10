@@ -92,9 +92,9 @@
     <fieldset>
       <legend>관할</legend>
       <p class="muted small">
-        지금 저장된 관할이 아래에 그대로 들어 있습니다. 프리셋·자치구를 새로 고르면
-        <strong>직접 입력한 코드에 더해집니다</strong> — 바꾸려면 아래 코드 목록을
-        먼저 비우십시오.
+        지금 저장된 관할이 아래 <strong>선택된 관할</strong>에 그대로 들어 있습니다.
+        동을 빼려면 오른쪽에서 체크 해제 → <code>&laquo;</code>. 프리셋·자치구를 새로
+        고르거나 코드를 직접 넣으면 <strong>선택된 것에 더해집니다</strong> (P-005 §9).
       </p>
       <label>
         선거구 프리셋
@@ -104,6 +104,12 @@
           <option value="{{ value }}" {{ 'selected' if form.preset == value }}>{{ label }}</option>
           {% endfor %}
         </select>
+        {% if form.preset %}
+        <span class="muted small">
+          프리셋이 걸려 있으면 그 프리셋의 동은 저장할 때 다시 들어옵니다 — 개별로만
+          관리하려면 <strong>(쓰지 않음)</strong>으로 바꾸십시오.
+        </span>
+        {% endif %}
       </label>
       <label>
         자치구 전체
@@ -114,12 +120,13 @@
           {% endfor %}
         </select>
       </label>
+      {% include "_emd_shuttle.html" %}
       <label>
-        행정동코드
-        <textarea name="emd_codes" rows="8">{{ form.emd_codes|default('') }}</textarea>
+        행정동코드 직접 입력
+        <textarea name="emd_codes" rows="4">{{ form.emd_codes|default('') }}</textarea>
         <span class="muted small">
-          줄바꿈·쉼표·공백 아무거나로 구분합니다.
-          <code>uv run votelink district list --emd</code> 의 코드와 같아야 합니다.
+          줄바꿈·쉼표·공백 아무거나로 구분합니다. 위 목록에 없는 동(코드 미확인)은
+          여기에 넣습니다.
         </span>
       </label>
     </fieldset>

@@ -926,6 +926,12 @@ def _edit_ctx(
     """
     ctx = _onboarding_ctx(request, error=error, form=form, first=False)
     if form is None:
+        # 현재 관할을 shuttle 오른쪽(선택됨)에 미리 채운다 (P-005 §9). districts.yaml
+        # 이 아는 코드는 emd_pick 으로 — 위젯이 이름으로 보여준다. 모르는(미확인) 코드는
+        # emd_pick 에 넣으면 build_cycle 이 저장을 거부하므로 textarea 로 내린다.
+        known = {code for _sg, items in ctx["emd_groups"] for code, _name in items}
+        picked = [c for c in cycle.territory.emd_codes if c in known]
+        unknown = [c for c in cycle.territory.emd_codes if c not in known]
         ctx["form"] = {
             "election_type": cycle.election.type.value,
             "office": cycle.election.office.value,
@@ -936,7 +942,8 @@ def _edit_ctx(
             "party": "",
             "preset": cycle.territory.preset or "",
             "sigungu": "",
-            "emd_codes": "\n".join(cycle.territory.emd_codes),
+            "emd_pick": picked,
+            "emd_codes": "\n".join(unknown),
             "legal_reviewer": cycle.legal_reviewer or "",
         }
     ctx["cycle_id"] = cycle_id

@@ -108,6 +108,25 @@ P-003 은 "운영자가 대신 입력하면 관할을 캠프보다 운영자가 
 `camp_id` 변경 · 로스터 대리 수정 · 캠프 계정 없이 캠프 공간만 만드는 흐름 ·
 운영자 역할 세분화 · 수정 이력 롤백 UI · 동시 수정 락
 
+## 9. 관할을 동 이름으로 고른다 (2026-09-10 추가)
+
+P-004 §7 이 "이번 범위 아님"으로 두었던 **`/cycles/{id}/edit` 관할 UI** 를 여기서 채운다 —
+운영자 대리 수정 폼도 같은 템플릿을 쓰므로 함께 얻는다.
+
+- onboarding 의 shuttle 위젯·스크립트를 `templates/_emd_shuttle.html` **partial** 로 빼고
+  `/onboarding`·`/cycles/new`·`/cycles/{id}/edit`·`/ops/.../edit` 이 모두 include 한다.
+  중복 0. 스크립트도 partial 안에 있다.
+- 수정 폼은 **현재 관할이 shuttle 오른쪽(선택됨)에 미리 채워진다**. `_edit_ctx` 가
+  `cycle.territory.emd_codes` 중 `districts.yaml` 이 아는 코드를 `emd_pick` 으로,
+  미확인 코드는 `emd_codes` textarea 로 내린다. 위젯 스크립트가 hidden `emd_pick` 을
+  seed 로 읽어 오른쪽을 복원하므로(P-004 §4) 추가 JS 는 없다.
+- **프리셋과의 관계는 안 바꾼다.** 프리셋이 걸린 채로 shuttle 에서 동을 빼면 저장 시
+  `resolve_territory` 가 프리셋에서 다시 넣는다 — 기존 textarea 경고와 같다. 폼이 그
+  사실을 한 줄로 알린다("개별로만 관리하려면 프리셋을 (쓰지 않음)으로").
+- P-004 §6 의 우려("수정은 2단계 확인 폼이라 UI 가 다르다")는 그대로 유효하지만 —
+  미리보기가 diff 를 보여주므로 **틀리게 고를 위험은 미리보기가 잡는다**. 입력 수단만
+  onboarding 과 같아졌고 확인 절차는 그대로다.
+
 ## 8. 채택 시 갱신할 문서
 
 | 문서 | 고칠 것 | 상태 |
@@ -122,3 +141,5 @@ P-003 은 "운영자가 대신 입력하면 관할을 캠프보다 운영자가 
 | `docs/40-webapp-spec.md` | `/ops/*` 표에 대리 수정 2줄 + 설명 | ✅ |
 | `docs/proposals/P-003-operator-console.md` | §2 "읽기만 한다"에 P-005 예외 블록 | ✅ |
 | `CLAUDE.md` | 토큰 규율 표에 대리 수정 행 | ✅ |
+| `votelink/web/templates/_emd_shuttle.html` (신규) · `onboarding.html`·`cycle_edit.html` | shuttle 을 partial 로 빼고 세 폼이 include (§9) | ✅ |
+| `votelink/web/app.py` `_edit_ctx` | 현재 관할을 `emd_pick` 으로 prefill (§9) | ✅ |

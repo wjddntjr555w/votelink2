@@ -274,6 +274,18 @@ def test_the_form_is_prefilled_with_what_is_saved(env):
     assert 'value="test_gap" selected' in html or 'value="test_gap"  selected' in html
 
 
+def test_the_form_prefills_the_dong_shuttle_with_the_current_territory(env):
+    """수정 폼도 온보딩처럼 동 이름 shuttle 을 쓴다 (P-005 §9). 지금 관할이
+    오른쪽(선택됨)에 미리 들어와 있어야 뺄 수 있다."""
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+    html = client.get(f"/cycles/{CURRENT}/edit").text
+
+    assert 'id="emd-shuttle"' in html
+    cycle = cycle_of(env)
+    for code in cycle.territory.emd_codes:
+        assert f'name="emd_pick" value="{code}"' in html
+
+
 # --- 후보 로스터 --------------------------------------------------------------------
 
 
