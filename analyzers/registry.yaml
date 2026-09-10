@@ -1,6 +1,6 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink analyze --sync`
 generated_by: votelink analyze registry sync
-count: 4
+count: 5
 analyzers:
 - id: issue_ranker
   name: 선거구 이슈 랭커 — 뉴스를 어휘집으로 분류해 언급 빈도·최근성으로 랭킹
@@ -18,6 +18,15 @@ analyzers:
   - news_pulse
   geo_level: sigungu
   verified: false
+- id: target_priority
+  name: 타깃 동 우선순위 — 규모·변동성·경합·투표율 여유를 블렌드해 자원배분 순위를 낸다
+  inputs:
+  - segment_profile
+  - turnout_gap
+  outputs:
+  - target_priority
+  geo_level: emd
+  verified: true
 - id: turnout_gap
   name: 투표율 편차 — 동별 투표율이 선거구 평균에서 얼마나 벌어지는가
   inputs:

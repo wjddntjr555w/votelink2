@@ -1,0 +1,81 @@
+id: target_priority
+name: 타깃 동 우선순위 — 규모·변동성·경합·투표율 여유를 블렌드해 자원배분 순위를 낸다
+inputs: [segment_profile, turnout_gap]
+outputs: [target_priority]
+geo_level: emd
+proposal: docs/proposals/A-005-target-priority.md
+
+# 검증 (2026-09-10, seoul_songpa_gap):
+#   입력 868건(segment_profile + turnout_gap 전체) → 관할로 좁혀 산출 18건
+#   (동 9 × 계열 2). 격리 0건 (0.0%).
+#   멱등: 1회차 신규 18·교체 0 → 2회차 교체 18·신규 0.
+#
+#   변별력 — attention_score 가 두 계열 모두에서 9개 동 전부 다른 값(9/9 distinct):
+#     대선   32.5 ~ 78.3
+#     총선   22.9 ~ 75.6
+#     **1위(방이2동)와 최하위 두 동(오륜·오금6)이 두 계열에서 모두 같다.**
+#     계열이 독립인데 순위 양끝이 일치하는 것이 우연이 아니라는 근거다
+#     (turnout_gap 검증과 같은 논리). 입력 지수를 전부 선거구 내 min-max 로
+#     정규화해 전국 공통 흐름을 상쇄한 결과다.
+#
+#   가중치 민감도 — 기본값(0.2/0.3/0.3/0.2) 대비:
+#     equal(0.25×4), size_heavy(0.4/0.2/0.2/0.2) → **1~3위 순서 불변.**
+#     persuade_heavy(0.1/0.4/0.4/0.1) 극단값에서만 2~3위가 뒤섞임(9개 중 총 이동 6~8).
+#     즉 "어디부터"(1위)는 가중치 논쟁과 무관하고, 중위권만 흔들린다.
+#
+#   swing_battleground 라벨은 이 선거구에서 한 번도 안 붙는다 — 변동성 큰 동과
+#   접전인 동이 갈린다(둘 다 높은 동이 없다). 라벨은 살려둔다(다른 선거구용).
+verified: true
+
+config:
+  default_district: seoul_songpa_gap
+
+  common:
+    # --- 블렌드 가중치 (합 = 1.0) ---
+    #
+    # attention_score = size*size_index + volatility*volatility_index
+    #                 + competitiveness*competitiveness_index + turnout_headroom*turnout_headroom
+    #
+    # 기본값의 근거: 자원 배분은 "바꿀 수 있는 표"를 규모보다 무겁게 본다. 변동성(설득
+    # 여지)과 경합도는 각각 규모·투표율여유보다 한 단계 무겁게(0.3 vs 0.2) 뒀다.
+    # size 를 0 으로 두면 작은 동이 상위로 튀어 현장감과 어긋났다(초기 확인). 반대로
+    # size 0.4 로 올리면 순위가 인구표를 거의 그대로 따라가 분석기가 할 일이 없어진다.
+    # **민감도는 검증 단계에서 잰다 — 순위가 이 값에 크게 흔들리면 그 논쟁을 먼저 해야 한다.**
+    weights:
+      size: 0.2
+      volatility: 0.3
+      competitiveness: 0.3
+      turnout_headroom: 0.2
+
+    # --- segment_note 분류 컷 (0~100 지수 기준) ---
+    #
+    # 순서대로 먼저 맞는 라벨을 준다 (calc.classify):
+    #   swing_battleground : 변동성도 높고 경합도 높다 (설득이 표를 바꾼다)
+    #   mobilization_target: 투표율 여유가 크고 경합이 어느 정도 있다 (동원이 표를 만든다)
+    #   safe               : 한쪽이 확실히 앞선다 (경합도 낮음)
+    #   persuasion_ground  : 접전이나 변동성·GOTV 여지가 지렛대가 아님 (막판·공중전)
+    #   low_stakes         : 그 밖. 변동성 낮고 여유 없고 접전도 아님
+    #
+    # 값의 근거: 60 은 "그룹 상위 40%"의 대략치(min-max 라 분포에 따라 다름). mid 40 /
+    # lo 25 는 경합을 상/중/하로 가르는 눈금. 이 컷들은 라벨만 바꾸고 attention_score·rank
+    # 는 건드리지 않는다 — 순위가 진실이고 라벨은 읽기 보조다.
+    segment_cuts:
+      volatility_hi: 60
+      competitiveness_hi: 60
+      competitiveness_mid: 40
+      competitiveness_lo: 25
+      turnout_headroom_hi: 60
+
+  # nec_archive 가 개표 자료를 가진 서울 선거구. voter_profile·turnout_gap 과 같은 목록이며
+  # 선거구별로 달라지는 값이 없어 전부 빈 블록이다 — 등록 표시일 뿐이다.
+  districts:
+    seoul_songpa_gap: {}
+    seoul_songpa_eul: {}
+    seoul_songpa_byeong: {}
+    seoul_gangnam_gap: {}
+    seoul_gangnam_eul: {}
+    seoul_gangnam_byeong: {}
+    seoul_gangdong_gap: {}
+    seoul_gangdong_eul: {}
+    seoul_jongno: {}
+    seoul_yongsan: {}

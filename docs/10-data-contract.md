@@ -146,6 +146,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `segment_profile` | 유권자 세그먼트 프로파일 (파생, `election_type` 별 1레코드) | 분석 산출 | ✓ |
 | `news_pulse` | 선거구 뉴스량·분포 (파생, 주 단위, 선거구당 1레코드) | 분석 산출 (`news_pulse`) | ✓ |
 | `turnout_gap` | 읍면동 투표율 편차 (파생, `election_type` 별 1레코드) | 분석 산출 (`turnout_gap`) | ✓ |
+| `target_priority` | 읍면동 자원배분 우선순위 (파생, `election_type` 별 1레코드, 지수는 선거구 내 정규화·진영 중립) | 분석 산출 (`target_priority`) | ✓ |
 
 ## 5. MVP 3종 payload
 

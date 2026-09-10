@@ -420,6 +420,62 @@ class TurnoutGapPayload(_Payload):
     as_of: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="최근 회차 선거일")
 
 
+# --- target_priority (파생) ---------------------------------------------------
+#
+# **단위 규약: 지수는 전부 0~100 이고 선거구 내 정규화된 값이다** (min-max). 절대 크기가
+# 아니라 "이 선거구 안에서 상대적으로 어느 위치인가"를 말한다. 그래서 다른 선거구의
+# target_priority 레코드와 지수를 직접 비교하면 안 된다.
+# 제안서: docs/proposals/A-005-target-priority.md
+#
+# 이 분석기는 **진영 중립**이다. "우리 동원 대상이냐 설득 대상이냐"는 캠프 렌즈가 L3 에서
+# 정한다 (P-001). 여기서는 어느 편이 봐도 같은 요인과 그 블렌드만 낸다.
+
+
+class TargetPriorityPayload(_Payload):
+    """행정동 × 선거계열의 자원배분 우선순위.
+
+    제안서: docs/proposals/A-005-target-priority.md
+    """
+
+    as_of: str = Field(
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="segment_profile 의 분석 기준월"
+    )
+    election_type: ElectionType
+    """이 우선순위가 근거한 선거 계열. 대선과 총선은 경합·투표율의 의미가 달라 섞지 않는다."""
+
+    size_index: float = Field(ge=0.0, le=100.0, description="선거구 내 인구 규모 (min-max)")
+    volatility_index: float = Field(ge=0.0, le=100.0, description="swing 정규화 — 설득 여지")
+    competitiveness_index: float = Field(
+        ge=0.0, le=100.0, description="최신 회차 |보수−진보| 격차가 작을수록 높음"
+    )
+    turnout_headroom: float = Field(
+        ge=0.0, le=100.0, description="max(0, -mean_gap) 정규화 — 동원 여유. 입력 없으면 0"
+    )
+    attention_score: float = Field(ge=0.0, le=100.0, description="위 넷의 가중 블렌드. 렌즈 무관")
+    rank: int = Field(ge=1, description="선거구·계열 내 attention_score 내림차순 순위 (1=최우선)")
+    group_size: int = Field(ge=1, description="이 선거구·계열의 동 수 (rank 분모)")
+    segment_note: str = Field(
+        min_length=1,
+        description=(
+            "중립 유형 (렌즈 무관): swing_battleground / mobilization_target / "
+            "persuasion_ground / safe / low_stakes"
+        ),
+    )
+
+    conservative_share: float = Field(ge=0.0, le=100.0, description="최신 회차 보수 진영 득표 %")
+    progressive_share: float = Field(ge=0.0, le=100.0, description="최신 회차 진보 진영 득표 %")
+    population_total: int = Field(ge=0)
+    has_turnout_input: bool = Field(
+        description="turnout_gap 입력이 있었나. False 면 confidence 하향"
+    )
+
+    @model_validator(mode="after")
+    def _rank_within_group(self):
+        if self.rank > self.group_size:
+            raise ValueError(f"rank({self.rank})가 group_size({self.group_size})를 넘는다")
+        return self
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
@@ -428,5 +484,6 @@ PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.NEWS_PULSE: NewsPulsePayload,
     RecordKind.LOCAL_ISSUE: LocalIssuePayload,
     RecordKind.TURNOUT_GAP: TurnoutGapPayload,
+    RecordKind.TARGET_PRIORITY: TargetPriorityPayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""
