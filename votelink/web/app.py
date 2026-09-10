@@ -498,13 +498,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         `list_cycles` 화이트리스트가 유일하게 안전한 검사이고, 덤으로 모르는 주기에
         깔끔한 404 를 준다.
         """
-        from votelink import camp as camp_mod
-
         s: WebSettings = request.app.state.settings
-        camp_id = request.state.account.camp_id
-        if cycle_id not in camp_mod.list_cycles(camp_id, s.camps_root):
-            raise camp_mod.CycleNotFound(f"선거 주기 '{cycle_id}' 가 이 캠프에 없다")
-        return cycle_id
+        return _cycle_in_camp(s, request.state.account.camp_id, cycle_id)
 
     @app.get("/cycles/{cycle_id}/edit", response_class=Response)
     def edit_cycle_form(request: Request, cycle_id: str) -> Response:
@@ -547,7 +542,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return _render(
             request,
             "cycle_preview.html",
-            _auth_ctx(request, cycle_id=cid, change=change, form=values),
+            _auth_ctx(
+                request,
+                cycle_id=cid,
+                change=change,
+                form=values,
+                edit_base="/cycles",
+                list_href="/cycles",
+            ),
         )
 
     @app.post("/cycles/{cycle_id}/apply", response_class=Response)
@@ -873,11 +875,39 @@ def _me_ctx(request: Request, *, error: str | None = None) -> dict:
     )
 
 
-def _edit_ctx(request: Request, cycle_id: str, cycle, *, error=None, form=None) -> dict:
+def _cycle_in_camp(settings: WebSettings, camp_id: str, cycle_id: str) -> str:
+    """이 캠프에 이 주기가 있는지 화이트리스트로 확인하고 그 id 를 돌려준다.
+
+    **경로 파라미터를 파일 경로에 그대로 쓰지 않는다.** `list_cycles` 화이트리스트가
+    유일하게 안전한 검사이고, 덤으로 모르는 주기에 깔끔한 404 를 준다. 캠프 라우트는
+    세션 계정의 `camp_id` 를, 운영자 라우트는 URL 경로의 `camp_id` 를 넘긴다 (P-005 §4).
+    """
+    from votelink import camp as camp_mod
+
+    if cycle_id not in camp_mod.list_cycles(camp_id, settings.camps_root):
+        raise camp_mod.CycleNotFound(f"선거 주기 '{cycle_id}' 가 이 캠프에 없다")
+    return cycle_id
+
+
+def _edit_ctx(
+    request: Request,
+    cycle_id: str,
+    cycle,
+    *,
+    error=None,
+    form=None,
+    edit_base: str = "/cycles",
+    list_href: str = "/cycles",
+    list_label: str = "주기 목록",
+    by_operator: bool = False,
+) -> dict:
     """수정 폼. 폼 값을 안 주면 **지금 저장된 값**으로 채운다.
 
     빈 폼을 주면 사람이 안 건드린 항목까지 다시 입력해야 하고, 그러다 관할을 새로
     치는 순간 P-001 §16 의 사고가 난다.
+
+    `edit_base`·`list_href`·`by_operator` 는 이 폼이 캠프용인지 운영자 대리용인지를
+    가른다 (P-005). 캠프는 `/cycles/…`, 운영자는 `/ops/camps/<id>/cycles/…` 로 제출한다.
     """
     ctx = _onboarding_ctx(request, error=error, form=form, first=False)
     if form is None:
@@ -896,6 +926,10 @@ def _edit_ctx(request: Request, cycle_id: str, cycle, *, error=None, form=None) 
         }
     ctx["cycle_id"] = cycle_id
     ctx["editing"] = True
+    ctx["edit_base"] = edit_base
+    ctx["list_href"] = list_href
+    ctx["list_label"] = list_label
+    ctx["by_operator"] = by_operator
     return ctx
 
 

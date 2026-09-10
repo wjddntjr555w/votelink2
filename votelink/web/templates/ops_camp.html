@@ -87,6 +87,11 @@
       </dd>
       {% endif %}
     </dl>
+    {# 캠프가 알려준 정정을 운영자가 대신 친다 (P-005). 저장 경로는 캠프 쪽과 같은
+       2단계다 — 폼 → 미리보기 → 확인. 사유가 없으면 저장되지 않는다. #}
+    <p class="muted small">
+      <a href="/ops/camps/{{ camp_id }}/cycles/{{ c.id }}/edit">이 주기를 대신 수정 &rarr;</a>
+    </p>
     {% endif %}
   </article>
   {% endfor %}

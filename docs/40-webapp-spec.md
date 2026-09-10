@@ -254,6 +254,8 @@ votelink/web/
 | `POST /ops/signups/{id}/approve` · `/reject` | 승인(캠프 공간 생성) · 거절(사유 필수) |
 | `POST /ops/accounts/{id}/status` · `/logout` · `/passwd` | 정지·해제 · 세션 강제 종료 · 임시 비밀번호 |
 | `GET /ops/camps/{camp_id}` | 그 캠프의 설정과 최근 이력 |
+| `GET/POST /ops/camps/{camp_id}/cycles/{cid}/edit` | 주기 대리 수정 폼 → **미리보기** (P-005) |
+| `POST /ops/camps/{camp_id}/cycles/{cid}/apply` | 확인·사유를 거친 대리 수정을 저장 |
 | `GET /ops/audit` | 감사 로그 (캠프·건수 필터) |
 
 - **`role='operator'` 만 연다.** 판정은 `auth.is_ops` 접두어 검사이고 미들웨어에 있다 —
@@ -264,6 +266,11 @@ votelink/web/
 - **상태를 바꾸는 것은 전부 POST 다.** GET 으로 두면 링크 한 줄로 남의 캠프가 정지된다.
   POST 뒤에는 항상 리다이렉트하고(PRG) 알림은 쿼리스트링으로 넘긴다 — 한 줄 알림 때문에
   세션 저장소에 쓰기를 들이지 않는다.
+- **운영자의 주기 대리 수정은 캠프의 2단계 흐름을 그대로 부른다** (P-005). `build_cycle`·
+  `diff_cycle`·`scaffold` 가 같고, 다른 것은 둘뿐이다: `camp_id` 를 URL 에서 읽고, 저장 시
+  **사유를 요구한다** (거절이 사유 없으면 거부되는 것과 같은 이유). 감사 액션은 캠프 자신의
+  `edit_cycle` 과 구분해 `edit_cycle_by_operator` 로 남긴다 — 뭉치면 "이 캠프의 누군가"가
+  고친 것처럼 보인다 (P-003 §5).
 - 수집·분석 실행과 참조데이터 편집은 **아직 없다.** 그때 이 절에 백그라운드 작업이 들어온다.
 
 ### 만들지 않는 것

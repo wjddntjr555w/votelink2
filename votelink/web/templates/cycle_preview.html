@@ -107,14 +107,33 @@
     {% endif %}
   </div>
 
-  <form method="post" action="/cycles/{{ cycle_id }}/apply" class="form form--inline">
+  {% if note_error %}
+  <div class="banner banner--blocked">
+    <strong>저장하지 않았다</strong>
+    <pre class="errdetail">{{ note_error }}</pre>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ edit_base|default('/cycles') }}/{{ cycle_id }}/apply" class="form">
+    {# 폼 값을 hidden 으로 다시 넘긴다. `emd_pick` 처럼 리스트인 값은 항목마다 한 줄씩 —
+       리스트를 통째로 문자열화하면 `['x']` 가 코드로 다시 파싱돼 저장이 깨진다. #}
     {% for key, value in form.items() %}
+    {% if value is not string and value is iterable %}
+    {% for v in value %}<input type="hidden" name="{{ key }}" value="{{ v }}">{% endfor %}
+    {% else %}
     <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endif %}
     {% endfor %}
+    {% if by_operator %}
+    <label>
+      대신 고치는 사유 <span class="muted small">— 감사 로그와 갱신 이력에 남습니다</span>
+      <textarea name="note" rows="2" required>{{ note|default('') }}</textarea>
+    </label>
+    {% endif %}
     <button type="submit">이대로 저장</button>
   </form>
   <p class="muted small">
-    <a href="/cycles/{{ cycle_id }}/edit">&larr; 돌아가서 고치기</a>
+    <a href="{{ edit_base|default('/cycles') }}/{{ cycle_id }}/edit">&larr; 돌아가서 고치기</a>
   </p>
 </section>
 {% endblock %}

@@ -9,8 +9,19 @@
 <section class="gate gate--wide">
   <h1>주기 수정</h1>
   <p class="muted small">
-    <a href="/cycles">&larr; 주기 목록</a> · <code>{{ cycle_id }}</code>
+    <a href="{{ list_href|default('/cycles') }}">&larr; {{ list_label|default('주기 목록') }}</a>
+    · <code>{{ cycle_id }}</code>
   </p>
+
+  {% if by_operator %}
+  <div class="banner banner--warn">
+    <strong>이 캠프의 설정을 운영자가 대신 고치는 중입니다</strong>
+    <p>
+      캠프가 알려준 정정만 입력하십시오 — 값을 창작하지 마십시오 (P-005). 저장할 때
+      사유를 적어야 하고, 그 사유는 감사 로그와 갱신 이력에 남습니다.
+    </p>
+  </div>
+  {% endif %}
 
   <div class="banner banner--warn">
     <strong>저장하기 전에 무엇이 바뀌는지 보여드립니다</strong>
@@ -27,7 +38,7 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/cycles/{{ cycle_id }}/edit" class="form">
+  <form method="post" action="{{ edit_base|default('/cycles') }}/{{ cycle_id }}/edit" class="form">
     <fieldset>
       <legend>선거</legend>
       <label>
@@ -69,7 +80,11 @@
         <span class="muted small">
           이 한 줄이 렌즈입니다. 바꾸면 <strong>모든 화면의 우세·열세가 통째로
           뒤집힙니다</strong> — 숫자는 그대로이고 읽는 방식만 달라집니다.
+          {% if not by_operator %}
           정당은 여기가 아니라 <a href="/cycles/{{ cycle_id }}/roster">후보 로스터</a>에 있습니다.
+          {% else %}
+          정당은 여기가 아니라 후보 로스터에 있습니다 (캠프가 직접 고칩니다).
+          {% endif %}
         </span>
       </label>
     </fieldset>

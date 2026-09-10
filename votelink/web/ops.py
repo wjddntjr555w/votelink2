@@ -26,6 +26,7 @@ from starlette.responses import Response
 
 from votelink import control
 from votelink.control import accounts as acc
+from votelink.web.forms import CycleForm
 from votelink.web.render import base_ctx, bootstrap_password, client_ip, render
 from votelink.web.settings import WebSettings
 
@@ -300,6 +301,195 @@ def camp_detail(request: Request, camp_id: str) -> Response:
             entries=control.audit.recent(limit=30, camp_id=camp_id, path=s.control_db),
         ),
     )
+
+
+# --- 캠프 주기 대리 수정 (P-005) --------------------------------------------------
+#
+# 캠프가 스스로 못 고치는 상태(로그인 불가·정지·온보딩 미완)거나 이미 저장된 명백한
+# 오류를 운영자가 캠프 대신 교정한다. **저장 경로는 캠프 쪽과 완전히 같다** —
+# 폼 → 미리보기 → 확인, `build_cycle`·`diff_cycle`·`scaffold` 를 app.py 의 것을 그대로
+# 부른다 (새 로직 0, P-005 §3). 다른 것은 둘뿐이다: camp_id 를 URL 에서 읽고 (§4),
+# 저장할 때 사유를 요구한다 (§2 — 거절이 사유 없으면 거부되는 것과 같은 이유).
+
+
+class _OpsCycleForm(CycleForm):
+    """대리 수정 저장 폼. 캠프 폼에 사유 한 칸을 더한다 — 저장 시 필수다 (P-005 §2,
+    거절이 사유 없으면 거부되는 것과 같은 이유). 미리보기는 사유가 필요 없으므로
+    그쪽은 `CycleForm` 을 그대로 받는다.
+
+    FastAPI 는 폼 필드가 Pydantic 모델 **하나**일 때만 그것을 펼친다. 그래서 사유를
+    별도 `Form()` 인자로 두지 않고 이 서브클래스에 넣는다.
+    """
+
+    note: str = ""
+
+
+def _edit_kw(camp_id: str) -> dict:
+    """대리 수정 화면임을 템플릿에 알리는 컨텍스트. 폼은 `/ops/...` 로 제출된다."""
+    return {
+        "edit_base": f"/ops/camps/{camp_id}/cycles",
+        "list_href": f"/ops/camps/{camp_id}",
+        "list_label": f"{camp_id} 캠프",
+        "by_operator": True,
+    }
+
+
+def _target_cycle(request: Request, camp_id: str, cycle_id: str):
+    """대상 캠프·주기를 화이트리스트로 거르고 (settings, cid, before) 를 돌려준다.
+
+    `{camp_id}`·`{cycle_id}` 둘 다 경로 파라미터라 파일 경로에 그대로 쓰지 않는다 —
+    `list_camps`·`list_cycles` 화이트리스트로 먼저 거른다.
+    """
+    from votelink import camp as camp_mod
+    from votelink.web.app import _cycle_in_camp
+
+    s = _settings(request)
+    if camp_id not in camp_mod.list_camps(s.camps_root):
+        raise camp_mod.CampNotFound(f"캠프 '{camp_id}' 가 없다")
+    cid = _cycle_in_camp(s, camp_id, cycle_id)
+    before = camp_mod.load_cycle(camp_id, cid, s.camps_root, districts_path=s.districts_path)
+    return s, cid, before
+
+
+@router.get("/camps/{camp_id}/cycles/{cycle_id}/edit", response_class=Response)
+def ops_edit_cycle_form(request: Request, camp_id: str, cycle_id: str) -> Response:
+    from votelink import camp as camp_mod
+    from votelink.web.app import _edit_ctx
+
+    try:
+        _s, cid, before = _target_cycle(request, camp_id, cycle_id)
+    except (camp_mod.CampNotFound, camp_mod.CycleNotFound) as exc:
+        return render(request, "ops_camp.html", _ctx(request, camp_id=camp_id, error=str(exc)), 404)
+    return render(request, "cycle_edit.html", _edit_ctx(request, cid, before, **_edit_kw(camp_id)))
+
+
+@router.post("/camps/{camp_id}/cycles/{cycle_id}/edit", response_class=Response)
+def ops_preview_cycle(
+    request: Request,
+    camp_id: str,
+    cycle_id: str,
+    form: Annotated[CycleForm, Form()],
+) -> Response:
+    """**저장하지 않는다.** 캠프 쪽 미리보기와 같은 계산을 보여주고 확인을 받는다."""
+    from votelink import camp as camp_mod
+    from votelink.camp.changes import diff_cycle
+    from votelink.web.app import _edit_ctx
+    from votelink.web.forms import build_cycle
+
+    try:
+        s, cid, before = _target_cycle(request, camp_id, cycle_id)
+    except (camp_mod.CampNotFound, camp_mod.CycleNotFound) as exc:
+        return render(request, "ops_camp.html", _ctx(request, camp_id=camp_id, error=str(exc)), 404)
+
+    values = form.model_dump()
+    try:
+        after = build_cycle(s, values)
+    except ValueError as exc:
+        return render(
+            request,
+            "cycle_edit.html",
+            _edit_ctx(request, cid, before, error=str(exc), form=values, **_edit_kw(camp_id)),
+            400,
+        )
+
+    change = diff_cycle(before, after, cid, s.districts_path)
+    if change.is_empty:
+        return _back(f"/ops/camps/{camp_id}", ok="바뀐 내용이 없어 저장하지 않았다")
+    return render(
+        request,
+        "cycle_preview.html",
+        _ctx(request, cycle_id=cid, change=change, form=values, **_edit_kw(camp_id)),
+    )
+
+
+@router.post("/camps/{camp_id}/cycles/{cycle_id}/apply", response_class=Response)
+def ops_apply_cycle(
+    request: Request,
+    camp_id: str,
+    cycle_id: str,
+    form: Annotated[_OpsCycleForm, Form()],
+) -> Response:
+    """확인을 거친 대리 수정을 저장한다. **사유가 비면 저장하지 않는다.**
+
+    감사 액션은 캠프 자신의 `edit_cycle` 과 **구분한다**(`edit_cycle_by_operator`) —
+    같은 이름으로 뭉치면 "이 캠프의 누군가"가 고친 것처럼 보이고, P-003 §5 가 경고한
+    과신이 거기서 생긴다.
+    """
+    from votelink import camp as camp_mod
+    from votelink.camp import scaffold
+    from votelink.camp.changes import diff_cycle
+    from votelink.web.app import _edit_ctx
+    from votelink.web.forms import build_cycle
+
+    operator = request.state.account
+    try:
+        s, cid, before = _target_cycle(request, camp_id, cycle_id)
+    except (camp_mod.CampNotFound, camp_mod.CycleNotFound) as exc:
+        return render(request, "ops_camp.html", _ctx(request, camp_id=camp_id, error=str(exc)), 404)
+
+    note = form.note.strip()
+    values = form.model_dump(exclude={"note"})
+
+    try:
+        after = build_cycle(s, values)
+        change = diff_cycle(before, after, cid, s.districts_path)
+    except ValueError as exc:
+        return render(
+            request,
+            "cycle_edit.html",
+            _edit_ctx(request, cid, before, error=str(exc), form=values, **_edit_kw(camp_id)),
+            400,
+        )
+
+    if not note:
+        # 사유 없이 저장을 누른 경우. 미리보기로 되돌리되 무엇이 바뀌는지는 다시 보여준다.
+        return render(
+            request,
+            "cycle_preview.html",
+            _ctx(
+                request,
+                cycle_id=cid,
+                change=change,
+                form=values,
+                note_error="대신 고치는 사유를 적어야 저장한다.",
+                **_edit_kw(camp_id),
+            ),
+            400,
+        )
+
+    try:
+        new_id = change.cycle_id_after
+        target = scaffold.rename_cycle(camp_id, cid, new_id, s.camps_root)
+        scaffold.write_election(camp_id, new_id, after, s.camps_root)
+    except (scaffold.ScaffoldError, camp_mod.CampConfigError) as exc:
+        return render(
+            request,
+            "cycle_edit.html",
+            _edit_ctx(request, cid, before, error=str(exc), form=values, **_edit_kw(camp_id)),
+            400,
+        )
+
+    control.audit.log(
+        "edit_cycle_by_operator",
+        account_id=operator.id,
+        camp_id=camp_id,
+        target=change.cycle_id_after,
+        detail={
+            "from": cid,
+            "added": len(change.added),
+            "removed": len(change.removed),
+            "lineage": (
+                f"{change.lineage_before.value}→{change.lineage_after.value}"
+                if change.lineage_flipped
+                else None
+            ),
+            "moved": str(target.name) if change.moved else None,
+            "note": note,
+        },
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return _back(f"/ops/camps/{camp_id}", ok=f"{camp_id} · {change.cycle_id_after} 수정을 저장했다")
 
 
 # --- 감사 로그 -----------------------------------------------------------------------

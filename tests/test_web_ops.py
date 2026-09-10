@@ -34,7 +34,12 @@ def operator_client(env: Env):
 # --- 접근 통제 ----------------------------------------------------------------------
 
 
-OPS_PATHS = ["/ops/", "/ops/audit", "/ops/camps/gap"]
+OPS_PATHS = [
+    "/ops/",
+    "/ops/audit",
+    "/ops/camps/gap",
+    "/ops/camps/gap/cycles/2028-04-12-national_assembly/edit",
+]
 
 
 @pytest.mark.parametrize("path", OPS_PATHS)
@@ -260,6 +265,113 @@ def test_an_unknown_camp_is_404_not_500(env):
     response = operator_client(env).get("/ops/camps/없는캠프")
     assert response.status_code == 404
     assert "읽을 수 없다" in response.text
+
+
+# --- 캠프 주기 대리 수정 (P-005) --------------------------------------------------
+#
+# 캠프가 스스로 못 고치는 상태거나 이미 저장된 명백한 오류를 운영자가 대신 교정한다.
+# 저장 경로는 캠프 쪽과 같은 2단계이고(폼 → 미리보기 → 확인), 다른 것은 둘뿐이다:
+# camp_id 를 URL 에서 읽고, 저장할 때 사유를 요구한다.
+
+CID = "2028-04-12-national_assembly"
+
+
+def _cycle_form(**over):
+    base = {
+        "election_type": "national_assembly",
+        "office": "national_assembly",
+        "election_date": "2028-04-12",
+        "lineage": "progressive",
+        "preset": "test_gap",
+        "sigungu": "",
+        "emd_codes": "",
+        "legal_reviewer": "",
+    }
+    base.update(over)
+    return base
+
+
+def test_operator_edits_a_camp_cycle_through_the_two_step_flow(env):
+    """운영자가 캠프 대신 주기를 고친다 — 폼 → 미리보기 → 사유와 함께 저장."""
+    camp_client(env, "gap@test", "gap", "test_gap")
+    op = operator_client(env)
+
+    form = op.get(f"/ops/camps/gap/cycles/{CID}/edit")
+    assert form.status_code == 200
+    assert "운영자가 대신" in form.text  # 대리 수정임을 밝힌다
+
+    preview = op.post(
+        f"/ops/camps/gap/cycles/{CID}/edit",
+        data=_cycle_form(lineage="conservative"),
+        follow_redirects=False,
+    )
+    assert preview.status_code == 200
+    assert "진영이 바뀝니다" in preview.text  # 캠프 쪽과 같은 미리보기
+
+    saved = op.post(
+        f"/ops/camps/gap/cycles/{CID}/apply",
+        data=_cycle_form(lineage="conservative", note="캠프 요청: 진영 오분류 정정"),
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303
+    assert saved.headers["location"].startswith("/ops/camps/gap?ok=")
+
+    from votelink import camp as camp_mod
+
+    cycle = camp_mod.load_cycle("gap", CID, env.root, districts_path=env.settings.districts_path)
+    assert cycle.lineage.value == "conservative"
+
+
+def test_operator_edit_without_a_reason_is_refused(env):
+    """거절이 사유 없으면 거부되는 것과 같은 이유 (P-003 §2). 사유가 비면 저장하지 않는다."""
+    camp_client(env, "gap@test", "gap", "test_gap")
+    op = operator_client(env)
+
+    response = op.post(
+        f"/ops/camps/gap/cycles/{CID}/apply",
+        data=_cycle_form(lineage="conservative"),  # note 없음
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "사유를 적어야" in response.text
+
+    from votelink import camp as camp_mod
+
+    cycle = camp_mod.load_cycle("gap", CID, env.root, districts_path=env.settings.districts_path)
+    assert cycle.lineage.value == "progressive"  # 저장되지 않았다
+
+
+def test_operator_edit_is_a_distinct_audit_action(env):
+    """`edit_cycle` 로 뭉치면 "이 캠프의 누군가"가 고친 것처럼 보인다 (P-003 §5).
+    운영자 대리 수정은 `edit_cycle_by_operator` 로 남고 사유가 detail 에 붙는다."""
+    camp_client(env, "gap@test", "gap", "test_gap")
+    op = operator_client(env)
+
+    op.post(
+        f"/ops/camps/gap/cycles/{CID}/apply",
+        data=_cycle_form(lineage="conservative", note="캠프 요청으로 정정"),
+        follow_redirects=False,
+    )
+    entry = audit.recent(path=env.db, camp_id="gap")[0]
+    assert entry.action == "edit_cycle_by_operator"
+    assert entry.account_id == acc.by_email("op@test", path=env.db).id
+    assert entry.detail["note"] == "캠프 요청으로 정정"
+    assert entry.detail["lineage"] == "progressive→conservative"
+
+
+def test_operator_edit_on_an_unknown_camp_is_404(env):
+    response = operator_client(env).get(
+        f"/ops/camps/없는캠프/cycles/{CID}/edit", follow_redirects=False
+    )
+    assert response.status_code == 404
+
+
+def test_operator_edit_on_an_unknown_cycle_is_404(env):
+    camp_client(env, "gap@test", "gap", "test_gap")
+    response = operator_client(env).get(
+        "/ops/camps/gap/cycles/1999-01-01-national_assembly/edit", follow_redirects=False
+    )
+    assert response.status_code == 404
 
 
 # --- 감사 로그 ----------------------------------------------------------------------
