@@ -846,6 +846,20 @@ def _onboarding_ctx(
 
     settings: WebSettings = request.app.state.settings
     table = load_districts(settings.districts_path)
+    # 동 이름 체크박스(shuttle)가 고를 수 있는 행정동. code=null 인 미확인 동은
+    # 빠진다 — 코드가 없으면 관할에 넣을 수 없다(백필 D-001 이 먼저다). 자치구별로
+    # 묶어 템플릿에 넘긴다. 이름이 겹치는 동이 자치구 경계를 넘는 일은 없다.
+    emd_seen: set[str] = set()
+    emd_by_sigungu: dict[str, list[tuple[str, str]]] = {}
+    for d in table.values():
+        for e in d.emd:
+            if not e.code or e.code in emd_seen:
+                continue
+            emd_seen.add(e.code)
+            emd_by_sigungu.setdefault(d.sigungu, []).append((e.code, e.name))
+    emd_groups = [
+        (sg, sorted(emd_by_sigungu[sg], key=lambda ce: ce[1])) for sg in sorted(emd_by_sigungu)
+    ]
     return _auth_ctx(
         request,
         error=error,
@@ -853,6 +867,7 @@ def _onboarding_ctx(
         first=first,
         presets=sorted((d.id, d.name) for d in table.values()),
         sigungus=sorted({d.sigungu for d in table.values() if d.sigungu}),
+        emd_groups=emd_groups,
         type_options=election_type_choices(),
         office_options=[(o.value, OFFICE_LABELS[o]) for o in Office],
         lineage_options=[(c.value, CAMP_LABELS[c]) for c in Camp],

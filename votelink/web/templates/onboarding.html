@@ -113,6 +113,8 @@
         </select>
         <span class="muted small">구청장처럼 선거구 여럿을 아우르는 경우입니다.</span>
       </label>
+      {% include "_emd_shuttle.html" %}
+
       <label>
         행정동코드 직접 입력
         <textarea name="emd_codes" rows="4"
@@ -120,6 +122,7 @@
         <span class="muted small">
           줄바꿈·쉼표·공백 아무거나로 구분합니다.
           <code>uv run votelink district list --emd</code> 의 코드와 같아야 합니다.
+          위 목록에 없는 동(코드 미확인)은 여기에 넣습니다.
         </span>
       </label>
     </fieldset>
@@ -140,4 +143,5 @@
     <button type="submit">{{ '저장하고 시작' if first else '주기 추가' }}</button>
   </form>
 </section>
+
 {% endblock %}

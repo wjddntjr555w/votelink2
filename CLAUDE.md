@@ -23,6 +23,7 @@
 | 선거구에 어느 동이 속하는지 | `data/shared/reference/districts.yaml` (코드에 박지 말 것) |
 | 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
 | 캠프 공간·온보딩·관할·선거 주기 | `votelink/camp/` + `docs/proposals/P-001-camp-data-isolation.md` |
+| 온보딩 관할 입력 UI (동 이름 shuttle) | `votelink/web/templates/onboarding.html` + `votelink/web/forms.py` + `docs/proposals/P-004-onboarding-emd-picker.md` |
 | 로그인·세션·계정·권한 | `votelink/control/` + `votelink/web/auth.py` + `docs/proposals/P-002-auth-and-camp-approval.md` |
 | 운영자 화면 (`/ops/*`) | `votelink/web/ops.py` + `docs/proposals/P-003-operator-console.md` |
 | 운영자가 캠프 주기를 대신 수정 | `votelink/web/ops.py` + `docs/proposals/P-005-operator-edits-camp-cycle.md` |

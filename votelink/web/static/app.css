@@ -405,6 +405,72 @@ td.lens--behind { color: var(--block-line); font-variant-numeric: tabular-nums; 
 }
 .form fieldset legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
 
+/* --- 동 이름 shuttle (온보딩 관할, P-004) --- */
+
+.shuttle {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.shuttle__pane {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  padding: 8px;
+  min-width: 0;
+}
+.shuttle__filters { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.shuttle__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.shuttle__chosen { max-height: 300px; overflow-y: auto; }
+.shuttle__item { margin: 0; }
+.shuttle__item > label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.shuttle__item > label:hover { background: var(--note-bg); }
+.shuttle__item > label > span:first-of-type { flex: 1; }
+.shuttle__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 40px;
+}
+.shuttle__actions button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+.shuttle__group { margin-bottom: 8px; }
+.shuttle__group h4 {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+}
+.shuttle__group ul { list-style: none; margin: 0; padding: 0; }
+
+@media (max-width: 620px) {
+  .shuttle { grid-template-columns: 1fr; }
+  .shuttle__actions { flex-direction: row; padding-top: 0; justify-content: center; }
+}
+
 /* 검증 실패 메시지. pydantic 은 여러 줄로 말한다 — 줄바꿈을 살린다. */
 .errdetail {
   margin: 6px 0 0;

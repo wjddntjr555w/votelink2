@@ -16,8 +16,12 @@
 
   <form method="post" action="/signup" class="form">
     <label>
-      이메일 <span class="muted small">— 캠프 계정 하나를 캠프원이 함께 씁니다</span>
-      <input type="email" name="email" value="{{ email|default('') }}" required autofocus>
+      {# `type="email"` 이 아니다. 아이디는 이메일이 아닐 수 있고, 그러면 브라우저가
+         제출 자체를 막는다. 로그인 폼(`login.html`)과 같은 이유다. 폼 필드 이름은
+         `accounts.email` 컬럼과 맞추어 `email` 그대로 둔다. #}
+      아이디 <span class="muted small">— 캠프 계정 하나를 캠프원이 함께 씁니다</span>
+      <input type="text" name="email" value="{{ email|default('') }}" required autofocus
+             autocomplete="username">
     </label>
     <label>
       비밀번호

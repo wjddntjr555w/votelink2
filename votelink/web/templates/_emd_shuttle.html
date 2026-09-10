@@ -1,0 +1,158 @@
+{# 동 이름으로 고르는 shuttle 위젯 (P-004, P-005 §9). 왼쪽에서 자치구·이름으로 걸러
+   체크 → &raquo; → 오른쪽에 자치구별로 모인다. 고른 코드는 hidden 으로 제출된다.
+   **JS 가 없으면 위젯은 숨고** 코드 직접 입력(`emd_codes` textarea)만 남는다.
+
+   `/onboarding`·`/cycles/new`·`/cycles/{id}/edit`·`/ops/.../edit` 이 모두 include 한다.
+   컨텍스트 요구: `emd_groups` (자치구별 (code, name) 목록), `form.emd_pick` (미리 선택된
+   코드 — 수정 폼은 현재 관할이 여기 들어온다).
+
+   외부 요청 0건 규칙은 그대로다 — 인라인 한 조각, CDN 도 라이브러리도 없다.
+   스크립트 안에 두 슬래시(주석 기호)를 쓰지 않는다 — test_no_external_requests 가
+   렌더된 HTML 에서 그 시퀀스를 통째로 금지한다. 주석은 슬래시-별표만. #}
+{% set picked = form.emd_pick|default([]) %}
+<div class="shuttle" id="emd-shuttle" hidden>
+  <div class="shuttle__pane">
+    <div class="shuttle__filters">
+      <select id="emd-f-sigungu" aria-label="자치구로 거르기">
+        <option value="">자치구 전체</option>
+        {% for sigungu, items in emd_groups %}
+        <option value="{{ sigungu }}">{{ sigungu }} ({{ items|length }})</option>
+        {% endfor %}
+      </select>
+      <input type="search" id="emd-f-name" placeholder="동 이름 검색" aria-label="동 이름 검색">
+    </div>
+    <ul class="shuttle__list" id="emd-src">
+      {% for sigungu, items in emd_groups %}
+      {% for code, name in items %}
+      <li class="shuttle__item" data-code="{{ code }}" data-name="{{ name }}"
+          data-sigungu="{{ sigungu }}">
+        <label><input type="checkbox">
+          <span>{{ name }}</span>
+          <span class="muted small">{{ sigungu }} · {{ code }}</span>
+        </label>
+      </li>
+      {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="shuttle__actions">
+    <button type="button" id="emd-add" aria-label="선택한 동 추가">&raquo;</button>
+    <button type="button" id="emd-remove" aria-label="선택한 동 제거">&laquo;</button>
+  </div>
+  <div class="shuttle__pane">
+    <p class="muted small">선택된 관할 <strong id="emd-count">0</strong>개</p>
+    <div class="shuttle__chosen" id="emd-dst"></div>
+  </div>
+</div>
+<div id="emd-pick-inputs">
+  {% for code in picked %}
+  <input type="hidden" name="emd_pick" value="{{ code }}">
+  {% endfor %}
+</div>
+<noscript>
+  <p class="muted small">동 이름으로 고르려면 JavaScript 가 필요합니다. 아래에 코드를 직접 넣으세요.</p>
+</noscript>
+<script>
+(function () {
+  var shuttle = document.getElementById("emd-shuttle");
+  if (!shuttle) return;
+  var src = document.getElementById("emd-src");
+  var dst = document.getElementById("emd-dst");
+  var inputs = document.getElementById("emd-pick-inputs");
+  var count = document.getElementById("emd-count");
+  var fSigungu = document.getElementById("emd-f-sigungu");
+  var fName = document.getElementById("emd-f-name");
+
+  /* code 를 {name, sigungu} 로. 오른쪽 렌더와 hidden 재생성에 쓴다. */
+  var meta = {};
+  var items = Array.prototype.slice.call(src.querySelectorAll(".shuttle__item"));
+  items.forEach(function (li) {
+    meta[li.dataset.code] = { name: li.dataset.name, sigungu: li.dataset.sigungu };
+  });
+
+  /* 이미 제출됐던 선택(수정 폼의 현재 관할, 또는 검증 실패로 다시 열린 폼)에서 seed 한다. */
+  var selected = new Set();
+  Array.prototype.slice.call(inputs.querySelectorAll("input[name=emd_pick]")).forEach(
+    function (i) { if (i.value) selected.add(i.value); }
+  );
+
+  function applyFilter() {
+    var sg = fSigungu.value;
+    var q = fName.value.trim().toLowerCase();
+    items.forEach(function (li) {
+      var hit = (!sg || li.dataset.sigungu === sg) &&
+                (!q || li.dataset.name.toLowerCase().indexOf(q) !== -1);
+      li.hidden = selected.has(li.dataset.code) || !hit;
+    });
+  }
+
+  function render() {
+    /* 오른쪽: 자치구별로 묶는다. */
+    var groups = {};
+    selected.forEach(function (code) {
+      var m = meta[code] || { name: code, sigungu: "기타" };
+      (groups[m.sigungu] = groups[m.sigungu] || []).push({ code: code, name: m.name });
+    });
+    dst.textContent = "";
+    Object.keys(groups).sort().forEach(function (sg) {
+      var box = document.createElement("div");
+      box.className = "shuttle__group";
+      var h = document.createElement("h4");
+      h.textContent = sg;
+      box.appendChild(h);
+      var ul = document.createElement("ul");
+      groups[sg].sort(function (a, b) { return a.name < b.name ? -1 : 1; }).forEach(function (it) {
+        var li = document.createElement("li");
+        li.className = "shuttle__item";
+        var lab = document.createElement("label");
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = it.code;
+        lab.appendChild(cb);
+        var s1 = document.createElement("span");
+        s1.textContent = " " + it.name;
+        var s2 = document.createElement("span");
+        s2.className = "muted small";
+        s2.textContent = it.code;
+        lab.appendChild(s1);
+        lab.appendChild(s2);
+        li.appendChild(lab);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      dst.appendChild(box);
+    });
+
+    /* hidden 재생성 — 이게 실제 제출값이다. */
+    inputs.textContent = "";
+    selected.forEach(function (code) {
+      var i = document.createElement("input");
+      i.type = "hidden";
+      i.name = "emd_pick";
+      i.value = code;
+      inputs.appendChild(i);
+    });
+    count.textContent = String(selected.size);
+    applyFilter();
+  }
+
+  document.getElementById("emd-add").addEventListener("click", function () {
+    items.forEach(function (li) {
+      var cb = li.querySelector("input[type=checkbox]");
+      if (cb.checked && !li.hidden) { selected.add(li.dataset.code); cb.checked = false; }
+    });
+    render();
+  });
+  document.getElementById("emd-remove").addEventListener("click", function () {
+    Array.prototype.slice.call(dst.querySelectorAll("input[type=checkbox]")).forEach(function (cb) {
+      if (cb.checked) selected.delete(cb.value);
+    });
+    render();
+  });
+  fSigungu.addEventListener("change", applyFilter);
+  fName.addEventListener("input", applyFilter);
+
+  shuttle.hidden = false;
+  render();
+})();
+</script>

@@ -56,6 +56,13 @@ class CycleForm(BaseModel):
     incumbent: str = ""
     preset: str = ""
     sigungu: str = ""
+    emd_pick: list[str] = []
+    """동 이름 체크박스(shuttle 위젯)로 고른 행정동코드. 반복 폼 키로 들어온다.
+
+    `emd_codes` textarea 와 **합쳐진다** — `resolve_territory` 가 프리셋·자치구·직접입력을
+    이미 합치므로 넷째 입력 하나가 늘 뿐이다 (P-004). JS 가 죽으면 이 필드는 비고
+    textarea 만 남는다.
+    """
     emd_codes: str = ""
     legal_reviewer: str = ""
 
@@ -88,8 +95,12 @@ def build_cycle(settings, form: dict) -> Cycle:
     except ValueError as exc:
         raise ValueError(f"선거일은 YYYY-MM-DD 형식이어야 한다: '{raw_date}'") from exc
 
+    # 동 이름 체크박스(shuttle)로 고른 것 + textarea 직접입력을 합친다. 순서는
+    # 상관없다 — resolve_territory 가 중복을 제거한다.
     # 줄바꿈·쉼표·공백 아무거나 구분자로 받는다. 사람이 표에서 복사해 붙인다.
-    codes = [c for c in re.split(r"[\s,]+", form.get("emd_codes") or "") if c]
+    picked = [c.strip() for c in (form.get("emd_pick") or []) if c and c.strip()]
+    typed = [c for c in re.split(r"[\s,]+", form.get("emd_codes") or "") if c]
+    codes = picked + typed
     preset_label, resolved = resolve_territory(
         (form.get("preset") or "").strip() or None,
         (form.get("sigungu") or "").strip() or None,

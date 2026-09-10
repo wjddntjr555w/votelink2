@@ -259,6 +259,54 @@ def test_onboarding_refuses_an_empty_territory(env):
     assert "관할이 비었다" in response.text
 
 
+def test_onboarding_accepts_dong_picked_by_name(env):
+    """동 이름 shuttle 로 고른 코드(emd_pick)가 관할에 들어간다 (P-004).
+    프리셋 없이 emd_pick 만으로 관할을 만든다 — 프리셋이 없는 기초의원 선거구 케이스."""
+    env.approve("hong@test", "hong")
+    client = env.client()
+    login(client, "hong@test")
+
+    response = env.onboard(client, "", emd_pick=[GAP[0], GAP[1]])
+    assert response.status_code == 303
+    cycle = load_cycle(
+        "hong",
+        list_cycles("hong", env.root)[0],
+        env.root,
+        districts_path=env.settings.districts_path,
+    )
+    assert sorted(cycle.territory.emd_codes) == sorted([GAP[0], GAP[1]])
+
+
+def test_onboarding_merges_picked_dong_with_preset(env):
+    """emd_pick 과 프리셋이 합쳐지고 중복은 제거된다 — resolve_territory 가 dedup."""
+    env.approve("hong@test", "hong")
+    client = env.client()
+    login(client, "hong@test")
+
+    response = env.onboard(client, "test_gap", emd_pick=[GAP[0], EUL[0]])
+    assert response.status_code == 303
+    cycle = load_cycle(
+        "hong",
+        list_cycles("hong", env.root)[0],
+        env.root,
+        districts_path=env.settings.districts_path,
+    )
+    assert sorted(cycle.territory.emd_codes) == sorted(set(GAP) | {EUL[0]})
+
+
+def test_onboarding_form_carries_picked_dong_back_on_error(env):
+    """검증 실패로 폼이 다시 열려도 골랐던 동은 hidden 으로 살아 돌아온다.
+    JS 가 죽어도 이전 선택이 제출값으로 유지되는 근거다 (P-004 §4)."""
+    env.approve("hong@test", "hong")
+    client = env.client()
+    login(client, "hong@test")
+
+    # 알 수 없는 코드로 저장을 깨되, 이름으로 고른 동도 함께 보낸다.
+    response = env.onboard(client, "", emd_pick=[GAP[0]], emd_codes="9999999999")
+    assert response.status_code == 400
+    assert f'name="emd_pick" value="{GAP[0]}"' in response.text
+
+
 def test_onboarding_keeps_an_unknown_election_day_null(env):
     """선거일을 임의로 채우지 않는다. 모르면 null 이고, 기간에 의존하는 판정은
     전부 미검토로 떨어진다."""
