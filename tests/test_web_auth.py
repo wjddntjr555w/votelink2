@@ -149,6 +149,24 @@ def test_public_screens_open_without_a_session(env, path):
     assert env.client().get(path).status_code == 200
 
 
+def test_react_build_assets_are_public(env):
+    """`/assets/...` 는 React 빌드 결과물(JS/CSS)이다 — `/static/` 과 같은 성격의
+    자산이지 화면이 아니다. 인증 미들웨어가 이걸 막으면 로그아웃 상태에서 자산
+    요청이 `/login` 으로 리다이렉트되고, 브라우저는 그 HTML을 모듈 스크립트로
+    실행하려다 죽는다("Expected a JavaScript-or-Wasm module script but the
+    server responded with a MIME type of 'text/html'") — 로그인 화면조차 흰
+    화면이 된다. 파일이 실제로 있는지는 안 본다 — 여기서 지키는 건 "리다이렉트로
+    가려지지 않는다"는 것뿐이다."""
+    from votelink.web import auth
+
+    assert auth.is_public("/assets/index-abc123.js")
+    assert auth.is_public("/assets/index-abc123.css")
+
+    response = env.client().get("/assets/index-abc123.js", follow_redirects=False)
+    assert response.status_code != 303
+    assert "location" not in response.headers
+
+
 def test_the_public_surface_carries_no_output(env):
     """**공개 표면에 산출물이 없다.** 이것이 `0.0.0.0` 바인딩을 허용한 근거다 —
     노출되는 화면에 공표할 내용 자체가 없어서 노출이 공표가 되지 않는다 (P-002 §2).

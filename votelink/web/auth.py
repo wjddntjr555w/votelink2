@@ -84,7 +84,13 @@ class Decision:
 
 
 def is_public(path: str) -> bool:
-    return path in PUBLIC_PATHS or path.startswith("/static/")
+    """`/static/` 은 옛 Jinja 정적 파일, `/assets/` 는 React 빌드 결과물
+    (`frontend/dist/assets`) — 둘 다 화면 자체가 아니라 화면을 그리는 데 쓰는
+    자산이다. 여기서 막으면 인증 미들웨어가 JS/CSS 요청을 `/login` 으로
+    리다이렉트하고, 브라우저는 그 HTML을 모듈 스크립트로 실행하려다 죽는다
+    ("Expected a JavaScript-or-Wasm module script but the server responded
+    with a MIME type of 'text/html'") — 로그인 화면조차 흰 화면이 된다."""
+    return path in PUBLIC_PATHS or path.startswith("/static/") or path.startswith("/assets/")
 
 
 _API_OPS_PREFIX = "/api" + OPS_PREFIX

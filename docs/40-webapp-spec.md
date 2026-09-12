@@ -403,6 +403,18 @@ CDN을 쓰던 화면(대시보드)이 가장 먼저 옮겨갔고, 그 뒤로 새
   `frontend/dist/`. `votelink/web/app.py` 가 그 폴더를 `/assets` 로 정적 서빙하고,
   `/d/{district_id}/` 는 `dist/index.html` 을 그대로 돌려준다 — React Router 가
   URL의 `districtId` 를 클라이언트에서 읽는다(서버는 이 인자를 쓰지 않는다).
+- **`/assets/...` 는 반드시 `auth.py::is_public()` 에 있어야 한다 — 화면이 아니라
+  화면을 그리는 JS/CSS 다.** 이걸 빠뜨리면 로그아웃 상태(=최초 방문자 전부)의
+  자산 요청이 인증 미들웨어에 걸려 `/login` 으로 303 리다이렉트되고, 브라우저는
+  그 HTML 응답을 `<script type="module">` 로 실행하려다 "Expected a
+  JavaScript-or-Wasm module script but the server responded with a MIME type
+  of 'text/html'" 로 죽는다 — **로그인 화면 자체가 흰 화면이 된다**(로그인 폼을
+  그릴 JS 도 같은 `/assets/` 에서 막히므로). 실제로 이 버그가 났었다: `/static/`
+  은 처음부터 `is_public()` 에 있었지만 React 배치를 옮기며 새로 생긴
+  `/assets/` 를 안 넣었다. `tests/test_web_auth.py::
+  test_react_build_assets_are_public` 가 이제 이 경로를 지킨다 — 로그아웃
+  상태로 `/assets/<아무 파일>` 을 불러 303 이 아님만 본다(실제 정적 서빙은
+  `StaticFiles` 가 이미 검증됐다고 보고 파일 존재 여부는 안 본다).
 - **데이터**: `GET /api/d/{district_id}` (JSON). `votelink/web/viewmodel.py` 의
   순수 함수(`build_view` 등)를 **한 줄도 바꾸지 않고** 그대로 쓴다 — L2/L3
   계층 무지가 이 지점에서도 이어진다. Pydantic 모델을 FastAPI가 재귀적으로
