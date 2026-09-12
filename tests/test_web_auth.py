@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.test_web import _ABSOLUTE_URL_RE, ALLOWED_EXTERNAL_HOSTS
 from tests.test_web_loader import CODES, profile_record
 from votelink import control, store
 from votelink.camp import list_cycles, load_cycle
@@ -99,6 +100,7 @@ class Env:
         )
 
     def onboard(self, client: TestClient, preset: str, **overrides):
+        """React `CycleFormPage` 가 fetch 로 부르는 것과 같은 모양 — 폼이 아니라 JSON."""
         form = {
             "election_type": "national_assembly",
             "office": "national_assembly",
@@ -108,7 +110,7 @@ class Env:
             "preset": preset,
         }
         form.update(overrides)
-        return client.post("/onboarding", data=form, follow_redirects=False)
+        return client.post("/api/onboarding", json=form)
 
 
 @pytest.fixture
@@ -117,9 +119,8 @@ def env(tmp_path):
 
 
 def login(client: TestClient, email: str, password: str = "pw"):
-    return client.post(
-        "/login", data={"email": email, "password": password}, follow_redirects=False
-    )
+    """React `LoginPage` 가 fetch 로 부르는 것과 같은 모양 — 폼이 아니라 JSON."""
+    return client.post("/api/login", json={"email": email, "password": password})
 
 
 def camp_client(env: Env, email: str, camp_id: str, preset: str, name: str = "홍길동"):
@@ -170,8 +171,8 @@ def test_the_auth_screens_make_no_external_requests(env, path):
     html = client.get(path, follow_redirects=True).text
 
     assert "http://" not in html
-    assert "https://" not in html
-    assert "//" not in html.replace("</", "").replace("<!--", "")
+    for host in _ABSOLUTE_URL_RE.findall(html):
+        assert host in ALLOWED_EXTERNAL_HOSTS
 
 
 # --- 승인 전 · 온보딩 전 ---------------------------------------------------------------
@@ -180,14 +181,13 @@ def test_the_auth_screens_make_no_external_requests(env, path):
 def test_a_pending_account_sees_only_pending(env):
     client = env.client()
     client.post(
-        "/signup",
-        data={
+        "/api/signup",
+        json={
             "email": "new@test",
             "password": "pw",
             "candidate_name": "김후보",
             "contact": "010",
         },
-        follow_redirects=False,
     )
     assert client.get("/pending").status_code == 200
     for path in CAMP_SCREENS + ["/onboarding"]:
@@ -198,11 +198,11 @@ def test_a_pending_account_sees_only_pending(env):
 def test_signup_shows_the_error_without_creating_an_account(env):
     client = env.client()
     response = client.post(
-        "/signup",
-        data={"email": "x@test", "password": "pw", "candidate_name": "  ", "contact": "010"},
+        "/api/signup",
+        json={"email": "x@test", "password": "pw", "candidate_name": "  ", "contact": "010"},
     )
     assert response.status_code == 400
-    assert "후보 이름" in response.text
+    assert "후보 이름" in response.json()["error"]
     assert acc.by_email("x@test", path=env.db) is None
 
 
@@ -225,8 +225,8 @@ def test_onboarding_writes_the_cycle_and_opens_the_screens(env):
     login(client, "hong@test")
 
     response = env.onboard(client, "test_gap")
-    assert response.status_code == 303
-    assert response.headers["location"] == "/"
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
 
     assert list_cycles("hong", env.root) == ["2028-04-12-national_assembly"]
     cycle = load_cycle(
@@ -245,7 +245,7 @@ def test_onboarding_refuses_an_unknown_emd_code(env):
 
     response = env.onboard(client, "", emd_codes="9999999999")
     assert response.status_code == 400
-    assert "9999999999" in response.text
+    assert "9999999999" in response.json()["error"]
     assert list_cycles("hong", env.root) == [], "거부했으면 아무 파일도 남지 않아야 한다"
 
 
@@ -256,7 +256,7 @@ def test_onboarding_refuses_an_empty_territory(env):
 
     response = env.onboard(client, "")
     assert response.status_code == 400
-    assert "관할이 비었다" in response.text
+    assert "관할이 비었다" in response.json()["error"]
 
 
 def test_onboarding_accepts_dong_picked_by_name(env):
@@ -267,7 +267,7 @@ def test_onboarding_accepts_dong_picked_by_name(env):
     login(client, "hong@test")
 
     response = env.onboard(client, "", emd_pick=[GAP[0], GAP[1]])
-    assert response.status_code == 303
+    assert response.status_code == 200
     cycle = load_cycle(
         "hong",
         list_cycles("hong", env.root)[0],
@@ -284,7 +284,7 @@ def test_onboarding_merges_picked_dong_with_preset(env):
     login(client, "hong@test")
 
     response = env.onboard(client, "test_gap", emd_pick=[GAP[0], EUL[0]])
-    assert response.status_code == 303
+    assert response.status_code == 200
     cycle = load_cycle(
         "hong",
         list_cycles("hong", env.root)[0],
@@ -294,9 +294,11 @@ def test_onboarding_merges_picked_dong_with_preset(env):
     assert sorted(cycle.territory.emd_codes) == sorted(set(GAP) | {EUL[0]})
 
 
-def test_onboarding_form_carries_picked_dong_back_on_error(env):
-    """검증 실패로 폼이 다시 열려도 골랐던 동은 hidden 으로 살아 돌아온다.
-    JS 가 죽어도 이전 선택이 제출값으로 유지되는 근거다 (P-004 §4)."""
+def test_onboarding_rejects_the_whole_submission_when_one_code_is_unknown(env):
+    """이름으로 고른 동(emd_pick)과 잘못된 직접입력(emd_codes)이 섞여 와도 부분
+    저장은 없다 — 검증은 합쳐진 관할 전체에 대해 한 번에 실패한다. (폼을 다시
+    열 때 이전 선택을 유지하는 일은 이제 React `CycleFormPage` 의 클라이언트
+    상태다 — 서버는 hidden input 을 더 이상 내지 않는다.)"""
     env.approve("hong@test", "hong")
     client = env.client()
     login(client, "hong@test")
@@ -304,7 +306,7 @@ def test_onboarding_form_carries_picked_dong_back_on_error(env):
     # 알 수 없는 코드로 저장을 깨되, 이름으로 고른 동도 함께 보낸다.
     response = env.onboard(client, "", emd_pick=[GAP[0]], emd_codes="9999999999")
     assert response.status_code == 400
-    assert f'name="emd_pick" value="{GAP[0]}"' in response.text
+    assert list_cycles("hong", env.root) == []
 
 
 def test_onboarding_keeps_an_unknown_election_day_null(env):
@@ -314,7 +316,7 @@ def test_onboarding_keeps_an_unknown_election_day_null(env):
     client = env.client()
     login(client, "hong@test")
 
-    assert env.onboard(client, "test_gap", election_date="").status_code == 303
+    assert env.onboard(client, "test_gap", election_date="").status_code == 200
     cycle_id = list_cycles("hong", env.root)[0]
     assert cycle_id == "미정-national_assembly"
     cycle = load_cycle("hong", cycle_id, env.root, districts_path=env.settings.districts_path)
@@ -345,11 +347,29 @@ def test_the_territory_check_covers_every_screen_under_a_district(env, suffix):
 
 
 def test_an_unknown_district_is_not_the_same_as_someone_elses(env):
-    """ "없는 선거구"와 "남의 선거구"를 같은 화면으로 뭉개면 어느 쪽인지 알 수 없다."""
+    """ "없는 선거구"와 "남의 선거구"를 같은 화면으로 뭉개면 어느 쪽인지 알 수 없다.
+
+    대시보드는 React SPA 다 — `/d/없는선거구/` 는 셸만 돌려주므로(항상 200) 실제
+    판정은 데이터를 내는 `/api/d/없는선거구` 에서 본다.
+    """
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    response = client.get("/d/없는선거구/", follow_redirects=False)
+    response = client.get("/api/d/없는선거구", follow_redirects=False)
     assert response.status_code == 500
     assert "관할이 아니다" not in response.text
+
+
+def test_the_api_route_is_scoped_to_the_camp_too(env):
+    """대시보드가 React SPA 로 바뀌면서 실제 데이터는 `/api/d/{id}` 가 낸다 — 화면
+    (`/d/{id}/`)만 관할로 막고 API 를 안 막으면 남의 선거구 데이터가 API 로 그냥
+    새 나간다. `district_in_path` 가 `/api/d/` 모양도 인식해야 한다."""
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+    response = client.get("/api/d/test_eul", follow_redirects=False)
+    assert response.status_code == 403
+    assert "관할이 아니다" in response.text
+
+    entry = audit.recent(path=env.db)[0]
+    assert entry.action == "denied"
+    assert entry.target == "/api/d/test_eul"
 
 
 def test_the_denial_lands_in_the_audit_log(env):
@@ -384,10 +404,10 @@ def test_two_camps_see_their_own_lens_in_one_process(env):
     a = camp_client(env, "gap@test", "gap", "test_gap", name="갑후보")
     b = camp_client(env, "eul@test", "eul", "test_eul", name="을후보")
 
-    html_a = a.get("/d/test_gap/").text
-    html_b = b.get("/d/test_eul/").text
-    assert "갑후보" in html_a and "을후보" not in html_a
-    assert "을후보" in html_b and "갑후보" not in html_b
+    lens_a = a.get("/api/d/test_gap").json()["view"]["lens"]
+    lens_b = b.get("/api/d/test_eul").json()["view"]["lens"]
+    assert "갑후보" in lens_a["label"]
+    assert "을후보" in lens_b["label"]
 
 
 def test_the_district_nav_is_narrowed_to_the_camp(env):
@@ -403,26 +423,27 @@ def test_the_district_nav_is_narrowed_to_the_camp(env):
 def test_compare_shows_every_district_but_links_only_ours(env):
     """이 표는 **모든** 선거구를 낸다 — 공용 코퍼스는 전 캠프 읽기 전용이고(P-001 §4),
     "우리 지역구가 옆과 어떻게 다른가"가 이 화면의 존재 이유다.
-    다만 열 수 없는 선거구는 링크가 아니다."""
+    `districts`(열 수 있는 목록)에 없으면 프런트가 링크 대신 평문으로 그린다."""
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    html = client.get("/compare").text
+    data = client.get("/api/compare").json()
+    names = {r["district_name"] for r in data["view"]["rows"]}
+    open_ids = {d_id for d_id, _ in data["districts"]}
 
-    assert "시험 지역구 을" in html, "공용 데이터라 표에는 나온다"
-    assert 'href="/d/test_eul/' not in html, "열 수 없는 곳으로 링크하지 않는다"
-    assert 'href="/d/test_gap/' in html
+    assert "시험 지역구 을" in names, "공용 데이터라 표에는 나온다"
+    assert open_ids == {"test_gap"}, "열 수 없는 선거구는 이 목록에 없다(프런트가 링크 여부를 판단)"
 
 
 def test_the_operator_still_sees_every_district(env):
     camp_client(env, "gap@test", "gap", "test_gap")
     client = env.client()
     login(client, "op@test")
-    html = client.get("/compare").text
-    assert 'href="/d/test_gap/' in html and 'href="/d/test_eul/' in html
+    open_ids = {d_id for d_id, _ in client.get("/api/compare").json()["districts"]}
+    assert open_ids == {"test_gap", "test_eul"}
 
 
 def test_a_camp_screen_states_which_camp_it_is(env):
     client = camp_client(env, "gap@test", "gap", "test_gap", name="갑후보")
-    assert "갑후보" in client.get("/compare").text
+    assert "갑후보" in client.get("/api/compare").json()["lens"]["label"]
 
 
 # --- 세션 -------------------------------------------------------------------------
@@ -437,9 +458,9 @@ def test_login_does_not_say_which_half_was_wrong(env):
     wrong = login(client, "hong@test", "틀림")
 
     assert unknown.status_code == wrong.status_code == 401
-    assert "맞지 않는다" in unknown.text
-    # 되돌려 준 이메일(사용자가 방금 친 값)만 빼면 두 화면이 한 글자도 다르지 않다.
-    assert unknown.text.replace("없는@test", "") == wrong.text.replace("hong@test", "")
+    assert "맞지 않는다" in unknown.json()["error"]
+    # JSON 오류 응답에 입력값(이메일)을 아예 되돌려 주지 않는다 — 두 응답이 한 글자도 다르지 않다.
+    assert unknown.text == wrong.text
 
 
 def test_the_session_cookie_is_httponly_and_lax(env):

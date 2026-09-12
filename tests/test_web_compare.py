@@ -52,24 +52,34 @@ def build(tmp_path, policy: str = POLICY_LOW, *, review: str = REVIEW_CLEARED) -
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
 
+# `/compare` 는 빌드된 SPA 셸만 돌려준다. 데이터·회귀 테스트는 `/api/compare` 를 본다.
+
+
+def test_compare_screen_serves_the_spa_shell(tmp_path):
+    assert build(tmp_path).get("/compare").status_code == 200
+
+
 def test_compare_shows_one_row_and_skips_the_rest(tmp_path):
-    html = build(tmp_path).get("/compare").text
-    assert "시험 지역구 갑" in html
-    assert "제외된 선거구" in html
-    assert "시험 지역구 을" in html
-    assert "voter_profile --district test_eul" in html  # 조치
+    view = build(tmp_path).get("/api/compare").json()["view"]
+    assert [r["district_name"] for r in view["rows"]] == ["시험 지역구 갑"]
+    assert len(view["skipped"]) == 1
+    assert view["skipped"][0]["district_name"] == "시험 지역구 을"
+    assert "voter_profile --district test_eul" in view["skipped"][0]["fix"]
 
 
 def test_compare_sort_key_garbage_does_not_crash(tmp_path):
-    assert build(tmp_path).get("/compare?sort=말도안되는키").status_code == 200
+    assert build(tmp_path).get("/api/compare?sort=말도안되는키").status_code == 200
 
 
 def test_compare_blocked_keeps_numbers_out(tmp_path):
-    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/compare").text
-    assert "표시가 차단된 산출물이다" in html
-    assert "<table" not in html  # 표 자체가 안 나간다
+    """옛 `output()` 게이트가 표(`rows`)만 감쌌다 — `skipped` 는 게이트 밖이라 남는다."""
+    view = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/api/compare").json()["view"]
+    assert view["verdict"]["status"] == "blocked"
+    assert view["rows"] == []
+    assert len(view["skipped"]) == 1
 
 
 def test_compare_for_a_type_with_no_data_is_all_skipped(tmp_path):
-    html = build(tmp_path).get("/compare?election_type=national_assembly").text
-    assert "비교할 선거구가 없다" in html
+    view = build(tmp_path).get("/api/compare?election_type=national_assembly").json()["view"]
+    assert view["rows"] == []
+    assert len(view["skipped"]) == 2

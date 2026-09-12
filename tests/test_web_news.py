@@ -322,34 +322,36 @@ def test_build_news_view_truncates_and_says_so(tmp_path):
     assert view.shown_text == "5건 중 2건 표시"
 
 
-# --- 라우트 -----------------------------------------------------------------
+# --- 라우트 (JSON API, React SPA) --------------------------------------------
+#
+# `/d/{id}/news` 는 빌드된 SPA 셸만 돌려준다. 데이터·회귀 테스트는
+# `/api/d/{id}/news` 를 본다 — 계산은 여전히 `build_news_view` 순수 함수가 한다.
 
 
-def test_news_route_renders_table_and_links_to_source(tmp_path):
-    html = client(tmp_path, [news_record("https://news.test/x")]).get("/d/test_gap/news").text
-    assert "news-table" in html
-    assert 'href="https://news.test/x"' in html
-    assert "제목 x" in html
+def test_news_screen_serves_the_spa_shell(tmp_path):
+    assert client(tmp_path, [news_record("https://news.test/x")]).get(
+        "/d/test_gap/news"
+    ).status_code == 200
 
 
-def test_news_route_has_nav_link(tmp_path):
-    html = client(tmp_path, [news_record("https://news.test/x")]).get("/d/test_gap/news").text
-    assert "/d/test_gap/news" in html
-    assert 'class="on"' in html  # 현재 탭 강조
+def test_news_route_lists_rows_and_links_to_source(tmp_path):
+    view = client(tmp_path, [news_record("https://news.test/x")]).get(
+        "/api/d/test_gap/news"
+    ).json()["view"]
+    assert view["rows"][0]["url"] == "https://news.test/x"
+    assert view["rows"][0]["title"] == "제목 x"
 
 
 def test_news_route_warns_when_policy_has_no_entry(tmp_path):
-    html = (
-        client(tmp_path, [news_record("https://news.test/x")], POLICY_EMPTY)
-        .get("/d/test_gap/news")
-        .text
-    )
-    assert "선거법 검토를 받지 않은 산출물이다" in html
+    view = client(tmp_path, [news_record("https://news.test/x")], POLICY_EMPTY).get(
+        "/api/d/test_gap/news"
+    ).json()["view"]
+    assert view["verdict"]["status"] == "unreviewed"
 
 
 def test_news_route_empty_state(tmp_path):
-    html = client(tmp_path, []).get("/d/test_gap/news").text
-    assert "수집된 기사가 없다" in html
+    view = client(tmp_path, []).get("/api/d/test_gap/news").json()["view"]
+    assert view["diagnostics"]["shown"] == 0  # `nothing_collected` — 프런트에서 재계산
 
 
 def test_news_route_scope_district_excludes_sigungu_only_rows(tmp_path):
@@ -357,48 +359,61 @@ def test_news_route_scope_district_excludes_sigungu_only_rows(tmp_path):
         news_record("https://news.test/strong", confidence=0.9),
         news_record("https://news.test/weak", confidence=0.7),
     ]
-    html = client(tmp_path, recs).get("/d/test_gap/news?scope=district").text
-    assert 'href="https://news.test/strong"' in html
-    assert 'href="https://news.test/weak"' not in html
+    view = client(tmp_path, recs).get("/api/d/test_gap/news?scope=district").json()["view"]
+    urls = {r["url"] for r in view["rows"]}
+    assert "https://news.test/strong" in urls
+    assert "https://news.test/weak" not in urls
 
 
-def test_news_route_scope_with_no_match_keeps_the_switcher(tmp_path):
+def test_news_route_scope_with_no_match_keeps_the_denominator(tmp_path):
     recs = [news_record("https://news.test/weak", confidence=0.7)]
-    html = client(tmp_path, recs).get("/d/test_gap/news?scope=district").text
-    assert "이 스코프에 해당하는 기사가 없다" in html
-    assert "수집된 기사가 없다" not in html  # 수집은 됐다
-    assert "/d/test_gap/news?scope=all" in html  # 되돌아갈 링크가 있다
+    view = client(tmp_path, recs).get("/api/d/test_gap/news?scope=district").json()["view"]
+    assert view["rows"] == []
+    assert view["diagnostics"]["shown"] == 1  # 수집은 됐다 — 스코프가 걸렀을 뿐
 
 
-def test_news_route_has_search_box_and_oldest_sort(tmp_path):
-    html = client(tmp_path, [news_record("https://news.test/x")]).get("/d/test_gap/news").text
-    assert 'name="q"' in html
-    assert "오래된순" in html
+def test_news_route_has_oldest_sort_choice(tmp_path):
+    view = client(tmp_path, [news_record("https://news.test/x")]).get(
+        "/api/d/test_gap/news"
+    ).json()["view"]
+    assert view["sorts"]["oldest"] == "오래된순"
 
 
-def test_news_route_query_filters_and_keeps_state(tmp_path):
+def test_news_route_query_filters_and_reports_the_query(tmp_path):
     recs = [
         news_record("https://news.test/a", publisher="조선일보"),
         news_record("https://news.test/b", publisher="한겨레"),
     ]
-    html = (
-        client(tmp_path, recs)
-        .get("/d/test_gap/news?q=%ED%95%9C%EA%B2%A8%EB%A0%88&sort=oldest")  # q=한겨레
-        .text
-    )
-    assert 'href="https://news.test/b"' in html
-    assert 'href="https://news.test/a"' not in html
-    assert "「한겨레」 검색" in html
-    assert "지우기" in html
-    # 정렬 탭 링크가 검색어를 유지한다
-    assert "q=%ED%95%9C%EA%B2%A8%EB%A0%88" in html or "q=한겨레" in html
+    view = client(tmp_path, recs).get(
+        "/api/d/test_gap/news?q=%ED%95%9C%EA%B2%A8%EB%A0%88&sort=oldest"  # q=한겨레
+    ).json()["view"]
+    urls = {r["url"] for r in view["rows"]}
+    assert urls == {"https://news.test/b"}
+    assert view["query"] == "한겨레"
 
 
-def test_news_route_query_no_match_message(tmp_path):
-    html = (
-        client(tmp_path, [news_record("https://news.test/x", publisher="조선일보")])
-        .get("/d/test_gap/news?q=zzz")
-        .text
+def test_news_route_query_no_match_is_empty_but_not_uncollected(tmp_path):
+    view = client(tmp_path, [news_record("https://news.test/x", publisher="조선일보")]).get(
+        "/api/d/test_gap/news?q=zzz"
+    ).json()["view"]
+    assert view["rows"] == []
+    assert view["diagnostics"]["shown"] == 1
+
+
+def test_news_blocked_hides_rows_but_keeps_the_summary_counts(tmp_path):
+    """옛 `news.html` 에서 `output()` 게이트가 기사 표만 감쌌다 — 요약 집계는
+    게이트 밖이었다. API 리댁션도 그 경계를 그대로 지킨다."""
+    policy = (
+        "outputs:\n"
+        "  - kind: news_article\n"
+        "    risk: high\n"
+        "    default_status: blocked\n"
+        '    note: "선거일 전 6일 공표 금지"\n'
     )
-    assert "에 걸리는 기사가 없다" in html
-    assert "수집된 기사가 없다" not in html
+    view = client(tmp_path, [news_record("https://news.test/x")], policy).get(
+        "/api/d/test_gap/news"
+    ).json()["view"]
+    assert view["verdict"]["status"] == "blocked"
+    assert view["rows"] == []
+    assert view["diagnostics"]["shown"] == 1
+    assert view["district_specific_count"] + view["sigungu_only_count"] == 1

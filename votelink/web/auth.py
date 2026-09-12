@@ -31,23 +31,30 @@ from votelink.web.lens import Lens, load_lens
 if TYPE_CHECKING:
     from votelink.web.settings import WebSettings
 
-PUBLIC_PATHS = frozenset({"/login", "/signup", "/healthz"})
+PUBLIC_PATHS = frozenset({"/login", "/signup", "/healthz", "/api/login", "/api/signup"})
 """로그인 없이 열리는 경로. **여기에 산출물이 없다** — 그래서 `0.0.0.0` 바인딩이
 "의도치 않은 공표"가 되지 않는다 (P-002 §2). 새 경로를 여기 넣기 전에 그 화면에
-산출물이 있는지 먼저 본다."""
+산출물이 있는지 먼저 본다. `/api/login`·`/api/signup` 은 React `LoginPage`/
+`SignupPage` 가 fetch 로 부르는 데이터 경로 — 화면(`/login`)만 공개하고 그 API 를
+안 열면 로그인 자체가 안 된다."""
 
-SELF_PATHS = frozenset({"/me", "/logout"})
+SELF_PATHS = frozenset({"/me", "/api/me", "/logout"})
 """**로그인만 했으면 누구나** — 승인 대기든 온보딩 전이든 운영자든.
 
 자기 비밀번호를 바꾸는 일과 나가는 일은 계정 상태와 무관하다. 특히 부트스트랩
-운영자(`root`)는 `/me` 말고는 비밀번호를 바꿀 데가 없다.
+운영자(`root`)는 `/me` 말고는 비밀번호를 바꿀 데가 없다. `/api/me` 는 React
+`MePage` 의 데이터 경로 — 화면만 열고 API 를 안 열면 빈 화면만 보인다.
 """
 
-PENDING_PATHS = SELF_PATHS | {"/pending"}
-"""승인 대기 계정이 볼 수 있는 전부. 공용 데이터도 안 보인다 (P-002 §6)."""
+PENDING_PATHS = SELF_PATHS | {"/pending", "/api/pending"}
+"""승인 대기 계정이 볼 수 있는 전부. 공용 데이터도 안 보인다 (P-002 §6).
+`/api/pending` 은 React `PendingPage` 의 데이터 경로 — 화면만 열고 API 를 안 열면
+빈 화면만 보인다(대시보드가 `/api/d/<선거구>` 를 여는 것과 같은 이유)."""
 
-ONBOARDING_PATHS = SELF_PATHS | {"/onboarding"}
-"""승인은 됐으나 관할을 아직 안 채운 캠프. 관할이 없으면 무엇을 보여줄지 알 수 없다."""
+ONBOARDING_PATHS = SELF_PATHS | {"/onboarding", "/api/onboarding"}
+"""승인은 됐으나 관할을 아직 안 채운 캠프. 관할이 없으면 무엇을 보여줄지 알 수 없다.
+`/api/onboarding` 은 React `CycleFormPage` 의 데이터 경로 — 화면만 열고 API 를 안
+열면 폼 선택지(프리셋·자치구·동 목록)를 못 받는다."""
 
 OPS_PREFIX = "/ops"
 """운영자 콘솔 (P-003). **접두어로 판정한다** — 화면을 더 붙여도 검사가 이미 걸려 있다.
@@ -80,18 +87,35 @@ def is_public(path: str) -> bool:
     return path in PUBLIC_PATHS or path.startswith("/static/")
 
 
+_API_OPS_PREFIX = "/api" + OPS_PREFIX
+"""운영자 콘솔이 React SPA 로 바뀌면서 실제 데이터는 `/api/ops/...` 가 낸다.
+`/ops/...` 화면만 막고 그 API 를 안 막으면 캠프 계정이 다른 캠프의 데이터를
+`/api/ops/...` 로 직접 불러 볼 수 있다(대시보드가 `/api/d/<선거구>` 를 막은 것과
+같은 종류의 구멍)."""
+
+
 def is_ops(path: str) -> bool:
-    return path == OPS_PREFIX or path.startswith(OPS_PREFIX + "/")
+    return (
+        path in (OPS_PREFIX, _API_OPS_PREFIX)
+        or path.startswith(OPS_PREFIX + "/")
+        or path.startswith(_API_OPS_PREFIX + "/")
+    )
 
 
 def district_in_path(path: str) -> str | None:
-    """`/d/<선거구>/…` 의 선거구. 그 모양이 아니면 None.
+    """`/d/<선거구>/…` 또는 `/api/d/<선거구>` 의 선거구. 그 모양이 아니면 None.
 
     라우트 이름이 아니라 **경로 모양**으로 찾는다. `/d/` 밑에 새 화면이 생겨도
-    관할 검사가 자동으로 따라붙는다.
+    관할 검사가 자동으로 따라붙는다. **`/api/d/<선거구>` 도 같은 검사를 받는다** —
+    대시보드가 React SPA 로 바뀌면서 실제 데이터는 이 API 가 낸다. 화면(`/d/`)만
+    막고 API 를 안 막으면 관할 밖 데이터가 API 로는 그냥 새 나간다.
     """
     parts = path.strip("/").split("/")
-    return parts[1] if len(parts) >= 2 and parts[0] == "d" and parts[1] else None
+    if len(parts) >= 2 and parts[0] == "d" and parts[1]:
+        return parts[1]
+    if len(parts) >= 3 and parts[0] == "api" and parts[1] == "d" and parts[2]:
+        return parts[2]
+    return None
 
 
 def resolve_account(token: str | None, *, db=None) -> acc.Account | None:
@@ -126,7 +150,14 @@ def gate(account: acc.Account | None, path: str, *, onboarded: bool) -> str | No
         # 운영자는 전 캠프를 본다. **단일 신뢰 지점이다** (P-003 §6).
         # 다만 캠프 계정용 화면들은 갈 곳이 아니다 — 운영자에겐 채울 캠프도, 기다릴
         # 신청도 없다. `/onboarding` 은 POST 하면 camp_id 가 None 이라 터진다.
-        if path in ("/onboarding", "/pending") or path.startswith("/cycles"):
+        # `/cycles` 가 React SPA 로 바뀌면서 데이터는 `/api/cycles` 가 낸다 — 화면만
+        # 막고 그 API 를 안 막으면 운영자가 (camp_id 없이) 그 경로를 직접 불러
+        # 터뜨릴 수 있다.
+        if (
+            path in ("/onboarding", "/api/onboarding", "/pending", "/api/pending")
+            or path.startswith("/cycles")
+            or path.startswith("/api/cycles")
+        ):
             return "/ops/"
         return None
     if not account.camp_id:

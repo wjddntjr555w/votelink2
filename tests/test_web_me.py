@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.test_web import _ABSOLUTE_URL_RE, ALLOWED_EXTERNAL_HOSTS
 from tests.test_web_auth import Env, camp_client, login
 from votelink.control import accounts as acc
 from votelink.control import audit, sessions
@@ -26,10 +27,10 @@ def env(tmp_path):
 
 
 def change(client, current="pw", new="새비밀번호", confirm=None):
+    """React `MePage` 가 fetch 로 부르는 것과 같은 모양 — 폼이 아니라 JSON."""
     return client.post(
-        "/me",
-        data={"current": current, "new": new, "confirm": confirm if confirm is not None else new},
-        follow_redirects=False,
+        "/api/me",
+        json={"current": current, "new": new, "confirm": confirm if confirm is not None else new},
     )
 
 
@@ -44,8 +45,8 @@ def test_a_pending_account_can_still_open_it(env):
     """승인 대기 중이라도 비밀번호는 바꿀 수 있어야 한다. 다른 화면은 전부 막혀 있다."""
     client = env.client()
     client.post(
-        "/signup",
-        data={
+        "/api/signup",
+        json={
             "email": "new@test",
             "password": "pw",
             "candidate_name": "김후보",
@@ -78,26 +79,26 @@ def test_an_onboarded_camp_can_open_it(env):
 
 def test_it_shows_who_you_are(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    html = client.get("/me").text
-    assert "gap@test" in html
-    assert "캠프" in html
-    assert "1개" in html, "지금 열린 로그인 수"
+    data = client.get("/api/me").json()
+    assert data["account"]["email"] == "gap@test"
+    assert data["account"]["is_operator"] is False
+    assert data["sessions"] == 1
 
 
 def test_it_carries_no_output(env):
     """계정 정보뿐이다. 참조 데이터도 산출물도 읽지 않는다."""
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    html = client.get("/me").text
-    assert "동1000" not in html
-    assert "70.0" not in html
+    raw = client.get("/api/me").text
+    assert "동1000" not in raw
+    assert "70.0" not in raw
 
 
 def test_it_makes_no_external_requests(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
     html = client.get("/me").text
     assert "http://" not in html
-    assert "https://" not in html
-    assert "//" not in html.replace("</", "").replace("<!--", "")
+    for host in _ABSOLUTE_URL_RE.findall(html):
+        assert host in ALLOWED_EXTERNAL_HOSTS
 
 
 # --- 비밀번호 변경 --------------------------------------------------------------------
@@ -110,7 +111,7 @@ def test_the_current_password_must_be_right(env):
     response = change(client, current="틀린비번")
 
     assert response.status_code == 400
-    assert "맞지 않는다" in response.text
+    assert "맞지 않는다" in response.json()["error"]
     assert acc.authenticate("gap@test", "pw", path=env.db) is not None, "옛 비번이 살아 있다"
 
 
@@ -125,13 +126,13 @@ def test_the_two_new_passwords_must_match(env):
     response = change(client, new="가나다", confirm="라마바")
 
     assert response.status_code == 400
-    assert "서로 다르다" in response.text
+    assert "서로 다르다" in response.json()["error"]
     assert acc.authenticate("gap@test", "pw", path=env.db) is not None
 
 
 def test_an_empty_password_is_refused(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    response = client.post("/me", data={"current": "pw", "new": "", "confirm": ""})
+    response = client.post("/api/me", json={"current": "pw", "new": "", "confirm": ""})
     assert response.status_code == 400
     assert acc.authenticate("gap@test", "pw", path=env.db) is not None
 
@@ -142,14 +143,14 @@ def test_the_bootstrap_password_cannot_be_restored(env):
     response = change(client, new=acc.BOOTSTRAP_PASSWORD)
 
     assert response.status_code == 400
-    assert "되돌릴 수 없다" in response.text
+    assert "되돌릴 수 없다" in response.json()["error"]
 
 
 def test_the_new_password_works_and_the_old_one_does_not(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    assert change(client).status_code == 303
+    assert change(client).status_code == 200
 
-    assert login(env.client(), "gap@test", "새비밀번호").status_code == 303
+    assert login(env.client(), "gap@test", "새비밀번호").status_code == 200
     assert login(env.client(), "gap@test", "pw").status_code == 401
 
 
@@ -176,12 +177,13 @@ def test_the_change_is_audited(env):
     assert (entry.action, entry.camp_id) == ("change_password", "gap")
 
 
-def test_the_result_is_shown_after_a_redirect(env):
-    """POST 뒤에는 리다이렉트한다(PRG). 새로고침이 변경을 두 번 하지 않는다."""
+def test_the_change_returns_ok_without_a_redirect(env):
+    """React `MePage` 가 fetch 로 부르므로 PRG(리다이렉트 뒤 조회)가 필요 없다 —
+    응답 자체가 성공 여부를 말하고, 새로고침이 변경을 두 번 하지도 않는다
+    (새로고침은 GET 이지 이 POST 를 다시 보내지 않는다)."""
     client = camp_client(env, "gap@test", "gap", "test_gap")
     response = change(client)
-    assert response.headers["location"] == "/me?ok=1"
-    assert "비밀번호를 바꿨습니다" in client.get("/me?ok=1").text
+    assert response.json() == {"ok": True}
 
 
 # --- 부트스트랩 비밀번호 경고 ----------------------------------------------------------
@@ -199,8 +201,8 @@ def test_the_operator_is_warned_while_the_password_is_the_default(tmp_path):
     client = env.client()
     login(client, "op@test", acc.BOOTSTRAP_PASSWORD)
 
-    for path in ("/me", "/ops/"):
-        assert "배포 기본 비밀번호" in client.get(path).text, path
+    assert client.get("/api/me").json()["bootstrap"] is True
+    assert client.get("/api/ops/console").json()["bootstrap"] is True
 
 
 def test_the_warning_goes_away_once_it_is_changed(tmp_path):
@@ -209,7 +211,7 @@ def test_the_warning_goes_away_once_it_is_changed(tmp_path):
     login(client, "op@test", acc.BOOTSTRAP_PASSWORD)
     change(client, current=acc.BOOTSTRAP_PASSWORD, new="제대로된비번")
 
-    assert "배포 기본 비밀번호" not in client.get("/ops/").text
+    assert client.get("/api/ops/console").json()["bootstrap"] is False
 
 
 def test_an_operator_reset_also_refreshes_the_warning(tmp_path):
@@ -217,13 +219,13 @@ def test_an_operator_reset_also_refreshes_the_warning(tmp_path):
     env = bootstrap_env(tmp_path)
     client = env.client()
     login(client, "op@test", acc.BOOTSTRAP_PASSWORD)
-    assert "배포 기본 비밀번호" in client.get("/ops/").text
+    assert client.get("/api/ops/console").json()["bootstrap"] is True
 
-    client.post(f"/ops/accounts/{env.operator.id}/passwd", data={"password": "제대로된비번"})
+    client.post(f"/api/ops/accounts/{env.operator.id}/passwd", json={"password": "제대로된비번"})
 
     fresh = env.client()
     login(fresh, "op@test", "제대로된비번")
-    assert "배포 기본 비밀번호" not in fresh.get("/ops/").text
+    assert fresh.get("/api/ops/console").json()["bootstrap"] is False
 
 
 def test_a_camp_password_does_not_trigger_the_warning(env):
@@ -234,4 +236,4 @@ def test_a_camp_password_does_not_trigger_the_warning(env):
     acc.set_password(acc.by_email("gap@test", path=env.db).id, acc.BOOTSTRAP_PASSWORD, path=env.db)
 
     assert not acc.uses_bootstrap_password(path=env.db)
-    assert "배포 기본 비밀번호" not in camp.get("/me").text
+    assert camp.get("/api/me").json()["bootstrap"] is False

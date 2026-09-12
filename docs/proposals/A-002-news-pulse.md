@@ -44,24 +44,24 @@ A-001 이 `segment_profile` 로 밟은 절차와 동일하다.
 
 ```python
 class NewsWeekPoint(_Payload):
-    week_start: str            # ISO 월요일 "2026-09-01"
+    week_start: str  # ISO 월요일 "2026-09-01"
     article_count: int
-    district_specific_count: int   # confidence >= 0.9 인 것
-    publisher_count: int       # 고유 도메인 수
-    top_publisher_share: float # 최다 언론사 비중 0~1
-    spike: bool                # 이 주가 급증 주인가
-    spike_z: float | None      # z-score. 히스토리 8주 미만이면 None
+    district_specific_count: int  # confidence >= 0.9 인 것
+    publisher_count: int  # 고유 도메인 수
+    top_publisher_share: float  # 최다 언론사 비중 0~1
+    spike: bool  # 이 주가 급증 주인가
+    spike_z: float | None  # z-score. 히스토리 8주 미만이면 None
 
 
 class NewsPulsePayload(_Payload):
-    as_of: str                 # 가장 최근 기사의 연-월 "2026-09" (순수성 — now() 안 씀)
-    window_weeks: int          # 접은 주 수
+    as_of: str  # 가장 최근 기사의 연-월 "2026-09" (순수성 — now() 안 씀)
+    window_weeks: int  # 접은 주 수
     weekly: list[NewsWeekPoint]  # 오래된 주 순. total_articles 는 이 합과 일치(불변식)
     total_articles: int
-    top_places: list[TermCount]     # 누적 상위 (term, count)
+    top_places: list[TermCount]  # 누적 상위 (term, count)
     top_persons: list[TermCount]
     top_publishers: list[TermCount]
-    backfill_distorted: bool   # 검색 API 상한으로 최근 주가 부풀었으면 True
+    backfill_distorted: bool  # 검색 API 상한으로 최근 주가 부풀었으면 True
 ```
 
 **봉투 쪽:**

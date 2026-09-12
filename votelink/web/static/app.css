@@ -2,11 +2,18 @@
    외부 요청 0건이 이 웹앱의 컴플라이언스 요건이다 (docs/40-webapp-spec.md §10). */
 
 :root {
-  --bg: #fbfbfa;
+  /* 상황실 팔레트(2026-09-12) — 배경/카드/텍스트는 이 값이 기준이다.
+     경고·차단·검토완료(warn/block/note/ok-line)는 규칙5(선거법 검증)의 색이라
+     이 리디자인과 무관하게 그대로 둔다 — _output.html 이 그 의미로 참조한다. */
+  --bg: #f8fafc;
   --surface: #fff;
-  --line: #e3e2df;
-  --ink: #1d1c1a;
-  --muted: #6f6d68;
+  --line: #e2e8f0;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --primary: #2563eb;
+  --positive: #16a34a;
+  --warning: #f59e0b;
+  --negative: #dc2626;
   --warn-bg: #fff6e0;
   --warn-line: #e0a93a;
   --block-bg: #fdecea;
@@ -42,7 +49,7 @@ body {
   font: 15px/1.55 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
 }
 
-main { padding: 20px 24px 40px; }
+main { padding: 12px 24px 32px; }
 footer { padding: 0 24px 32px; font-size: 13px; }
 h1 { font-size: 22px; margin: 0 0 12px; }
 h2 { font-size: 15px; margin: 0 0 6px; }
@@ -52,19 +59,63 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
 .small { font-size: 13px; }
 .warn-text { color: var(--warn-line); font-weight: 600; }
 
-/* --- 상단 --- */
+/* --- 좌측 사이드바 + 얇은 상단 유틸리티 바 ---
+   sidebar = 브랜드·내비게이션·계정. topbar = 계열/선거구 전환 셀렉트뿐이라
+   훨씬 얇다. 두 select 의 class 는 et-switch/district-switch 그대로 —
+   tests/test_web.py 가 정확 문자열로 본다. */
+
+.app-shell { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 216px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding: 20px 14px;
+}
+.sidebar .brand { font-weight: 700; text-decoration: none; color: var(--ink); font-size: 16px; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; margin-top: 22px; flex: 1; }
+.sidebar-nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  color: var(--muted); text-decoration: none; font-size: 14px;
+}
+.sidebar-nav a:hover { background: var(--bg); color: var(--ink); }
+.sidebar-nav a.on { background: var(--primary); color: #fff; font-weight: 600; }
+.nav-icon { flex-shrink: 0; }
+.sidebar-foot {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 14px; margin-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.sidebar-foot a { color: var(--muted); text-decoration: none; }
+.sidebar-foot a:hover { color: var(--ink); }
+
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .topbar {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 12px;
   padding: 10px 24px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
-.topbar .brand { font-weight: 700; text-decoration: none; color: var(--ink); }
-.topbar nav { display: flex; gap: 12px; }
 .topbar .spacer { flex: 1; }
-.topbar a { color: var(--muted); text-decoration: none; font-size: 14px; }
-.topbar a.on { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 860px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%; flex-direction: row; align-items: center;
+    padding: 10px 16px; overflow-x: auto; border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .sidebar-nav { flex-direction: row; margin: 0 0 0 18px; overflow-x: auto; }
+  .sidebar-nav a { white-space: nowrap; }
+  .sidebar-foot {
+    flex-direction: row; align-items: center; gap: 12px;
+    border-top: none; margin: 0 0 0 auto; padding-top: 0;
+  }
+}
 
 /* --- 머리말 --- */
 
@@ -113,7 +164,7 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
 }
 .card {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: 10px; padding: 14px 16px;
+  border-radius: 16px; padding: 20px 22px;
 }
 .card > header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
 .label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
@@ -132,6 +183,18 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
 .swatch.camp--progressive { background: var(--progressive); }
 .swatch.camp--centrist { background: var(--centrist); }
 .swatch.camp--other { background: var(--other); }
+
+/* 텍스트 색으로 진영을 말할 때. 좋다/나쁘다가 아니라 "어느 쪽"만 — 우세/열세
+   신호(text-lens--*)와는 다른 채널이다. */
+.text-camp--conservative { color: var(--conservative); }
+.text-camp--progressive { color: var(--progressive); }
+.text-camp--centrist { color: var(--centrist); }
+.text-camp--other { color: var(--other); }
+/* 우세/열세는 진영과 무관한 신호색이다 (.lens--ahead/behind 와 같은 색, 문맥만 다르다). */
+.text-lens--ahead { color: var(--ok-line); }
+.text-lens--behind { color: var(--block-line); }
+/* "주의" 배지 — 진영과 무관, 변동 크기 신호. */
+.text-warn { color: var(--warning); }
 
 .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 0 0 12px; }
 .facts div { margin: 0; }
@@ -179,6 +242,12 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
 .agebars i { display: block; width: 100%; background: var(--note-line); border-radius: 2px 2px 0 0; }
 .agebars span { font-size: 9px; transform: rotate(-45deg); white-space: nowrap; }
 
+/* --- 상세 데이터 접기 (대시보드 §10) --- */
+.details-toggle > summary { list-style: none; }
+.details-toggle > summary::-webkit-details-marker { display: none; }
+.details-toggle > summary .chevron { display: inline-block; transition: transform 0.15s; }
+.details-toggle[open] > summary .chevron { transform: rotate(90deg); }
+
 .evidence { margin-top: 14px; font-size: 13px; }
 .evidence summary { color: var(--muted); cursor: pointer; }
 .evidence p { word-break: break-all; color: var(--muted); }
@@ -209,10 +278,36 @@ code, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
 /* --- 선거 계열 스위처 --- */
 
 .et-switch, .district-switch {
-  font-size: 13px; padding: 2px 6px;
-  border: 1px solid var(--line); border-radius: 6px;
-  background: var(--surface); color: var(--ink);
+  font-size: 13px; padding: 5px 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); color: var(--ink);
 }
+
+/* --- 알림 벨 (장식용, 클릭 핸들러 없음) --- */
+.bell { display: inline-flex; color: var(--muted); cursor: default; }
+
+/* --- 탭 (트렌드 차트·지역별 판세 필터) --- */
+.tab-row { display: flex; gap: 4px; }
+.tab {
+  font-size: 13px; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  cursor: pointer; font: inherit;
+}
+.tab:hover { color: var(--ink); }
+.tab.on { background: var(--bg); border-color: var(--line); color: var(--ink); font-weight: 600; }
+
+/* --- 후보자 비교 이니셜 배지 (사진이 없다) --- */
+.avatar-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--line);
+  font-weight: 700; font-size: 15px; color: var(--ink); flex-shrink: 0;
+}
+.compare-bar-track {
+  position: relative; height: 8px; border-radius: 999px;
+  background: var(--bg); overflow: hidden;
+}
+.compare-bar-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; }
 
 /* --- 집계 카드 --- */
 

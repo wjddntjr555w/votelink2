@@ -1,7 +1,15 @@
 # 웹앱(L3) 규약
 
-> 상태: v1 구현됨 (`votelink/web/`, `uv run votelink serve`)
-> 웹앱 화면을 만들거나 고칠 때 읽을 문서는 **이것 + `votelink/web/` 뿐**이다.
+> 상태: **v2(React SPA) 완료** (`frontend/`, `votelink/web/`, `uv run votelink serve`).
+> 24개 화면 전부 React 로 옮겼다 — 로그인·가입·대기부터 대시보드·지도·뉴스·비교·
+> 전국·마이페이지·주기(목록·추가·수정·로스터)·온보딩·운영자 콘솔까지. Jinja2 는
+> `votelink/web/templates/{base,denied,districts,error}.html` 뿐이고, 이 넷은
+> 화면이 아니라 그 화면들 아래에 깔리는 셸/오류 페이지다(`_icons.html` 도 그
+> 셸이 쓴다). 이 문서는 여전히 그 시절 기준의 §1~§9 를 그대로 담고 있다 — 라우트
+> 이름·리댁션 원칙·규칙 5 집행 지점 같은 개념은 React 로 옮긴 뒤에도 유효하고
+> 실제로 §10-1 이 그 대응 관계를 하나씩 짚는다. 웹앱 화면을 만들거나 고칠 때
+> 읽을 문서는 **이것(§10-1까지) + `frontend/src/`**다 — `votelink/web/app.py`·
+> `ops.py` 는 이제 뷰가 아니라 JSON API 다.
 > 검증 배지의 근거는 `docs/90-compliance.md`, 렌더할 데이터의 형태는 `votelink/contract/`.
 
 ## 1. 웹앱이란 무엇인가
@@ -67,6 +75,9 @@ votelink/web/
   templates/      base.html dashboard.html map.html compare.html nation.html _card.html _agg.html _output.html
   static/app.css
 ```
+
+`base.html` 의 `<head>` 가 Tailwind Play CDN·Chart.js CDN `<script>` 태그를 싣는다(§10의
+화이트리스트). 나머지 화면은 여전히 `/static/app.css` + 이 두 CDN이 만드는 클래스만 쓴다.
 
 `create_app(settings) -> FastAPI` **팩토리**로 만든다. 전역을 monkeypatch 하지 않고 테스트에서
 임시 디렉터리를 주입할 수 있다. 라우트는 `Depends()` 대신 `request.app.state` 를 읽는다 —
@@ -343,20 +354,202 @@ UI가 이걸 무너뜨리는 경로가 넷이고, 넷 다 막는다.
 `00-overview.md §4-1` 의 "별도 프론트 빌드 체인을 두지 않는다"는 **npm/webpack을 겨냥한 말**이다.
 Jinja2는 "FastAPI + 서버 렌더"의 서버 렌더 쪽 절반이다.
 
-- `static/app.css` **한 장**, 손으로 쓴다. JS 프레임워크 없음
-- **차트 라이브러리 없음, CDN 없음.** 스파크라인·막대·지도 칸은 전부 **인라인 SVG** 이고
-  좌표는 뷰모델이 계산한다
-- 이유는 미학이 아니라 **컴플라이언스**다: 외부 요청이 0건이어야 캠프의 열람 맥락이 제3자에게
-  새지 않는다. 이것이 "로컬 웹앱" 원칙의 실질이다
-- **인라인 JS 는 허용한다** — topbar 의 `onchange` 전환, 온보딩의 동 이름 shuttle(P-004 §4).
-  규칙은 "외부 요청 0"이지 "JS 0"이 아니다. CDN·라이브러리·빌드 체인이 없고 스크립트가
-  없어도 화면이 동작하면(향상이면) 된다. `test_no_external_requests` 가 데이터 화면에서
-  절대 URL 0건을 계속 지킨다
+- `static/app.css` **한 장**, 손으로 쓴다. SPA 프레임워크 없음(Jinja2 서버 렌더 유지)
+- **2026-09-12 결정 — CDN을 화이트리스트로 허용한다.** 그 전까지는 차트 라이브러리·CDN이
+  전혀 없었고 스파크라인·막대·지도 칸은 전부 인라인 SVG, 좌표는 뷰모델이 계산했다. 이유는
+  미학이 아니라 컴플라이언스였다: 외부 요청이 0건이어야 캠프의 열람 맥락이 제3자에게
+  새지 않는다. **UI/UX 품질을 위해 이 원칙을 완화하기로 결정했다** — 다음 두 CDN만 예외로
+  허용한다:
+  - `https://cdn.tailwindcss.com` — Tailwind Play CDN(빌드 스텝 없음). `base.html` 의
+    스타일링에 쓴다
+  - `https://cdnjs.cloudflare.com/ajax/libs/Chart.js/...` (버전 고정) — 스파크라인 등
+    시계열 시각화에 쓴다(`votelink/web/viewmodel.py::sparkline()` 이 좌표 대신 Chart.js
+    데이터셋(`labels`/`values`)을 계산해서 넘긴다 — "템플릿은 산술을 하지 않는다"는
+    원칙은 그대로다)
+  - **트레이드오프를 정직하게 남긴다**: 이 두 CDN에 대한 요청이 발생하면 "이 캠프가 지금
+    화면을 열람하고 있다"는 사실(접속 시각·IP)이 CDN 사업자의 서버 로그에 남을 수 있다.
+    누가 어느 선거구를 보고 있는지 자체는 CDN이 알 수 없지만(요청에 그 정보가 없다),
+    접속 사실 자체의 제3자 노출은 감수한 리스크다
+  - **화이트리스트 밖 도메인은 여전히 금지.** 새 CDN을 추가하려면 이 목록에 먼저 적고
+    이유를 남긴다 — 조용히 늘어나면 이 절이 거짓말이 된다
+  - `map.html` 의 9칸 격자는 Chart.js가 표현하기 부적합한 커스텀 배치라 **인라인 SVG를
+    그대로 유지**한다. `_output.html`(규칙5 매크로)의 렌더 구조·클래스명도 이번 변경과
+    무관하게 그대로다
+- **인라인 JS 는 여전히 허용한다** — topbar 의 `onchange` 전환, 온보딩의 동 이름 shuttle
+  (P-004 §4), 이제 Chart.js 초기화 스크립트도 같은 결.
+  `test_no_external_requests` 는 이제 "절대 URL 0건"이 아니라 **"위 화이트리스트 밖
+  도메인 0건"** 을 데이터 화면에서 검증한다
 - 경로는 `Path(__file__).resolve().parent / "templates"` (`analyze/base.py` 가 이미 쓰는 패턴)
-- **`/docs`·`/redoc`·`/openapi.json` 을 끈다.** Swagger UI 가 CDN 에서 스크립트를 받아온다
+- **`/docs`·`/redoc`·`/openapi.json` 은 여전히 끈다.** Swagger UI가 받아오는 CDN 스크립트가
+  화이트리스트에 없다 — 켜려면 그 스크립트도 화이트리스트에 올려야 한다
 - CSS 링크는 `url_for` 가 아니라 상대 경로다. `url_for` 는 호스트를 포함한 절대 URL을
-  만드는데, 나가는 요청이 전부 같은 출처임을 테스트로 확인할 수 있어야 한다
-  (`tests/test_web.py::test_no_external_requests` 가 절대 URL 이 하나도 없음을 본다)
+  만드는데, 나가는 요청이 화이트리스트(같은 출처 + 위 두 CDN) 밖으로 안 나가는지 테스트로
+  확인할 수 있어야 한다 (`tests/test_web.py::test_no_external_requests`)
+
+### 10-1. React SPA (v2 완료 — 24개 화면 전부)
+
+**2026-09-12, 화면 단위로 진행해 완료.** `/d/{district_id}/`(대시보드) ·
+`/d/{district_id}/map`(지도) · `/d/{district_id}/news`(뉴스) · `/compare`(비교) ·
+`/nation`(전국) · `/login`·`/signup`·`/pending`(인증 셋) · `/me`(마이페이지) ·
+`/cycles`(주기 목록) · `/cycles/{id}/roster`(후보 로스터) · `/onboarding`·
+`/cycles/new`(주기 생성, 동 이름 shuttle 포함) · `/cycles/{id}/edit`+
+`/cycles/{id}/apply`(주기 수정 — 폼→미리보기→저장) · `/ops/`·`/ops/audit`·
+`/ops/camps/{id}`·`/ops/camps/{id}/cycles/{cid}/edit`+`/apply`(운영자 콘솔) 를
+전부 React 로 옮겼다. 위 §10의 CDN 화이트리스트는 이제 **적용 대상이 없다** —
+CDN을 쓰던 화면(대시보드)이 가장 먼저 옮겨갔고, 그 뒤로 새로 옮긴 화면은 전부
+아래 방식(런타임 외부 요청 0건)을 처음부터 썼다. §10은 그 결정의 기록으로 남겨둔다.
+
+- **툴체인**: `frontend/`(Vite + React + TypeScript). `npm run build` →
+  `frontend/dist/`. `votelink/web/app.py` 가 그 폴더를 `/assets` 로 정적 서빙하고,
+  `/d/{district_id}/` 는 `dist/index.html` 을 그대로 돌려준다 — React Router 가
+  URL의 `districtId` 를 클라이언트에서 읽는다(서버는 이 인자를 쓰지 않는다).
+- **데이터**: `GET /api/d/{district_id}` (JSON). `votelink/web/viewmodel.py` 의
+  순수 함수(`build_view` 등)를 **한 줄도 바꾸지 않고** 그대로 쓴다 — L2/L3
+  계층 무지가 이 지점에서도 이어진다. Pydantic 모델을 FastAPI가 재귀적으로
+  JSON 인코딩한다.
+- **런타임 외부 요청은 CDN 화이트리스트보다 더 엄격하다 — 0건이다.** Tailwind·
+  Chart.js는 이제 CDN이 아니라 npm 패키지로 빌드에 번들된다. 웹폰트(IBM Plex
+  Sans KR/Mono)도 Google Fonts CDN이 아니라 `@fontsource/*` npm 패키지로 번들한다
+  (`frontend/src/main.tsx`). 빌드 시점에만 npm 레지스트리 접근이 필요하고, 배포된
+  앱은 CDN조차 열지 않는다.
+- **규칙 5는 서버가 여전히 집행한다 — 프런트를 믿지 않는다.** `_output.html`
+  매크로가 하던 4분기(blocked→콘텐츠 안 그림, unreviewed→배너 먼저, cleared→조용한
+  배지, notes→항상)를 프런트 `ComplianceGate` 컴포넌트가 그대로 재현하지만, **그건
+  화면이 예쁘게 숨기는 것뿐이다.** 실제 데이터를 안 보내는 건 `votelink/web/app.py`
+  의 `_redact_district_view`/`_redact_output` 이다 — `verdict.status == "blocked"`
+  또는 판정 없음이면 그 산출물의 본문 필드를 서버가 응답 전에 지운다(`verdict` 자체는
+  남겨서 프런트가 배너를 그릴 수 있게 한다). JSON API 를 df 열어 봐도 blocked 산출물의
+  수치가 없어야 한다 — 네트워크 탭에서 JSON 응답을 직접 열어 봐도 마찬가지다
+  (`tests/test_web.py::test_blocked_keeps_the_numbers_out_of_the_json`).
+- **관할 스코핑도 API 경로까지 따라간다.** `votelink/web/auth.py::district_in_path`
+  가 `/d/<선거구>/…` 뿐 아니라 `/api/d/<선거구>` 모양도 인식한다 — 화면만 막고
+  API를 안 막으면 관할 밖 데이터가 API로 새 나간다(`tests/test_web_auth.py::test_the_api_route_is_scoped_to_the_camp_too`).
+- **화면마다 리댁션 경계가 다를 수 있다 — 옛 Jinja 매크로 호출 자리를 그대로 옮긴다.**
+  대시보드·지도는 콘텐츠 전체가 `output()` 게이트 안이라 `_redact_district_view`/
+  `_redact_output` 이 전부를 지운다. 뉴스·비교는 옛 템플릿에서 게이트가 표
+  (`rows`)만 감쌌다 — 뉴스는 요약 집계(건수·상위 언론사·기간), 비교는 제외된
+  선거구 목록(`skipped`)이 게이트 밖이었다. 전국은 게이트가 `summary_card`·
+  `cards` 만 감쌌다 — 표시 건수·인구·기준월·출처는 게이트 밖이었다. 그래서
+  `_redact_news_view`/`_redact_comparison_view` 는 `rows` 만, `_redact_nation_view`
+  는 `cards`·`summary_card` 만 지운다. **새 화면을 옮길 때 게이트 범위를 다시
+  판단하지 말고, 지우려는 Jinja 템플릿에서 `{% call output(...) %}` 가 정확히
+  무엇을 감쌌는지부터 확인한다.**
+- **"지금 이 선거구"가 없는 화면(비교·전국)은 `Sidebar`/`TopBar` 에 `districtId` 를
+  안 넘긴다.** 두 컴포넌트 다 `districtId` 를 선택 인자로 받고, 없으면 대시보드·
+  지도·뉴스 링크와 선거구 전환 select 를 안 그린다 — 옛 `base.html` 의
+  `{% if district_id %}` 와 같은 판단이다.
+- **카드 컴포넌트는 화면 사이에 재사용한다.** `EmdDetailCard`(옛 `_card.html`)는
+  대시보드의 상세 아코디언과 전국 화면이 그대로 같이 쓴다 — `EmdCard.gaps` 에
+  실제로 들어 있는 단위(대시보드는 4단계, 전국은 `nation` 하나)만 렌더링되므로
+  `levels` 인자를 따로 넘길 필요가 없다. `NationSummaryCard`(옛 `_agg.html`)는
+  전국 종합 카드 전용 — 대시보드의 `TrendChart`는 같은 `AggregateCard` 데이터를
+  차트 형태로 보여줄 뿐 다른 컴포넌트다.
+- **인증 셋(로그인·가입·대기)은 폼이 아니라 fetch 로 POST 한다.** 나머지 화면은
+  전부 GET(조회)이라 문제되지 않았지만, 로그인·가입은 서버 리다이렉트로는 성공·
+  실패를 구분해 클라이언트에 돌려줄 수 없다(리다이렉트를 fetch 가 따라가면 최종
+  응답이 SPA 셸 HTML이라 성공 여부를 알 수 없다). 그래서 `POST /api/login`·
+  `POST /api/signup` 은 JSON 바디를 받고 JSON({"ok": true} 또는 {"error": "..."})
+  을 낸다 — 세션 쿠키는 여전히 `_with_session` 이 `Set-Cookie` 로 붙인다(JSON
+  응답이어도 브라우저는 쿠키를 그대로 저장한다). `POST /logout` 은 그대로 폼/
+  리다이렉트다 — 성공·실패를 가릴 필요가 없어서(항상 로그아웃된다) 바꿀 이유가
+  없었다.
+- **화면 하나가 열리려면 미들웨어의 경로 집합에도 `/api/...` 짝을 넣어야 한다.**
+  `auth.py::PUBLIC_PATHS` 에 `/api/login`·`/api/signup`, `PENDING_PATHS` 에
+  `/api/pending` 을 추가했다 — 화면(`/login` 등)만 열고 그 데이터 경로를 안 열면
+  React 컴포넌트가 뜨자마자 리다이렉트에 걸린다(대시보드가 `district_in_path` 로
+  `/api/d/<선거구>` 를 인식하게 만든 것과 같은 종류의 실수를 여기서도 피한다).
+- **`Sidebar` 가 로그인 상태를 안다.** `authOn` 이 참이면 계정 유무에 따라 "내
+  계정"+로그아웃 또는 "로그인" 링크를 푸터에 그린다(`rail__account`) — 옛
+  `base.html` 사이드바 푸터와 같은 자리다. 로그아웃은 `fetch("/logout", {method:
+  "POST"})` 뒤 `/login` 으로 직접 이동한다(폼 제출이 아니다, 그래도 GET이 아니라서
+  규칙은 지킨다).
+- **`/me` 도 로그인·가입과 같은 이유로 fetch JSON 이다** — 비밀번호 변경 성공·
+  실패를 리다이렉트로는 구분할 수 없다. 옛 PRG(POST 뒤 리다이렉트로 조회) 패턴은
+  통째로 없앴다: `POST /api/me` 가 `{"ok": true}` 를 직접 돌려주면 `MePage` 가
+  그 자리에서 성공 배너를 보여주고 세션 수를 다시 불러온다 — 새로고침도, 쿼리
+  파라미터(`?ok=1`)도 필요 없다. `/api/me` 는 `auth.py::SELF_PATHS` 에 있다(`/me`
+  와 짝) — 로그인만 했으면 계정 상태와 무관하게 열린다.
+- **화면 하나가 폼을 공유하면 그 화면들은 같은 배치에서 옮긴다.** `/onboarding`·
+  `/cycles/new`·`/cycles/{id}/edit` 는 전부 같은 `CycleForm`(+동 이름 shuttle,
+  P-004)을 쓴다 — 하나만 옮기면 그 폼 컴포넌트를 두 번 만들거나 Jinja/React 를
+  오가는 이상한 화면이 된다. 셋을 한 배치로 묶었다. 반대로 `/cycles`(목록) ·
+  `/cycles/{id}/roster`(로스터)는 이 폼이 전혀 없어서 먼저 옮길 수 있었다.
+- **폼 컴포넌트는 `mode` 로 갈라 재사용한다, 라우트로 가르지 않는다.**
+  `CycleFormFields`(공유 필드셋) + `EmdShuttle`(관할 위젯)을 온보딩·주기 추가·
+  주기 수정이 전부 같이 쓴다. `CycleFormPage` 하나가 `/onboarding`과 `/cycles/new`
+  둘 다를 맡고(`useLocation().pathname`으로 어느 쪽인지 판단, `mode="create"`),
+  `CycleEditPage`가 `/cycles/{id}/edit`을 맡는다(`mode="edit"`) — 필드는 같고
+  문구·후보 정당/현직 필드 유무만 다르다. **화면 두 개를 하나로 합치려는 유혹은
+  없다**: 수정은 폼→미리보기→저장의 2단계 흐름(`view` state 전환, URL 불변)이
+  create 흐름과 근본적으로 다르다.
+- **주기 수정의 "확인" 단계는 URL을 안 바꾼다.** 옛 Jinja는 POST 뒤 다른 템플릿
+  (`cycle_preview.html`)을 같은 요청·응답에서 그렸다. React 로는 그 방식이 없다
+  — 대신 `CycleEditPage` 가 `view: "form" | "preview"` 로컬 state로 같은 페이지
+  안에서 전환한다. `POST /api/cycles/{id}/edit` 는 **저장하지 않고** `change`
+  (`camp/changes.py::CycleChange` 를 JSON으로 그대로 낸 것, `_change_to_json`)
+  만 돌려준다 — `change.is_empty` 가 참이면 프런트가 확인 화면 없이 `/cycles` 로
+  바로 돌아간다(옛 라우트의 리다이렉트와 같은 판단). 실제 저장은 사용자가
+  "이대로 저장"을 눌러야 `POST /api/cycles/{id}/apply` 가 한다.
+- **운영자 콘솔(`ops.py`)도 마지막 배치에서 옮겼다.** `router`(`/ops`)는 SPA 셸만
+  돌려주고, 새 `api_router`(`/api/ops`)가 JSON을 낸다 — 계산은 그대로
+  `votelink/control/` 을 그대로 부른다(승인·거절·정지·세션 종료·비밀번호 발급은
+  새 로직 0). 캠프 대신 주기 수정(P-005)도 캠프 쪽과 **완전히 같은 계산**
+  (`_cycle_form_options`/`_prefill_cycle_form`/`_change_to_json`/`build_cycle`/
+  `diff_cycle`/`scaffold`, 전부 `app.py` 의 것을 그대로 부른다)을 쓴다 — 다른 건
+  `campId` 를 URL에서 읽는 것과 저장 시 사유(`note`)를 요구하는 것뿐이다.
+  `cycle_edit.html`·`cycle_preview.html`·`_emd_shuttle.html`·`_ops.html`·
+  `ops_camps.html`·`ops_camp.html`·`ops_audit.html` 을 전부 지웠다 — 이제 아무도
+  렌더링하지 않는다. 더 이상 아무도 쓰지 않게 된 `_onboarding_ctx`/`_edit_ctx`
+  (Jinja 컨텍스트 조립)·`_auth_ctx`도 같이 지웠다. **마지막까지 `_output.html`
+  매크로(+ `_card.html`/`_agg.html`)를 쓰던 화면이 바로 운영자 콘솔이었다** —
+  옮기고 나니 그 셋도 죽은 코드가 됐다(같이 삭제, 회귀 테스트는
+  `ComplianceGate.test.tsx` 로 완전히 넘어갔다).
+- **`is_ops()` 도 `/api/ops/...` 짝을 인식해야 한다.** `auth.py::authorize()` 의
+  `is_ops(path) and not (account and account.is_operator)` 검사가 실제 접근
+  통제 지점이다(`gate()` 는 그 뒤 대부분의 경로를 그냥 통과시킨다) — `/ops/...`
+  접두어만 보고 `/api/ops/...` 를 안 보면, 캠프 계정이 콘솔 화면은 못 열어도 그
+  데이터 API 는 직접 불러 **다른 캠프의 설정·감사 로그를 볼 수 있었다.** 같은
+  이유로 `gate()` 의 운영자 리다이렉트 조건에도 `/api/cycles`·`/api/onboarding`
+  (캠프 전용 화면을 `/ops/` 로 되돌리는 목록)을 짝으로 넣었다 — 운영자가 그
+  API 를 직접 불러 camp_id 없이 500 을 만들 수 있었다. `PUBLIC_PATHS`/
+  `PENDING_PATHS`/`ONBOARDING_PATHS`/`SELF_PATHS` 를 늘릴 때마다 반복된 패턴이다:
+  **화면 경로를 막는 집합에 새 화면을 넣을 때는 그 데이터 경로도 같이 넣는다.**
+- **FastAPI 함정 — `Body()` 파라미터가 하나뿐이면 JSON 객체로 안 온다.**
+  `POST /api/ops/signups/{id}/reject` 가 `note: Annotated[str, Body()]` 하나만
+  받게 짰더니, `{"note": "..."}` 로 보낸 요청이 422 로 죽었다 — FastAPI는 본문
+  파라미터가 **둘 이상**일 때만 자동으로 객체로 묶고, 하나뿐이면 본문 자체가 그
+  값이어야 한다(`"..."`, 객체가 아니라). 실제로 이 버그가 났었다(`reject`·
+  `set_status`·`set_password` 셋 다) — `tests/test_web_ops.py` 를 돌리기 전까진
+  안 보였다. 고치는 법은 `Body(embed=True)`: 파라미터가 하나뿐이어도 강제로
+  `{"key": 값}` 모양을 받는다. **본문 파라미터를 한 개만 받는 POST 라우트를
+  새로 만들 때마다 이 함정을 먼저 확인한다** — 필드가 둘 이상이면 자동으로
+  괜찮으므로 이 규칙은 단일 필드 라우트에만 해당한다.
+- **컴포넌트**: `frontend/src/components/{layout,compliance,dashboard,map,nation,cycle}/`,
+  `frontend/src/pages/{DashboardPage,MapPage,NewsPage,ComparePage,NationPage,
+  LoginPage,SignupPage,PendingPage,MePage,CyclesPage,RosterPage,CycleFormPage,
+  CycleEditPage,OpsConsolePage,OpsCampPage,OpsCycleEditPage,OpsAuditPage}.tsx`.
+  디자인 토큰은 `frontend/src/design-system/{tokens.css,components.css}` —
+  색·spacing·타이포를 Jinja 시절과 별개로 새로 정의했다(진영 4색·컴플라이언스
+  3색은 의미만 유지). 인증 화면·로스터·주기 폼·운영자 대리 수정은
+  `.auth-page`/`.auth-gate`(콘솔 셸 없이 가운데 카드 하나) 전용 스타일을 쓴다.
+- **테스트**: 프런트는 Vitest + React Testing Library
+  (`frontend/src/**/*.test.tsx`) — `ComplianceGate` 가 가장 두껍게 테스트된
+  컴포넌트다(절대 규칙 5). 백엔드 회귀는 `tests/test_web.py`·`test_web_lens.py`·
+  `test_web_pulse.py`·`test_web_issues.py`·`test_web_news.py`·`test_web_compare.py`·
+  `test_web_nation.py`·`test_web_auth.py`·`test_web_me.py`·`test_web_cycles.py`·
+  `test_web_cycle_edit.py`·`test_web_ops.py` 가 `/api/d/{id}`·`/api/d/{id}/map`·
+  `/api/d/{id}/news`·`/api/compare`·`/api/nation`·`/api/login`·`/api/signup`·
+  `/api/pending`·`/api/me`·`/api/onboarding`·`/api/cycles`·`/api/cycles/new`·
+  `/api/cycles/{id}/edit`·`/api/cycles/{id}/apply`·`/api/cycles/{id}/roster`·
+  `/api/ops/console`·`/api/ops/camps/{id}`·`/api/ops/camps/{id}/cycles/{cid}/edit`·
+  `/apply`·`/api/ops/audit` JSON을 본다 — HTML 문자열 검사(구 Jinja 테스트)는
+  전부 걷어냈다. `test_web_ops.py` 는 `OPS_PATHS`(`/ops/...`)와
+  `API_OPS_PATHS`(`/api/ops/...`) 둘 다에 대해 캠프 계정 403 을 확인한다 — 위
+  `is_ops()` 회귀를 이 파라미터화 테스트가 잡는다.
+- **아직 안 옮긴 것**: 없다. `votelink/web/templates/` 에 남은 건 `base.html`·
+  `denied.html`·`districts.html`·`error.html`·`_icons.html` 뿐이다 — 화면이
+  아니라 그 화면들 아래에 깔리는 셸/오류 페이지다. 다음 확장은 새 화면 자체를
+  더하는 일이지, 남은 화면을 옮기는 일이 아니다.
 
 ## 11. 지도 배치 — 지금은 격자, 나중에 경계
 

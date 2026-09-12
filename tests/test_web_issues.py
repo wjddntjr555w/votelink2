@@ -186,21 +186,19 @@ def test_build_issue_board_none_passthrough(tmp_path):
 
 
 def test_dashboard_renders_issue_board(tmp_path):
+    """대시보드는 1단계부터 React SPA 다 — `/api/d/test_gap` 의 JSON을 본다."""
     # 기본 issues 분류분 14 + 미분류 14 = total 28 → 미분류 50%
     st = settings_for(tmp_path, [issue_record(distorted=True, unclassified=14)])
     client = TestClient(create_app(st), raise_server_exceptions=False)
-    html = client.get("/d/test_gap/").text
-    assert "이슈 보드" in html
-    assert "issues__list" in html
-    assert "분류 안 됨" in html
-    assert "어휘집 보강 신호" in html  # unclassified_pct >= 50
-    assert "참고만" in html  # backfill 경고
-    assert "선거법 검토를 받지 않은 산출물이다" in html  # unreviewed 배너
+    issue_board = client.get("/api/d/test_gap").json()["issue_board"]
+    assert issue_board is not None
+    assert issue_board["unclassified_pct"] >= 50
+    assert issue_board["backfill_distorted"] is True
+    assert issue_board["verdict"]["status"] == "unreviewed"
 
 
 def test_dashboard_without_issue_board_is_fine(tmp_path):
     st = settings_for(tmp_path, [])
     client = TestClient(create_app(st), raise_server_exceptions=False)
-    html = client.get("/d/test_gap/").text
-    assert "이슈 보드" not in html
-    assert html
+    data = client.get("/api/d/test_gap").json()
+    assert data["issue_board"] is None

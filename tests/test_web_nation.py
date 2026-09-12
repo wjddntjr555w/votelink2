@@ -45,17 +45,28 @@ def build(
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
 
+# `/nation` 은 빌드된 SPA 셸만 돌려준다. 데이터·회귀 테스트는 `/api/nation` 을 본다.
+
+
+def test_nation_screen_serves_the_spa_shell(tmp_path):
+    assert build(tmp_path, [profile_record(CODES[0])]).get("/nation").status_code == 200
+
+
 def test_nation_shows_dongs_from_outside_the_configured_district(tmp_path):
-    html = build(tmp_path, [profile_record(CODES[0]), profile_record(OUTSIDE)]).get("/nation").text
-    assert f"동{CODES[0][-4:]}" in html
-    assert f"동{OUTSIDE[-4:]}" in html  # 선거구 밖인데도 나온다
-    assert "표시 2곳" in html
+    view = build(tmp_path, [profile_record(CODES[0]), profile_record(OUTSIDE)]).get(
+        "/api/nation"
+    ).json()["view"]
+    geo_names = {c["geo_name"] for c in view["cards"]}
+    assert f"동{CODES[0][-4:]}" in geo_names
+    assert f"동{OUTSIDE[-4:]}" in geo_names  # 선거구 밖인데도 나온다
+    assert view["diagnostics"]["loaded"] == 2
 
 
 def test_nation_cards_only_carry_the_nation_gap(tmp_path):
-    html = build(tmp_path, [profile_record(CODES[0])]).get("/nation").text
-    assert "전국" in html
-    assert "시험구 대비" not in html  # sigungu 편차는 전국 화면에 없다
+    view = build(tmp_path, [profile_record(CODES[0])]).get("/api/nation").json()["view"]
+    gaps = view["cards"][0]["gaps"]
+    assert "nation" in gaps
+    assert "sigungu" not in gaps  # sigungu 편차는 전국 화면에 없다
 
 
 def test_nation_dedups_to_newest_as_of(tmp_path):
@@ -63,21 +74,24 @@ def test_nation_dedups_to_newest_as_of(tmp_path):
         tmp_path,
         [profile_record(CODES[0], "2024-12"), profile_record(CODES[0], "2025-03")],
     )
-    html = client.get("/nation").text
-    assert "표시 1곳" in html
-    assert "이전 기준월 1건" in html
+    view = client.get("/api/nation").json()["view"]
+    assert view["diagnostics"]["loaded"] == 1
+    assert view["diagnostics"]["superseded"] == 1
 
 
 def test_nation_blocked_keeps_numbers_out(tmp_path):
-    html = (
+    view = (
         build(tmp_path, [profile_record(CODES[0])], POLICY_BLOCKED, review=REVIEW_NONE)
-        .get("/nation")
-        .text
+        .get("/api/nation")
+        .json()["view"]
     )
-    assert "표시가 차단된 산출물이다" in html
-    assert "70.0" not in html
+    assert view["verdict"]["status"] == "blocked"
+    assert view["cards"] == []
+    assert view["summary_card"] is None
 
 
 def test_nation_empty_for_a_type_with_no_data(tmp_path):
-    html = build(tmp_path, [profile_record(CODES[0])]).get("/nation?election_type=local").text
-    assert "분석 결과가 없다" in html
+    view = build(tmp_path, [profile_record(CODES[0])]).get(
+        "/api/nation?election_type=local"
+    ).json()["view"]
+    assert view["cards"] == []

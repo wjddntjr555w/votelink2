@@ -171,22 +171,22 @@ def test_all_unknown_summary_has_no_mean():
 
 
 def test_sparkline_breaks_the_line_at_unknown():
-    """앞뒤를 이으면 없는 데이터를 보간한 게 된다."""
+    """None 은 값 그대로 데이터셋에 남는다 — Chart.js 가 spanGaps:false 로 선을 끊는다."""
     spark = sparkline([1.0, 2.0, None, 4.0, 5.0], ["a", "b", "c", "d", "e"])
-    assert len(spark.segments) == 2  # 끊겼다
-    assert len(spark.dots) == 4  # None 자리에는 점도 없다
+    assert spark.values == [1.0, 2.0, None, 4.0, 5.0]
+    assert spark.values.count(None) == 1  # None 자리에는 점도 없다
     assert spark.breaks == 1
 
 
 def test_sparkline_without_gaps_is_one_segment():
     spark = sparkline([1.0, 2.0, 3.0], ["a", "b", "c"])
-    assert len(spark.segments) == 1
+    assert None not in spark.values
     assert spark.breaks == 0
 
 
 def test_sparkline_of_all_unknown_draws_nothing():
     spark = sparkline([None, None], ["a", "b"])
-    assert spark.segments == []
+    assert spark.values == [None, None]
     assert spark.is_empty
 
 

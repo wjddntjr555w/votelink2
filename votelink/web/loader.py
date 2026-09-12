@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, computed_field
 
 from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
@@ -78,6 +78,7 @@ class LoadDiagnostics(BaseModel):
     """선거구 정의가 말하는 행정동 수."""
     missing_codes: list[str] = []
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_complete(self) -> bool:
         return self.loaded == self.expected and not self.missing_codes

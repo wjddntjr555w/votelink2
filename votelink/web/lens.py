@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from votelink.contract.enums import Camp
 
@@ -52,6 +52,7 @@ class Lens(BaseModel):
         """이 동이 캠프 관할인가. 관할이 비어 있으면 판단하지 않고 True."""
         return not self.territory or (geo_code is not None and geo_code in self.territory)
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def label(self) -> str:
         who = self.candidate_name

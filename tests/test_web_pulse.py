@@ -155,18 +155,17 @@ def test_build_pulse_card_none_passthrough(tmp_path):
 
 
 def test_dashboard_renders_pulse_card(tmp_path):
+    """대시보드는 1단계부터 React SPA 다 — `/api/d/test_gap` 의 JSON을 본다."""
     st = settings_for(tmp_path, [pulse_record(distorted=True)])
     client = TestClient(create_app(st), raise_server_exceptions=False)
-    html = client.get("/d/test_gap/").text
-    assert "뉴스 펄스" in html
-    assert "pulse__bars" in html
-    assert "부풀어 있다" in html  # backfill 경고
-    assert "선거법 검토를 받지 않은 산출물이다" in html  # unreviewed 배너
+    pulse = client.get("/api/d/test_gap").json()["pulse"]
+    assert pulse is not None
+    assert pulse["backfill_distorted"] is True
+    assert pulse["verdict"]["status"] == "unreviewed"
 
 
 def test_dashboard_without_pulse_is_fine(tmp_path):
     st = settings_for(tmp_path, [])
     client = TestClient(create_app(st), raise_server_exceptions=False)
-    html = client.get("/d/test_gap/").text
-    assert "뉴스 펄스" not in html
-    assert html  # 페이지는 정상 렌더
+    data = client.get("/api/d/test_gap").json()
+    assert data["pulse"] is None

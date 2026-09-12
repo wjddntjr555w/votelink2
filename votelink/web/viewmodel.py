@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from votelink.contract.enums import AgeBand, Camp, ElectionType, IssueTrend, Trend
 from votelink.contract.payloads import LeanPoint
@@ -158,27 +158,17 @@ class GapSummary(BaseModel):
 # --- 스파크라인 -------------------------------------------------------------------
 
 
-class SparkDot(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    cx: float
-    cy: float
-    title: str
-
-
 class Sparkline(BaseModel):
-    """인라인 SVG 꺾은선. **None 은 점을 찍지 않고 선을 끊는다.**
+    """Chart.js 라인 차트에 그대로 먹이는 데이터셋. **None 은 점을 찍지 않고 선을 끊는다**
 
-    앞뒤를 이으면 없는 데이터를 보간한 게 된다.
+    (템플릿에서 Chart.js `spanGaps: false` + 데이터포인트 `null` 로 재현한다).
+    좌표 계산은 여기서 끝난다 — 템플릿은 여전히 산술을 하지 않는다.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    segments: list[str] = Field(default_factory=list)
-    """`<polyline points="...">` 값. 끊긴 구간마다 하나."""
-    dots: list[SparkDot] = Field(default_factory=list)
-    width: float
-    height: float
+    labels: list[str] = Field(default_factory=list)
+    values: list[float | None] = Field(default_factory=list)
     y_min: float
     y_max: float
     breaks: int = 0
@@ -186,50 +176,31 @@ class Sparkline(BaseModel):
 
     @property
     def is_empty(self) -> bool:
-        return not self.dots
+        return all(v is None for v in self.values)
 
 
-def sparkline(
-    values: Sequence[float | None],
-    labels: Sequence[str],
-    *,
-    width: float = 120.0,
-    height: float = 28.0,
-) -> Sparkline:
+def sparkline(values: Sequence[float | None], labels: Sequence[str]) -> Sparkline:
     known = [v for v in values if v is not None]
     lo, hi = (min(known), max(known)) if known else (0.0, 1.0)
-    span = (hi - lo) or 1.0
-    step = width / max(len(values) - 1, 1)
-
-    def y_of(v: float) -> float:
-        return round(height - (v - lo) / span * height, 1)
-
-    segments: list[str] = []
-    dots: list[SparkDot] = []
-    run: list[str] = []
-    for index, value in enumerate(values):
-        if value is None:
-            if len(run) >= 2:
-                segments.append(" ".join(run))
-            run = []
-            continue
-        x = round(index * step, 1)
-        y = y_of(value)
-        run.append(f"{x},{y}")
-        label = labels[index] if index < len(labels) else ""
-        dots.append(SparkDot(cx=x, cy=y, title=f"{label} {value:.1f}"))
-    if len(run) >= 2:
-        segments.append(" ".join(run))
-
     return Sparkline(
-        segments=segments,
-        dots=dots,
-        width=width,
-        height=height,
+        labels=list(labels),
+        values=list(values),
         y_min=lo,
         y_max=hi,
         breaks=sum(1 for v in values if v is None),
     )
+
+
+def _recent_change(values: Sequence[float | None]) -> float | None:
+    """가장 최근 두 **알려진** 값의 차 — "직전 조사 대비" 숫자.
+
+    선거가 1회뿐이거나 최근 두 회차 중 하나가 결측이면 None(모른다)이다.
+    비교 대상을 건너뛰어 이어붙이지 않는다 — 스파크라인이 선을 끊는 것과 같은 정신(§8).
+    """
+    known = [v for v in values if v is not None]
+    if len(known) < 2:
+        return None
+    return known[-1] - known[-2]
 
 
 # --- 카드 조각 -------------------------------------------------------------------
@@ -318,10 +289,12 @@ class LensRead(BaseModel):
     in_territory: bool = True
     """이 동이 캠프 관할인가. 관할 밖 동도 보여주되 그 사실을 표시한다."""
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def ahead(self) -> bool:
         return self.lead > 0
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def lead_text(self) -> str:
         return f"{self.lead:+.1f}%p"
@@ -364,6 +337,10 @@ class EmdCard(BaseModel):
     gap_summary: GapSummary
     gap_summary_label: str = "지역구"
     """gap_summary 가 어느 단위 대비인지. 템플릿이 "지역구"를 박아 쓰지 않게."""
+    recent_change: GapCell
+    """직전 조사(선거) 대비 보수 득표율 변화. 선거가 1회뿐이면 모른다(None) — GapCell 이
+    0과 절대 같아 보이지 않게 한다. **진영 판단이 아니라 크기 표시다** — camp 색으로
+    "어느 방향"만 말하고, 좋다/나쁘다 채색은 렌즈가 있을 때만 별도로 한다."""
     conservative_spark: Sparkline
     gap_spark: Sparkline
     age_bars: list[AgeBar]
@@ -394,6 +371,7 @@ def build_card(
     series = payload.lean_series
     latest = series[-1]
     election_ids = [p.election_id for p in series]
+    con_values = [p.camp_share[Camp.CONSERVATIVE] for p in series]
 
     return EmdCard(
         geo_code=profile.geo_code,
@@ -416,9 +394,8 @@ def build_card(
         },
         gap_summary=GapSummary.of([getattr(p, f"gap_{primary}") for p in series]),
         gap_summary_label=labels.get(primary, primary),
-        conservative_spark=sparkline(
-            [p.camp_share[Camp.CONSERVATIVE] for p in series], election_ids
-        ),
+        recent_change=GapCell.of(_recent_change(con_values), "직전 조사"),
+        conservative_spark=sparkline(con_values, election_ids),
         gap_spark=sparkline([getattr(p, f"gap_{primary}") for p in series], election_ids),
         age_bars=age_bars(payload.age_mix),
         sex_ratio=payload.sex_ratio,
@@ -463,8 +440,22 @@ class AggregateCard(BaseModel):
     population_total: int
     gaps: dict[str, GapSummary]
     """단위별로 멤버 동들의 최근 선거 편차를 요약 (분모 노출)."""
+    recent_change: GapCell
+    """직전 조사 대비 보수 득표율 변화(가중 근사 시계열 기준).
+    `EmdCard.recent_change` 와 같은 정신."""
     conservative_spark: Sparkline
+    progressive_spark: Sparkline
+    """"최근 판세 변화" 차트의 두 번째 선. 보수와 같은 시계열, 진보 득표율 기준."""
+    centrist_spark: Sparkline
+    """세 번째 선(중도). "최근 N회 조사 기준" 패널이 보수·진보·중도 3행을 보이는 데 쓴다."""
+    turnout_spark: Sparkline
+    """투표 의향(투표율) 시계열 — 트렌드 차트의 "투표 의향" 탭용."""
     gap_spark: Sparkline
+    camp_recent_change: dict[str, GapCell]
+    """진영별(`Camp.value` 키) 직전 조사 대비 변화. `recent_change`(보수 전용, 하위호환)와
+    같은 계산을 보수·진보·중도 전부에 적용한 것 — "최근 N회 조사 기준" 패널의 델타 열.
+    `Camp` enum이 아니라 `str` 로 키를 두는 이유: 템플릿(Jinja) 전역에 enum이 없어서
+    `camp.value` 문자열로 찾는 편이 더 안전하다."""
     approx: bool
     approx_reason: str
     verdict: Verdict | None = None
@@ -510,7 +501,10 @@ def aggregate_profiles(
     etype = profiles[0].payload.election_type
 
     con_series: list[float | None] = []
+    prog_series: list[float | None] = []
+    centrist_series: list[float | None] = []
     gap_series: list[float | None] = []
+    turnout_series: list[float | None] = []
     latest_point: LeanPoint | None = None
     latest_turnout = 0.0
     turnout_known = 0
@@ -524,13 +518,19 @@ def aggregate_profiles(
         ]
         if not rows:
             con_series.append(None)
+            prog_series.append(None)
+            centrist_series.append(None)
             gap_series.append(None)
+            turnout_series.append(None)
             continue
         voters = [pop * pt.turnout / 100.0 for pt, pop in rows]
         camp = _weighted_camp([(pt, w) for (pt, _), w in zip(rows, voters, strict=True)])
         popsum = sum(pop for _, pop in rows) or 1
         turnout = sum(pt.turnout * pop for pt, pop in rows) / popsum
         con_series.append(camp[Camp.CONSERVATIVE])
+        prog_series.append(camp[Camp.PROGRESSIVE])
+        centrist_series.append(camp[Camp.CENTRIST])
+        turnout_series.append(min(turnout, 100.0))
 
         known = [
             (getattr(pt, f"gap_{primary}"), w)
@@ -579,8 +579,17 @@ def aggregate_profiles(
             )
             for level in levels
         },
+        recent_change=GapCell.of(_recent_change(con_series), "직전 조사"),
         conservative_spark=sparkline(con_series, election_ids),
+        progressive_spark=sparkline(prog_series, election_ids),
+        centrist_spark=sparkline(centrist_series, election_ids),
+        turnout_spark=sparkline(turnout_series, election_ids),
         gap_spark=sparkline(gap_series, election_ids),
+        camp_recent_change={
+            Camp.CONSERVATIVE.value: GapCell.of(_recent_change(con_series), "직전 조사"),
+            Camp.PROGRESSIVE.value: GapCell.of(_recent_change(prog_series), "직전 조사"),
+            Camp.CENTRIST.value: GapCell.of(_recent_change(centrist_series), "직전 조사"),
+        },
         approx=True,
         approx_reason=_APPROX_REASON,
         verdict=worst_verdict([review_with(compliance, p.record) for p in profiles]),
@@ -612,6 +621,270 @@ def _trend_mix(profiles: Sequence[EmdProfile]) -> dict[Trend, int]:
     for p in profiles:
         counts[p.payload.trend] += 1
     return counts
+
+
+# --- 상황 요약 (대시보드 상단) -----------------------------------------------------
+#
+# "상황실" 헤더가 읽을 큰 숫자 몇 개. 전부 이미 계산된 필드(camp_bar·turnout·
+# recent_change)를 다시 포장할 뿐이다 — 새로운 통계를 만들지 않는다.
+
+
+class Situation(BaseModel):
+    """대시보드 최상단 큰 숫자들. `AggregateCard` 를 읽는 방식만 바꾼다 — 값은 그대로다."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    leading_label: str
+    """"보수 우세" 또는(렌즈가 있으면) "○○ 캠프 우세/열세"."""
+    leading_lead_text: str
+    leading_css_class: str
+    """색은 판단이 아니라 신호다: 렌즈가 없으면 진영색(`text-camp--*`, 어느 쪽도 아님),
+    렌즈가 있으면 우세/열세 신호색(`text-lens--ahead/behind`, 진영색이 아니다)."""
+    leading_pct_text: str
+    turnout_text: str
+    recent_change: GapCell
+    avg_confidence_text: str
+    watch_count: int
+
+
+def build_situation(
+    summary: AggregateCard | None,
+    watch_count: int,
+    avg_confidence: float,
+    lens: Lens | None = None,
+) -> Situation | None:
+    if summary is None:
+        return None
+
+    if lens and summary.lens_read:
+        lr = summary.lens_read
+        leading_label = f"{lens.label} 캠프 {'우세' if lr.ahead else '열세'}"
+        leading_lead_text = lr.lead_text
+        leading_css_class = "text-lens--ahead" if lr.ahead else "text-lens--behind"
+        leading_pct_text = f"{lr.ours:.1f}%"
+    else:
+        ordered = sorted(summary.camp_bar, key=lambda s: -s.pct)
+        top = ordered[0]
+        second = ordered[1] if len(ordered) > 1 else top
+        leading_label = f"{top.label} 우세"
+        leading_lead_text = f"{top.pct - second.pct:+.1f}%p"
+        leading_css_class = f"text-camp--{top.camp.value}"
+        leading_pct_text = f"{top.pct:.1f}%"
+
+    return Situation(
+        leading_label=leading_label,
+        leading_lead_text=leading_lead_text,
+        leading_css_class=leading_css_class,
+        leading_pct_text=leading_pct_text,
+        turnout_text=f"{summary.turnout:.1f}%",
+        recent_change=summary.recent_change,
+        avg_confidence_text=f"{avg_confidence:.2f}",
+        watch_count=watch_count,
+    )
+
+
+# --- 지역별 상태 배지 (지역별 판세 표) ---------------------------------------------
+#
+# "주의/강세/안정" 3단계. 새 판정을 만드는 게 아니라 이미 있는 두 값
+# (watchlist 소속 여부, gap_district 크기)을 사람이 읽는 배지로 옮길 뿐이다.
+
+STRONG_GAP_THRESHOLD = 10.0
+"""이 %p 를 넘으면 "강세" 배지. 표시용 문턱값이라 여기 한 곳에만 둔다."""
+
+
+class RegionStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    label: str
+    css_class: str
+
+
+def build_region_status(
+    cards: Sequence[EmdCard], watch_codes: Sequence[str]
+) -> dict[str, RegionStatus]:
+    watch = set(watch_codes)
+    result: dict[str, RegionStatus] = {}
+    for c in cards:
+        cell = c.gaps.get("district")
+        value = cell.value if cell is not None and cell.known else None
+        if c.geo_code in watch:
+            # "주의"는 진영과 무관한 신호다 — 변동이 컸다는 뜻이지 어느 진영에 나쁘다는
+            # 뜻이 아니다. 색도 진영색이 아니라 경고색(text-warn)을 쓴다.
+            result[c.geo_code] = RegionStatus(label="주의", css_class="text-warn")
+        elif value is not None and value >= STRONG_GAP_THRESHOLD:
+            result[c.geo_code] = RegionStatus(label="강세", css_class="text-camp--conservative")
+        elif value is not None and value <= -STRONG_GAP_THRESHOLD:
+            result[c.geo_code] = RegionStatus(label="강세", css_class="text-camp--progressive")
+        else:
+            result[c.geo_code] = RegionStatus(label="안정", css_class="")
+    return result
+
+
+CONTESTED_MARGIN = 5.0
+"""1·2위 진영 점유율 차이가 이 %p 이내면 "경합"(지역별 판세 표의 필터 탭용)."""
+
+
+def region_category(cards: Sequence[EmdCard]) -> dict[str, str]:
+    """지역별 판세 표의 필터 탭(전체/보수 우세/진보 우세/경합) 값.
+
+    새 판정이 아니라 이미 계산된 `camp_bar`(진영별 점유율)를 다시 읽을 뿐이다.
+    표시(필터링)는 클라이언트 JS가 하고, 서버는 어느 범주인지만 계산해 둔다.
+    """
+    result: dict[str, str] = {}
+    for c in cards:
+        ordered = sorted(c.camp_bar, key=lambda s: -s.pct)
+        top = ordered[0]
+        second = ordered[1] if len(ordered) > 1 else top
+        if top.pct - second.pct <= CONTESTED_MARGIN:
+            result[c.geo_code] = "contested"
+        else:
+            result[c.geo_code] = top.camp.value
+    return result
+
+
+# --- 후보자 비교 -------------------------------------------------------------------
+#
+# 렌즈(캠프 관점)와 로스터(후보 이름·정당)가 둘 다 있을 때만 만든다. 사진·인지도·
+# 호감도는 수집하지 않는 값이라 만들지 않는다 — 있는 데이터(지지율·최근 변화·
+# 지역 강세)만 비교한다.
+
+
+class CandidateComparison(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ours_name: str
+    ours_party: str | None
+    theirs_name: str
+    support_ours: float
+    support_theirs: float
+    recent_change_ours: GapCell
+    recent_change_theirs: GapCell
+    strong_regions_ours: int
+    strong_regions_theirs: int
+    """`lens_read.ahead` 인 동의 수 대 나머지. 관할 밖 동도 그대로 센다(§ EmdCard.lens_read
+    가 이미 `in_territory` 로 그 사실을 표시하지, 여기서 다시 거르지 않는다)."""
+
+
+def build_candidate_comparison(
+    lens: Lens,
+    opponent_name: str,
+    cards: Sequence[EmdCard],
+    summary: AggregateCard | None,
+) -> CandidateComparison | None:
+    if summary is None or summary.lens_read is None:
+        return None
+    lr = summary.lens_read
+    theirs_camp_change = summary.camp_recent_change
+    # "상대"는 우리 진영을 뺀 전부라(P-001 §5), 상대 진영 하나만 짚을 수 없다.
+    # 그래서 "상대 변화"는 우리 진영 변화의 반대 부호로 근사하지 않고, 안 다루는
+    # 게 정직하다 — 대신 "우리" 변화만 정확히 보여준다.
+    ours_change = theirs_camp_change.get(lens.lineage.value, GapCell.of(None, "직전 조사"))
+    strong_ours = sum(1 for c in cards if c.lens_read and c.lens_read.ahead)
+    strong_theirs = sum(1 for c in cards if c.lens_read and not c.lens_read.ahead)
+    return CandidateComparison(
+        ours_name=lens.label,
+        ours_party=lens.party,
+        theirs_name=opponent_name,
+        support_ours=lr.ours,
+        support_theirs=lr.theirs,
+        recent_change_ours=ours_change,
+        recent_change_theirs=GapCell.of(None, "직전 조사"),
+        strong_regions_ours=strong_ours,
+        strong_regions_theirs=strong_theirs,
+    )
+
+
+# --- 주의 지역 (watchlist) ---------------------------------------------------------
+
+
+def build_watchlist(cards: Sequence[EmdCard], *, top: int = 3) -> list[EmdCard]:
+    """변동이 가장 큰 동을 추린다. **최근 조사 대비 변화가 없으면(선거 1회뿐) 편차
+    크기로 대신한다** — 데이터가 얕다고 "볼 게 없다"고 조용히 넘기지 않는다."""
+    with_change = [c for c in cards if c.recent_change.known]
+    if with_change:
+        return sorted(with_change, key=lambda c: -abs(c.recent_change.value or 0.0))[:top]
+    known_gap = [c for c in cards if c.gaps.get("district") and c.gaps["district"].known]
+    return sorted(known_gap, key=lambda c: -abs(c.gaps["district"].value or 0.0))[:top]
+
+
+# --- 캠페인 인사이트 ---------------------------------------------------------------
+#
+# 이미 계산된 숫자를 사람이 읽는 문장으로 옮길 뿐이다. **새 통계·판정을 만들지
+# 않는다** — 그건 L2(분석기)의 일이고, 여기서 하면 계층 무지(00-overview.md §3)가
+# 깨진다. 데이터가 뒷받침하지 않는 문장(예: 연령별 투표 의향 추세처럼 시계열이
+# 없는 값)은 만들지 않는다.
+
+
+class Insight(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tone: str
+    """"warn" 또는 "note" — 중요도 신호일 뿐 진영 판단이 아니다."""
+    icon: str
+    title: str
+    detail: str
+
+
+def build_insights(
+    cards: Sequence[EmdCard],
+    summary: AggregateCard | None,
+    watchlist: Sequence[EmdCard],
+    diagnostics: LoadDiagnostics,
+    avg_confidence: float,
+) -> list[Insight]:
+    insights: list[Insight] = []
+
+    if summary is not None and summary.recent_change.known:
+        change = summary.recent_change.value or 0.0
+        direction = "상승" if change > 0 else "하락" if change < 0 else "변화 없음"
+        insights.append(
+            Insight(
+                tone="note",
+                icon="▲" if change > 0 else "▼" if change < 0 else "●",
+                title=f"보수 득표율 직전 조사 대비 {direction}",
+                detail=f"{summary.label} 집계에서 {change:+.1f}%p 움직였다.",
+            )
+        )
+
+    if watchlist:
+        top = watchlist[0]
+        cell = top.gaps.get("district")
+        detail = (
+            f"직전 조사 대비 {top.recent_change.text}%p 움직였다."
+            if top.recent_change.known
+            else (
+                f"{top.gap_summary_label} 평균 대비 편차 {cell.text}%p 로 가장 크다."
+                if cell is not None
+                else "가장 큰 변동을 보인 동이다."
+            )
+        )
+        insights.append(
+            Insight(tone="warn", icon="⚠", title=f"{top.geo_name} 변동 주의", detail=detail)
+        )
+
+    if not diagnostics.is_complete:
+        insights.append(
+            Insight(
+                tone="warn",
+                icon="⚠",
+                title="행정동 데이터 결측",
+                detail=(
+                    f"행정동 {diagnostics.expected}곳 중 {diagnostics.loaded}곳만 분석 결과가 있다."
+                ),
+            )
+        )
+
+    if avg_confidence and avg_confidence < 0.8:
+        insights.append(
+            Insight(
+                tone="note",
+                icon="●",
+                title="분석 신뢰도가 낮다",
+                detail=f"평균 신뢰도 {avg_confidence:.2f} — 기준선 결측이 있을 수 있다.",
+            )
+        )
+
+    return insights
 
 
 # --- 대시보드 --------------------------------------------------------------------
@@ -660,6 +933,18 @@ class DistrictView(BaseModel):
     election_types: list[tuple[str, str]] = Field(default_factory=election_type_choices)
     summary_card: AggregateCard | None = None
     """이 선거구 전체를 한 장으로 묶은 집계 (근사). 카드가 없으면 None."""
+    situation: Situation | None = None
+    """상단 "판세" 헤더의 큰 숫자들. `summary_card` 를 읽는 방식만 바꾼다."""
+    watchlist: list[EmdCard] = Field(default_factory=list)
+    """변동이 가장 큰 동 상위 몇 곳 — `build_watchlist()`. `cards` 의 부분집합이라
+    새 데이터를 만들지 않는다."""
+    region_status: dict[str, RegionStatus] = Field(default_factory=dict)
+    """지역별 판세 표의 상태 배지. `geo_code` 로 찾는다."""
+    region_category: dict[str, str] = Field(default_factory=dict)
+    """지역별 판세 표의 필터 탭(전체/보수 우세/진보 우세/경합) 값. `geo_code` 로 찾는다."""
+    insights: list[Insight] = Field(default_factory=list)
+    avg_confidence: float = 0.0
+    """카드 신뢰도의 단순 평균. `population_total` 처럼 이미 있는 필드들의 집계다."""
 
     lens: Lens | None = None
     """어느 캠프의 눈으로 보는가 (`P-001` §5). `None` 이면 진영 중립."""
@@ -683,15 +968,23 @@ class DistrictView(BaseModel):
     verdict: Verdict | None = None
     """카드들 중 **가장 무거운** 상태. 헤더가 실상을 축소해 말하지 않게 한다."""
 
+    # `@computed_field` — Jinja(`view.is_empty`)와 JSON API(`/api/d/{id}`) 양쪽에서
+    # 같은 값을 봐야 한다. 평범한 `@property` 는 `.model_dump()`에 안 잡힌다
+    # (Verdict.shows_content 도 같은 이유로 일부러 그대로 뒀다 — 프런트가
+    # `status !== "blocked"` 로 다시 계산한다. 이 셋은 화면이 직접 여러 곳에서
+    # 읽어야 해서 다르게 판단했다).
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_empty(self) -> bool:
         return not self.cards
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def coverage_text(self) -> str:
         """ "9 / 9". 둘 다 보여준다 — 다르면 결측이다."""
         return f"{self.diagnostics.loaded} / {self.diagnostics.expected}"
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def population_month_text(self) -> str:
         return " · ".join(self.population_months) or UNKNOWN_TEXT
@@ -723,6 +1016,11 @@ def build_view(
     cards = [build_card(p, labels, compliance, lens=lens) for p in profiles.profiles]
     ordered = sort_cards(cards, sort)
     latest = cards[0] if cards else None
+    summary_card = aggregate_profiles(
+        profiles.profiles, label=f"{district.name} 종합", compliance=compliance, lens=lens
+    )
+    avg_confidence = sum(c.confidence for c in cards) / len(cards) if cards else 0.0
+    watchlist = build_watchlist(cards)
 
     return DistrictView(
         district_name=district.name,
@@ -732,9 +1030,15 @@ def build_view(
         gap_labels=labels,
         election_type=election_type.value,
         election_type_label=ELECTION_TYPE_LABELS[election_type],
-        summary_card=aggregate_profiles(
-            profiles.profiles, label=f"{district.name} 종합", compliance=compliance, lens=lens
+        summary_card=summary_card,
+        situation=build_situation(summary_card, len(watchlist), avg_confidence, lens),
+        watchlist=watchlist,
+        region_status=build_region_status(cards, [c.geo_code for c in watchlist]),
+        region_category=region_category(cards),
+        insights=build_insights(
+            cards, summary_card, watchlist, profiles.diagnostics, avg_confidence
         ),
+        avg_confidence=avg_confidence,
         population_total=sum(c.population_total for c in cards),
         population_months=sorted({p.payload.population_month for p in profiles.profiles}),
         as_of_months=sorted({p.payload.as_of for p in profiles.profiles}),
@@ -1184,6 +1488,7 @@ class PulseCard(BaseModel):
     top_persons: list[tuple[str, int]] = Field(default_factory=list)
     verdict: Verdict | None = None
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def latest_week(self) -> str:
         return self.bars[-1].week_start if self.bars else UNKNOWN_TEXT

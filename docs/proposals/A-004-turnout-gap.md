@@ -44,9 +44,9 @@
 ```python
 class TurnoutPoint(_Payload):
     election_id: str
-    turnout: float = Field(ge=0, le=1)       # 이 동의 투표율
-    baseline: float = Field(ge=0, le=1)      # 같은 선거의 선거구 전체 투표율
-    gap: float                               # turnout - baseline. 음수면 평균보다 낮다
+    turnout: float = Field(ge=0, le=1)  # 이 동의 투표율
+    baseline: float = Field(ge=0, le=1)  # 같은 선거의 선거구 전체 투표율
+    gap: float  # turnout - baseline. 음수면 평균보다 낮다
     eligible_voters: int = Field(ge=0)
     total_votes: int = Field(ge=0)
 
@@ -54,13 +54,13 @@ class TurnoutPoint(_Payload):
 class TurnoutGapPayload(_Payload):
     election_type: ElectionType
     emd_name: str
-    points: list[TurnoutPoint] = Field(min_length=1)   # 오래된 순, 같은 계열만
-    latest_gap: float          # 최근 회차의 편차
-    mean_gap: float            # 전 회차 평균 편차
-    gap_slope: float           # 회차당 편차 변화량. 양수면 격차가 벌어지는 중
-    below_baseline: bool       # mean_gap < 0
+    points: list[TurnoutPoint] = Field(min_length=1)  # 오래된 순, 같은 계열만
+    latest_gap: float  # 최근 회차의 편차
+    mean_gap: float  # 전 회차 평균 편차
+    gap_slope: float  # 회차당 편차 변화량. 양수면 격차가 벌어지는 중
+    below_baseline: bool  # mean_gap < 0
     elections_used: int
-    as_of: str                 # 최근 회차 선거일 "2025-06-03"
+    as_of: str  # 최근 회차 선거일 "2025-06-03"
 ```
 
 `Trend` enum 을 재사용하지 않는다 — 그건 진영 이동(`conservative_shift` 등) 전용이라

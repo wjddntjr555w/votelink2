@@ -94,9 +94,7 @@ class Collector(BaseCollector):
         district = resolve_district(self.config["district"])
         # row.emd_name 은 이미 normalize_emd() 를 거친 값이므로 districts.yaml 쪽도
         # 같은 정규화를 거쳐 비교한다 — 표기가 서로 다를 수 있다(D-001).
-        code = next(
-            (e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None
-        )
+        code = next((e.code for e in district.emd if normalize_emd(e.name) == row.emd_name), None)
         if not code:
             raise ValueError(
                 f"{row.emd_name}: districts.yaml 에 행정동코드가 없다. "

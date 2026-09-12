@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,6 +21,7 @@ from votelink.reference import districts as districts_mod
 from votelink.store import DataSpace
 from votelink.web.app import create_app
 from votelink.web.settings import WebSettings
+from votelink.web.viewmodel import DEFAULT_METRIC
 
 # 정책(공용)은 산출물의 성질만, 검토 기록(캠프)은 서명만 담는다 (P-001 §13).
 POLICY_LOW = "outputs:\n  - kind: segment_profile\n    risk: low\n"
@@ -84,76 +87,77 @@ def test_removing_the_policy_entry_warns_every_card(tmp_path):
 
     새 분석기가 새 산출물을 낼 때 아무도 코드를 고치지 않아도 경고가 붙어야 한다.
     이 테스트가 깨지면 규칙 5가 깨진 것이다.
+
+    대시보드는 1단계부터 React SPA 다(`/d/test_gap/` 는 빌드된 셸만 돌려준다) —
+    데이터는 `/api/d/test_gap` 이 낸다. 회귀 테스트는 그 JSON 을 본다.
     """
-    html = build(tmp_path, POLICY_EMPTY).get("/").text
-    assert "선거법 검토를 받지 않은" in html
-    assert "정책표에" in html  # 왜 경고인지도 말한다
-    assert all(f"동{c[-4:]}" in html for c in CODES)  # 경고와 함께 내용은 보인다
+    data = build(tmp_path, POLICY_EMPTY).get("/api/d/test_gap").json()
+    view = data["view"]
+    assert view["verdict"]["status"] == "unreviewed"
+    assert any("정책표에" in r for r in view["verdict"]["reasons"])  # 왜 경고인지도 말한다
+    geo_names = {c["geo_name"] for c in view["cards"]}
+    assert all(f"동{c[-4:]}" in geo_names for c in CODES)  # 경고와 함께 내용은 보인다
 
 
-def test_blocked_keeps_the_numbers_out_of_the_html(tmp_path):
-    """차단이면 수치가 HTML 에 나가지 않는다. 매크로가 caller() 를 부르지 않는다."""
-    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/").text
+def test_blocked_keeps_the_numbers_out_of_the_json(tmp_path):
+    """차단이면 수치가 JSON 에도 나가지 않는다 — 프런트가 숨기는 게 아니라
 
-    assert "표시가 차단된 산출물이다" in html
-    assert "선거일 전 6일 공표 금지" in html
-    # payload 의 값이 하나도 새지 않아야 한다
-    assert "70.0" not in html  # turnout
-    assert "0.97" not in html  # sex_ratio
-    assert "1,000" not in html  # population_total
-    assert f"동{CODES[0][-4:]}" not in html
-
-
-def test_the_output_macro_refuses_a_missing_verdict():
-    """**판정 없음은 "안전"이 아니라 "모름"이다** (P-002 §10).
-
-    예전에는 `verdict is none` 이면 매크로가 콘텐츠를 그냥 그렸다. 화면들이 각자
-    "산출물이 0건이면 매크로를 부르지 않는다"를 지키고 있어 실제 누출은 없었지만,
-    그 규칙은 매크로가 아니라 **호출자**에 있었다 — 새 화면 하나가 verdict 를
-    계산하지 않고 넘기면 절대 규칙 5가 조용히 비껴간다.
+    서버가 애초에 안 보낸다(`_redact_district_view`, `votelink/web/app.py`).
     """
-    from jinja2 import Environment, FileSystemLoader
+    response = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/api/d/test_gap")
+    raw = response.text
+    view = response.json()["view"]
 
-    from votelink.web.app import TEMPLATES_DIR
+    assert view["verdict"]["status"] == "blocked"
+    assert any("선거일 전 6일 공표 금지" in r for r in view["verdict"]["reasons"])
+    # payload 의 값이 하나도 새지 않아야 한다 — 전체 응답 텍스트를 통째로 본다.
+    assert "70.0" not in raw  # turnout
+    assert "0.97" not in raw  # sex_ratio
+    assert view["cards"] == []
+    assert view["population_total"] == 0
+    assert view["situation"] is None
+    assert f"동{CODES[0][-4:]}" not in raw
 
-    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
-    html = env.from_string(
-        '{% from "_output.html" import output %}'
-        "{% call output(None) %}절대나가면안되는수치 12345{% endcall %}"
-    ).render()
 
-    assert "절대나가면안되는수치" not in html
-    assert "12345" not in html
-    assert "판정이 없어" in html
+# 옛 `test_the_output_macro_refuses_a_missing_verdict` — "판정 없음은 '안전'이 아니라
+# '모름'이다"(P-002 §10) 회귀 테스트 — 는 여기 없다. 마지막까지 그 매크로
+# (`_output.html`)를 쓰던 화면(운영자 콘솔)이 React 로 옮겨가면서 매크로 자체가
+# 죽은 코드가 됐다(삭제함). 같은 보장은 이제 `frontend/src/components/compliance/
+# ComplianceGate.test.tsx` 가 진다 — 그쪽이 절대 규칙 5 에서 가장 두껍게 테스트된
+# 컴포넌트다.
 
 
 def test_cleared_shows_the_signature_not_a_warning(tmp_path):
-    html = build(tmp_path).get("/").text
-    assert "검토 완료" in html
-    assert "법률검토자" in html
-    assert "선거법 검토를 받지 않은" not in html
+    verdict = build(tmp_path).get("/api/d/test_gap").json()["view"]["verdict"]
+    assert verdict["status"] == "cleared"
+    assert verdict["reviewed_by"] == "법률검토자"
 
 
 def test_blocked_map_hides_values_too(tmp_path):
-    """규칙 5는 화면마다 다시 구현되지 않는다. 같은 매크로를 쓴다."""
-    html = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/d/test_gap/map").text
-    assert "표시가 차단된 산출물이다" in html
-    assert '<svg class="map"' not in html
+    """규칙 5는 화면마다 다시 구현되지 않는다 — `_redact_output` 을 대시보드와 지도가 같이 쓴다."""
+    data = build(tmp_path, POLICY_BLOCKED, review=REVIEW_NONE).get("/api/d/test_gap/map").json()
+    assert data["map"]["verdict"]["status"] == "blocked"
+    assert data["map"]["cells"] == []
+    assert data["map"]["legend"] == []
 
 
-# --- 대시보드 --------------------------------------------------------------------
+# --- 대시보드 (JSON API, 1단계부터 React SPA) --------------------------------------
+#
+# `/d/{id}/` 는 빌드된 SPA 셸만 돌려준다(FRONTEND_DIST/index.html). 데이터·회귀
+# 테스트는 `/api/d/{id}` 를 본다 — 계산은 여전히 viewmodel.py 순수 함수가 한다.
 
 
 def test_dashboard_lists_every_dong(tmp_path):
-    response = build(tmp_path).get("/")
+    response = build(tmp_path).get("/api/d/test_gap")
     assert response.status_code == 200
+    geo_names = {c["geo_name"] for c in response.json()["view"]["cards"]}
     for code in CODES:
-        assert f"동{code[-4:]}" in response.text
+        assert f"동{code[-4:]}" in geo_names
 
 
 def test_dashboard_shows_loaded_over_expected(tmp_path):
     """'3 / 3'. 둘 다 보여준다 — 다르면 결측이다."""
-    assert "3 / 3" in build(tmp_path).get("/").text
+    assert build(tmp_path).get("/api/d/test_gap").json()["view"]["coverage_text"] == "3 / 3"
 
 
 def test_missing_dong_is_called_out(tmp_path):
@@ -170,89 +174,108 @@ def test_missing_dong_is_called_out(tmp_path):
             )
         )
     )
-    html = client.get("/").text
-    assert "1 / 3" in html
-    assert "분석 결과가 없는 행정동" in html
+    view = client.get("/api/d/test_gap").json()["view"]
+    assert view["coverage_text"] == "1 / 3"
+    assert len(view["diagnostics"]["missing_codes"]) > 0
 
 
 def test_sort_changes_the_order(tmp_path):
     client = build(tmp_path)
-    assert client.get("/d/test_gap/?sort=swing").status_code == 200
+    assert client.get("/api/d/test_gap?sort=swing").status_code == 200
     # 정렬 키가 이상해도 죽지 않는다
-    assert client.get("/d/test_gap/?sort=말도안되는키").status_code == 200
+    assert client.get("/api/d/test_gap?sort=말도안되는키").status_code == 200
 
 
 def test_dashboard_shows_a_district_summary_card(tmp_path):
     """동 카드 위에 선거구 전체를 묶은 근사 집계 한 장."""
-    html = build(tmp_path).get("/").text
-    assert "시험 지역구 갑 종합" in html
-    assert "card--summary" in html
-    assert "근사" in html  # approx 배지
+    view = build(tmp_path).get("/api/d/test_gap").json()["view"]
+    assert view["summary_card"]["label"] == "시험 지역구 갑 종합"
+    assert view["summary_card"]["approx"] is True
 
 
 def test_election_type_switcher_offers_all_four(tmp_path):
-    html = build(tmp_path).get("/d/test_gap/").text
-    assert 'class="et-switch"' in html
-    for label in ("대선", "총선", "지방선거", "재보궐"):
-        assert label in html
+    data = build(tmp_path).get("/api/d/test_gap").json()
+    labels = {label for _, label in data["election_types"]}
+    assert labels == {"대선", "총선", "지방선거", "재보궐"}
 
 
 def test_requesting_a_type_with_no_data_shows_empty_state(tmp_path):
     client = build(tmp_path)
-    r = client.get("/d/test_gap/?election_type=national_assembly")
+    r = client.get("/api/d/test_gap?election_type=national_assembly")
     assert r.status_code == 200
-    assert "총선 분석 결과가 없다" in r.text
+    view = r.json()["view"]
+    assert view["is_empty"] is True
+    assert view["election_type_label"] == "총선"
     # 쓰레기 값은 기본값으로 떨어진다
-    assert client.get("/d/test_gap/?election_type=쓰레기").status_code == 200
+    assert client.get("/api/d/test_gap?election_type=쓰레기").status_code == 200
 
 
 def test_empty_state_points_at_the_analyzer(tmp_path):
     """서버가 안 뜨면 왜 비었는지 볼 화면조차 없다."""
-    response = build(tmp_path, records=False).get("/")
+    response = build(tmp_path, records=False).get("/api/d/test_gap")
     assert response.status_code == 200
-    assert "분석 결과가 없다" in response.text
-    assert "대선" in response.text  # 어느 계열이 비었는지 말해준다
-    assert "votelink analyze voter_profile" in response.text
+    view = response.json()["view"]
+    assert view["is_empty"] is True
+    assert view["election_type_label"] == "대선"  # 어느 계열이 비었는지 말해준다
+    assert view["diagnostics"]["expected"] > 0
 
 
-# --- 지도 -----------------------------------------------------------------------
+# --- 지도 (JSON API, React SPA) --------------------------------------------------
+#
+# `/d/{id}/map` 은 빌드된 SPA 셸만 돌려준다. 데이터·회귀 테스트는 `/api/d/{id}/map` 을 본다.
 
 
 def test_map_renders_with_each_metric(tmp_path):
     client = build(tmp_path)
     for metric in ("gap_district", "conservative", "swing", "turnout"):
-        response = client.get(f"/d/test_gap/map?metric={metric}")
+        response = client.get(f"/api/d/test_gap/map?metric={metric}")
         assert response.status_code == 200, metric
-        assert 'id="hatch"' in response.text  # 값 없음 무늬는 항상 정의돼 있다
+        assert response.json()["map"]["metric"]["key"] == metric
 
 
 def test_map_legend_shows_real_numbers(tmp_path):
     """색만 보여주면 크기를 알 수 없다."""
-    html = build(tmp_path).get("/d/test_gap/map?metric=turnout").text
-    assert "70.0 ~ 70.0%" in html
-    assert "3곳 중 3곳" in html  # 분모
+    data = build(tmp_path).get("/api/d/test_gap/map?metric=turnout").json()["map"]
+    assert data["v_min"] == 70.0
+    assert data["v_max"] == 70.0
+    assert data["known"] == 3
+    assert data["total"] == 3
 
 
 def test_map_says_it_is_not_a_real_boundary(tmp_path):
-    assert "실제 행정동 경계가 아니다" in build(tmp_path).get("/d/test_gap/map").text
+    data = build(tmp_path).get("/api/d/test_gap/map").json()["map"]
+    assert data["is_real_boundary"] is False
 
 
 def test_unknown_metric_falls_back(tmp_path):
-    assert build(tmp_path).get("/d/test_gap/map?metric=없는지표").status_code == 200
+    data = build(tmp_path).get("/api/d/test_gap/map?metric=없는지표").json()["map"]
+    assert data["metric"]["key"] == DEFAULT_METRIC
+
+
+def test_map_screen_serves_the_spa_shell(tmp_path):
+    assert build(tmp_path).get("/d/test_gap/map").status_code == 200
 
 
 # --- 로컬 원칙 -------------------------------------------------------------------
 
 
+# 2026-09-12 결정 — 외부 요청 0건 원칙을 화이트리스트로 완화했다
+# (docs/40-webapp-spec.md §10). 이 목록 밖 도메인은 여전히 금지.
+ALLOWED_EXTERNAL_HOSTS = {"cdn.tailwindcss.com", "cdnjs.cloudflare.com"}
+
+_ABSOLUTE_URL_RE = re.compile(r'https?://([^"\'\s/]+)')
+
+
 def test_no_external_requests(tmp_path):
-    """외부 요청 0건이어야 캠프의 열람 맥락이 제3자에게 새지 않는다."""
+    """화이트리스트 밖 외부 요청이 있으면 캠프의 열람 맥락이 제3자에게 샌다."""
     client = build(tmp_path)
     for url in ("/", "/d/test_gap/", "/d/test_gap/map", "/compare", "/nation"):
         html = client.get(url).text
-        # 절대 URL 이 하나도 없어야 한다. CSS·SVG 전부 같은 출처이거나 인라인이다.
-        assert "http://" not in html, url
-        assert "https://" not in html, url
-        assert "//" not in html.replace("</", "").replace("<!--", ""), url
+        assert "http://" not in html, url  # 비TLS는 화이트리스트여도 금지
+        # 프로토콜-상대 URL(//host/...)도 절대 URL과 같은 효과라 같은 화이트리스트를 지킨다.
+        assert not re.search(r"""(href|src)=["']//""", html), url
+        for host in _ABSOLUTE_URL_RE.findall(html):
+            assert host in ALLOWED_EXTERNAL_HOSTS, (url, host)
 
 
 def test_api_docs_are_off(tmp_path):
@@ -330,18 +353,20 @@ def test_each_district_renders_on_its_own_path(tmp_path):
     client = build_two(tmp_path)
     assert client.get("/d/test_gap/").status_code == 200
     assert client.get("/d/test_eul/").status_code == 200
-    # 갑에는 프로파일이 있고 을에는 없다 — 을은 빈 상태 화면이지만 여전히 뜬다
-    assert "동1000" not in client.get("/d/test_eul/").text
+    # 갑에는 프로파일이 있고 을에는 없다 — 을은 빈 상태지만 API는 여전히 200이다
+    eul = client.get("/api/d/test_eul").json()["view"]
+    assert eul["is_empty"] is True
+    assert "동1000" not in [c["geo_name"] for c in eul["cards"]]
 
 
 def test_switcher_appears_with_multiple_districts(tmp_path):
-    html = build_two(tmp_path).get("/d/test_gap/").text
-    assert 'class="district-switch"' in html
-    assert 'value="test_eul"' in html
+    data = build_two(tmp_path).get("/api/d/test_gap").json()
+    ids = {d_id for d_id, _ in data["districts"]}
+    assert {"test_gap", "test_eul"} <= ids
 
 
 def test_unknown_district_shows_what_to_fix(tmp_path):
-    response = build_two(tmp_path).get("/d/없는구/")
+    response = build_two(tmp_path).get("/api/d/없는구")
     assert response.status_code == 500
     assert "없는구" in response.text
 
@@ -363,7 +388,7 @@ def test_missing_policy_file_shows_what_to_fix(tmp_path):
         ),
         raise_server_exceptions=False,
     )
-    response = client.get("/")
+    response = client.get("/api/d/test_gap")
     assert response.status_code == 500
     assert "화면을 그릴 수 없다" in response.text
     assert "compliance.yaml" in response.text

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>votelink — 선거 상황실</title>
+    <!-- 웹폰트는 CDN이 아니라 npm 패키지(@fontsource/*)로 번들한다(src/main.tsx에서
+         import) — 런타임 외부 요청 0건 원칙(docs/40-webapp-spec.md §10)을 CDN
+         화이트리스트보다 더 엄격하게 지킨다. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

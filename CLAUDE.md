@@ -16,17 +16,18 @@
 | 저장 경로·무엇을 지워도 되는지 | `docs/11-storage.md` + `votelink/store.py` |
 | 새 분석기 추가 | 스킬 `new-analyzer` 를 호출 |
 | 분석 로직 수정 | `analyzers/<id>/` + `docs/30-analysis-spec.md` |
-| 웹앱 화면 작업 | `votelink/web/` + `docs/40-webapp-spec.md` |
+| 웹앱 화면 작업 (React, v2 — 24개 전부) | `frontend/src/` + `docs/40-webapp-spec.md §10-1` |
+| 웹앱 API 라우트 추가/수정 (화면이 아니라 데이터) | `votelink/web/app.py`(일반) 또는 `ops.py`(운영자) + `docs/40-webapp-spec.md §10-1` |
 | 산출물이 선거법에 걸리는지 | `docs/90-compliance.md` |
 | 프로젝트 전체 파악 | `docs/00-overview.md` (이것만) |
 | API 키·계정이 필요한지 | `docs/SETUP.md` |
 | 선거구에 어느 동이 속하는지 | `data/shared/reference/districts.yaml` (코드에 박지 말 것) |
 | 선거구 행정동코드(admmCd) 채우기 | `docs/proposals/D-001-seoul-emd-backfill.md` + `votelink/reference/emd_backfill.py` |
 | 캠프 공간·온보딩·관할·선거 주기 | `votelink/camp/` + `docs/proposals/P-001-camp-data-isolation.md` |
-| 온보딩 관할 입력 UI (동 이름 shuttle) | `votelink/web/templates/onboarding.html` + `votelink/web/forms.py` + `docs/proposals/P-004-onboarding-emd-picker.md` |
+| 온보딩·주기 생성/수정 관할 입력 UI (동 이름 shuttle) | `frontend/src/components/cycle/EmdShuttle.tsx` + `votelink/web/forms.py` + `docs/proposals/P-004-onboarding-emd-picker.md` |
 | 로그인·세션·계정·권한 | `votelink/control/` + `votelink/web/auth.py` + `docs/proposals/P-002-auth-and-camp-approval.md` |
-| 운영자 화면 (`/ops/*`) | `votelink/web/ops.py` + `docs/proposals/P-003-operator-console.md` |
-| 운영자가 캠프 주기를 대신 수정 | `votelink/web/ops.py` + `docs/proposals/P-005-operator-edits-camp-cycle.md` |
+| 운영자 화면 (`/ops/*`) | `frontend/src/pages/Ops*.tsx` + `votelink/web/ops.py` + `docs/proposals/P-003-operator-console.md` |
+| 운영자가 캠프 주기를 대신 수정 | `frontend/src/pages/OpsCycleEditPage.tsx` + `votelink/web/ops.py` + `docs/proposals/P-005-operator-edits-camp-cycle.md` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.
@@ -87,6 +88,12 @@ uv run ruff check . && uv run ruff format .
 
 ```bash
 uv run ruff check . && uv run pytest
+```
+
+`frontend/` 를 고쳤으면 추가로:
+
+```bash
+cd frontend && npm run lint && npm test && npm run build
 ```
 
 ## 확장 방식

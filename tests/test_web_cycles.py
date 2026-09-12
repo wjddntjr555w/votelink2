@@ -14,6 +14,7 @@ import datetime as dt
 
 import pytest
 
+from tests.test_web import _ABSOLUTE_URL_RE, ALLOWED_EXTERNAL_HOSTS
 from tests.test_web_auth import Env, camp_client, login
 from votelink import camp as camp_mod
 from votelink.control import audit
@@ -25,6 +26,7 @@ def env(tmp_path):
 
 
 def add(client, *, date: str, preset: str = "test_gap", **over):
+    """React `CycleFormPage` 가 fetch 로 부르는 것과 같은 모양 — 폼이 아니라 JSON."""
     form = {
         "election_type": "local",
         "office": "basic_head",
@@ -34,18 +36,27 @@ def add(client, *, date: str, preset: str = "test_gap", **over):
         "preset": preset,
     }
     form.update(over)
-    return client.post("/cycles/new", data=form, follow_redirects=False)
+    return client.post("/api/cycles/new", json=form)
 
 
-# --- 목록 -------------------------------------------------------------------------
+# --- 목록 (JSON API, React SPA) ----------------------------------------------------
+#
+# `/cycles` 는 빌드된 SPA 셸만 돌려준다. 데이터·회귀 테스트는 `/api/cycles` 를 본다.
+
+
+def test_cycles_screen_serves_the_spa_shell(env):
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+    assert client.get("/cycles").status_code == 200
 
 
 def test_the_list_marks_which_cycle_is_current(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    html = client.get("/cycles").text
+    rows = client.get("/api/cycles").json()["rows"]
 
-    assert "2028-04-12-national_assembly" in html
-    assert "지금 보는 주기" in html
+    ids = {r["id"] for r in rows}
+    assert "2028-04-12-national_assembly" in ids
+    current = [r for r in rows if r["current"]]
+    assert [r["id"] for r in current] == ["2028-04-12-national_assembly"]
 
 
 def test_the_list_needs_onboarding_first(env):
@@ -83,8 +94,8 @@ def test_adding_a_cycle_keeps_the_old_one(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
 
     response = add(client, date="2030-06-05")
-    assert response.status_code == 303
-    assert response.headers["location"] == "/cycles", "목록으로 보낸다 — 무엇이 현재인지 보여준다"
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
 
     assert camp_mod.list_cycles("gap", env.root) == [
         "2028-04-12-national_assembly",
@@ -92,15 +103,17 @@ def test_adding_a_cycle_keeps_the_old_one(env):
     ]
 
 
+def _current_id(rows):
+    return next(r["id"] for r in rows if r["current"])
+
+
 def test_a_later_election_does_not_steal_the_current_view(env):
     """2030년 지선을 등록해도 화면은 2028년 총선을 본다 — 그게 다음 선거다."""
     client = camp_client(env, "gap@test", "gap", "test_gap")
     add(client, date="2030-06-05")
 
-    html = client.get("/cycles").text
-    current = html.split("지금 보는 주기")[0]
-    assert "2028-04-12-national_assembly" in current
-    assert "2030-06-05-local" not in current
+    rows = client.get("/api/cycles").json()["rows"]
+    assert _current_id(rows) == "2028-04-12-national_assembly"
 
 
 def test_an_earlier_upcoming_election_becomes_the_current_view(env):
@@ -108,8 +121,8 @@ def test_an_earlier_upcoming_election_becomes_the_current_view(env):
     client = camp_client(env, "gap@test", "gap", "test_gap")
     add(client, date="2027-06-05")
 
-    html = client.get("/cycles").text
-    assert "2027-06-05-local" in html.split("지금 보는 주기")[0]
+    rows = client.get("/api/cycles").json()["rows"]
+    assert _current_id(rows) == "2027-06-05-local"
 
 
 def test_the_new_cycle_can_change_the_lineage_and_territory(env):
@@ -143,7 +156,7 @@ def test_a_duplicate_cycle_is_refused(env):
 
     response = add(client, date="2030-06-05")
     assert response.status_code == 400
-    assert "이미 있다" in response.text
+    assert "이미 있다" in response.json()["error"]
     assert len(camp_mod.list_cycles("gap", env.root)) == 2, "실패가 세 번째를 만들지 않는다"
 
 
@@ -154,7 +167,7 @@ def test_an_unknown_emd_is_refused_here_too(env):
     response = add(client, date="2030-06-05", preset="", emd_codes="9999999999")
 
     assert response.status_code == 400
-    assert "9999999999" in response.text
+    assert "9999999999" in response.json()["error"]
     assert len(camp_mod.list_cycles("gap", env.root)) == 1
 
 
@@ -177,21 +190,20 @@ def test_an_undated_cycle_does_not_hijack_the_view(env):
     add(client, date="")
 
     assert "미정-local" in camp_mod.list_cycles("gap", env.root)
-    html = client.get("/cycles").text
-    assert "2028-04-12-national_assembly" in html.split("지금 보는 주기")[0]
+    rows = client.get("/api/cycles").json()["rows"]
+    assert _current_id(rows) == "2028-04-12-national_assembly"
 
 
 def test_the_form_says_which_mode_it_is_in(env):
-    """같은 폼이지만 첫 설정과 주기 추가는 다른 일이다."""
+    """같은 폼이지만 첫 설정과 주기 추가는 다른 일이다 — `first` 플래그가 그 구분이고,
+    React `CycleFormPage` 가 문구·저장 뒤 행선지를 그 값으로 가른다."""
     env.approve("hong@test", "hong")
     first = env.client()
     login(first, "hong@test")
-    assert "캠프 설정" in first.get("/onboarding").text
+    assert first.get("/api/onboarding").json()["first"] is True
 
     client = camp_client(env, "gap@test", "gap", "test_gap")
-    later = client.get("/cycles/new").text
-    assert "선거 주기 추가" in later
-    assert 'action="/cycles/new"' in later
+    assert client.get("/api/cycles/new").json()["first"] is False
 
 
 def test_the_cycle_screens_make_no_external_requests(env):
@@ -199,8 +211,8 @@ def test_the_cycle_screens_make_no_external_requests(env):
     for path in ("/cycles", "/cycles/new"):
         html = client.get(path).text
         assert "http://" not in html
-        assert "https://" not in html
-        assert "//" not in html.replace("</", "").replace("<!--", "")
+        for host in _ABSOLUTE_URL_RE.findall(html):
+            assert host in ALLOWED_EXTERNAL_HOSTS
 
 
 def test_a_broken_cycle_is_shown_not_hidden(env):
@@ -212,19 +224,21 @@ def test_a_broken_cycle_is_shown_not_hidden(env):
         path.read_text(encoding="utf-8").replace('"1171051000"', '"9999999999"'), encoding="utf-8"
     )
 
-    html = client.get("/cycles").text
-    assert "2030-06-05-local" in html
-    assert "설정이 깨져 있다" in html
-    assert "2028-04-12-national_assembly" in html.split("지금 보는 주기")[0], "나머지는 멀쩡하다"
+    rows = client.get("/api/cycles").json()["rows"]
+    broken = next(r for r in rows if r["id"] == "2030-06-05-local")
+    assert broken["error"]  # React `CyclesPage` 가 이 값을 "설정이 깨져 있다" 배너에 그린다
+    assert broken["cycle"] is None
+    assert _current_id(rows) == "2028-04-12-national_assembly", "나머지는 멀쩡하다"
 
 
 def test_past_and_upcoming_are_labelled_differently(env):
-    """예정/지난 표시가 오늘 날짜에 달려 있다. 목록에 둘이 섞여 있으면
-    어느 것이 끝난 선거인지 한눈에 보여야 한다."""
+    """예정/지난 표시(React `CyclesPage` 가 `election.date >= today` 로 계산)가
+    오늘 날짜에 달려 있다 — API 는 그 판단에 필요한 날짜 값 둘 다 낸다."""
     client = camp_client(env, "gap@test", "gap", "test_gap")
     past = (dt.date.today() - dt.timedelta(days=400)).isoformat()
     add(client, date=past)
 
-    html = client.get("/cycles").text
-    assert "(예정)" in html, "2028-04-12 총선"
-    assert "(지난 선거)" in html, past
+    data = client.get("/api/cycles").json()
+    dates = {r["id"]: r["cycle"]["election"]["date"] for r in data["rows"]}
+    assert dates["2028-04-12-national_assembly"] >= data["today"], "예정"
+    assert dates[f"{past}-local"] < data["today"], "지난 선거"
