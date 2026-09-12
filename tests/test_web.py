@@ -342,11 +342,13 @@ def build_two(tmp_path) -> TestClient:
 
 
 def test_root_offers_a_choice_when_there_are_several(tmp_path):
-    """선거구가 여럿이면 조용히 첫 번째를 열지 않고 고르게 한다."""
-    html = build_two(tmp_path).get("/").text
-    assert "선거구를 고르세요" in html
-    assert "시험 지역구 갑" in html
-    assert "시험 지역구 을" in html
+    """선거구가 여럿이면 조용히 첫 번째를 열지 않고 고르게 한다 — `/` 는 React
+    셸(200, 리다이렉트 아님)을 돌려주고, 목록 자체는 `/api/districts` 가 낸다."""
+    client = build_two(tmp_path)
+    assert client.get("/", follow_redirects=False).status_code == 200
+    districts = dict(client.get("/api/districts").json()["districts"])
+    assert districts["test_gap"] == "시험 지역구 갑"
+    assert districts["test_eul"] == "시험 지역구 을"
 
 
 def test_each_district_renders_on_its_own_path(tmp_path):

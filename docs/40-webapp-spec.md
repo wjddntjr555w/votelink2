@@ -86,7 +86,7 @@ votelink/web/
 **선거구를 아는 법**: `analyzers/voter_profile/meta.yaml` 의 `config` 를 읽지 않는다
 (L2 내부 상태다). 새 설정 파일도 만들지 않는다(값이 중복된다). 선거구는 **URL 이 정한다** —
 `/d/<선거구>/` 와 `/d/<선거구>/map`. `/` 는 선거구가 하나뿐이면 그리로 302, 여럿이면
-선택 화면(`districts.html`)을 띄운다. `--district` 나 `WebSettings.district_id` 는 `/` 가
+선택 화면(React, `DistrictsPage.tsx` — §10-1)을 띄운다. `--district` 나 `WebSettings.district_id` 는 `/` 가
 바로 보낼 **기본 선거구**를 정할 뿐, 요청 URL 이 항상 이긴다. 조용히 첫 번째를 고르지 않는다.
 `districts.yaml` 에 선거구가 여럿이어도 서버는 뜬다.
 
@@ -134,7 +134,7 @@ votelink/web/
 
 ### `GET /` — 선거구 라우팅
 
-선거구가 하나면 `/d/<그 선거구>/` 로 302. 여럿이면 선택 화면(`districts.html`, 링크 목록).
+선거구가 하나면 `/d/<그 선거구>/` 로 302. 여럿이면 선택 화면(React, 링크 목록 — `DistrictsPage.tsx`).
 `WebSettings.district_id`(= `serve --district`)가 있으면 그리로 바로 302.
 내비게이션에는 선거구가 둘 이상일 때만 전환 `<select>` 가 뜬다 (`onchange` 한 줄, 외부 요청 없음).
 
@@ -558,10 +558,11 @@ CDN을 쓰던 화면(대시보드)이 가장 먼저 옮겨갔고, 그 뒤로 새
   전부 걷어냈다. `test_web_ops.py` 는 `OPS_PATHS`(`/ops/...`)와
   `API_OPS_PATHS`(`/api/ops/...`) 둘 다에 대해 캠프 계정 403 을 확인한다 — 위
   `is_ops()` 회귀를 이 파라미터화 테스트가 잡는다.
-- **아직 안 옮긴 것**: 없다. `votelink/web/templates/` 에 남은 건 `base.html`·
-  `denied.html`·`districts.html`·`error.html`·`_icons.html` 뿐이다 — 화면이
-  아니라 그 화면들 아래에 깔리는 셸/오류 페이지다. 다음 확장은 새 화면 자체를
-  더하는 일이지, 남은 화면을 옮기는 일이 아니다.
+- **아직 안 옮긴 것**: 없다. `/` 의 선거구 선택 화면(`DistrictsPage.tsx`)도 이제
+  React다 — `/api/districts` 가 JSON을 낸다. `votelink/web/templates/` 에 남은 건
+  `base.html`·`denied.html`·`error.html`·`_icons.html` 뿐이다 — 화면이 아니라 그
+  화면들 아래에 깔리는 셸/오류 페이지다. 다음 확장은 새 화면 자체를 더하는
+  일이지, 남은 화면을 옮기는 일이 아니다.
 
 ## 11. 지도 배치 — 지금은 격자, 나중에 경계
 

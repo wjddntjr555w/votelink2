@@ -10,12 +10,14 @@
   padding: 22px 16px;
   border-right: 1px solid var(--console-line);
 }
-.rail__brand { display: flex; align-items: baseline; gap: 8px; padding: 0 6px 22px; }
+.rail__brand { display: flex; align-items: baseline; gap: 8px; padding: 0 6px 22px; text-decoration: none; color: inherit; }
 .rail__brand b { color: #fff; font-size: 16px; letter-spacing: 0.02em; }
 .rail__brand span { font-size: 11px; opacity: 0.7; }
 .rail__district { padding: 0 6px 18px; border-bottom: 1px solid var(--console-line); margin-bottom: 14px; }
 .rail__district .name { font-size: 15px; font-weight: 600; color: #fff; }
 .rail__district .meta { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.rail__district .who { font-size: 12px; margin-top: 10px; }
+.rail__district .who b { color: #fff; display: block; font-size: 13px; }
 
 .rail__nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .rail__nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 4px; color: var(--console-text); text-decoration: none; font-size: 13.5px; }
@@ -23,15 +25,16 @@
 .rail__nav a.on { background: var(--accent); color: #251b06; font-weight: 600; }
 .rail__navlabel { font-size: 10.5px; letter-spacing: 0.06em; color: var(--console-text); opacity: 0.6; text-transform: uppercase; padding: 12px 10px 2px; }
 
-.rail__foot { border-top: 1px solid var(--console-line); padding-top: 14px; margin-top: 14px; }
-.rail__foot .who { font-size: 12px; }
-.rail__foot .who b { color: #fff; display: block; font-size: 13px; }
 .rail__status { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 11px; }
 .rail__status i { width: 6px; height: 6px; border-radius: 50%; background: var(--signal-ahead); display: inline-block; }
 .rail__account { display: flex; gap: 10px; align-items: center; margin-top: 10px; font-size: 12px; }
 .rail__account a { color: var(--console-text); }
 .rail__account a.on { color: #fff; font-weight: 600; text-decoration: underline; }
 .rail__account .linkish { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--console-text); text-decoration: underline; cursor: pointer; }
+
+.district-list { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.district-list li { display: flex; align-items: baseline; gap: 8px; }
+.district-list a { font-size: 14px; }
 
 /* ---------- 메인 ---------- */
 .main { flex: 1; min-width: 0; }

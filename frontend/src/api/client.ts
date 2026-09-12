@@ -5,6 +5,7 @@ import type {
   CyclePreviewApiResponse,
   CyclesApiResponse,
   DashboardResponse,
+  DistrictsApiResponse,
   MapApiResponse,
   MeApiResponse,
   NationApiResponse,
@@ -33,6 +34,10 @@ async function getJson<T>(path: string): Promise<T> {
     throw new ApiError(res.status, `${path} 요청 실패 (${res.status})`);
   }
   return (await res.json()) as T;
+}
+
+export function fetchDistricts(): Promise<DistrictsApiResponse> {
+  return getJson<DistrictsApiResponse>("/api/districts");
 }
 
 export function fetchDashboard(

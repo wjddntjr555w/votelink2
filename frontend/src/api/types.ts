@@ -448,6 +448,13 @@ export interface NationApiResponse {
   account: { email: string; is_operator: boolean } | null;
 }
 
+export interface DistrictsApiResponse {
+  districts: [string, string][];
+  lens: Lens | null;
+  auth_on: boolean;
+  account: { email: string; is_operator: boolean } | null;
+}
+
 export interface SignupRequestInfo {
   candidate_name: string;
   contact: string;

@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import { DistrictsPage } from "./pages/DistrictsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { MapPage } from "./pages/MapPage";
 import { NewsPage } from "./pages/NewsPage";
@@ -26,6 +27,7 @@ import { OpsAuditPage } from "./pages/OpsAuditPage";
 export function App() {
   return (
     <Routes>
+      <Route path="/" element={<DistrictsPage />} />
       <Route path="/d/:districtId/" element={<DashboardPage />} />
       <Route path="/d/:districtId/map" element={<MapPage />} />
       <Route path="/d/:districtId/news" element={<NewsPage />} />

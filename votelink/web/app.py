@@ -208,7 +208,23 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         target = settings.district_id or (districts[0][0] if len(districts) == 1 else None)
         if target:
             return RedirectResponse(f"/d/{target}/", status_code=307)
-        return _render(request, "districts.html", _ctx(request))
+        return _spa_shell()
+
+    @app.get("/api/districts")
+    def api_districts(request: Request) -> dict:
+        """`/` 의 선거구 선택 화면. 여럿일 때만 렌더된다 — 하나거나 없으면 위
+        `index` 가 이미 리다이렉트했다."""
+        settings: WebSettings = request.app.state.settings
+        lens = request.state.lens
+        account = getattr(request.state, "account", None)
+        return {
+            "districts": available_districts(settings, lens),
+            "lens": lens.model_dump(mode="json") if lens else None,
+            "auth_on": settings.auth,
+            "account": (
+                {"email": account.email, "is_operator": account.is_operator} if account else None
+            ),
+        }
 
     @app.get("/d/{district_id}/", response_class=Response)
     def dashboard(district_id: str) -> Response:
