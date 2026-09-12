@@ -45,12 +45,16 @@ export function CyclesPage() {
     );
   }
 
+  // 캠프 계정은 관할 선거구가 있다 — 이 화면에도 대시보드·지도·뉴스 링크를 계속
+  // 보여준다("전국"류 화면을 본다고 사이드바 메뉴가 통째로 달라지면 안 된다).
+  const homeDistrictId = data.lens ? data.districts[0]?.[0] : undefined;
+
   return (
     <div className="shell">
-      <Sidebar active="cycles" lens={data.lens} authOn={data.auth_on} account={data.account} />
+      <Sidebar active="cycles" districtId={homeDistrictId} lens={data.lens} authOn={data.auth_on} account={data.account} />
 
       <div className="main">
-        <TopBar electionTypes={[]} electionType="" districts={[]} authOn={data.auth_on} onElectionTypeChange={() => {}} />
+        <TopBar electionTypes={[]} electionType="" districts={data.districts} authOn={data.auth_on} onElectionTypeChange={() => {}} />
 
         <div className="content">
           <div className="page-head">

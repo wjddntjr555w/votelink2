@@ -622,6 +622,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "rows": rows,
             "today": dt.date.today().isoformat(),
             "lens": lens.model_dump(mode="json") if lens else None,
+            # Sidebar 가 대시보드·지도·뉴스 링크(이 캠프의 "지금 이 선거구")를
+            # 그리는 데 쓴다 — 없으면 /cycles 를 보는 동안 그 링크들이 사라진다.
+            "districts": available_districts(s, lens),
             "auth_on": s.auth,
             "account": {"email": account.email, "is_operator": account.is_operator},
         }

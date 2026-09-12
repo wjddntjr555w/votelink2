@@ -519,6 +519,7 @@ export interface CyclesApiResponse {
   rows: CycleRow[];
   today: string;
   lens: Lens | null;
+  districts: [string, string][];
   auth_on: boolean;
   account: { email: string; is_operator: boolean };
 }

@@ -71,10 +71,14 @@ export function ComparePage() {
   const { view } = data;
   const openIds = new Set(data.districts.map(([id]) => id));
   const isEmpty = view.rows.length === 0;
+  // 캠프 계정은 관할 선거구가 있다 — 이 화면에도 대시보드·지도·뉴스 링크를 계속
+  // 보여준다("전국"류 화면을 본다고 사이드바 메뉴가 통째로 달라지면 안 된다).
+  // 운영자는 "지금 이 선거구"가 없으므로 여전히 그 링크들을 안 그린다.
+  const homeDistrictId = data.lens ? data.districts[0]?.[0] : undefined;
 
   return (
     <div className="shell">
-      <Sidebar active="compare" lens={data.lens} authOn={data.auth_on} account={data.account} />
+      <Sidebar active="compare" districtId={homeDistrictId} lens={data.lens} authOn={data.auth_on} account={data.account} />
 
       <div className="main">
         <TopBar

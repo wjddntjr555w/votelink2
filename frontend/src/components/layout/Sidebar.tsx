@@ -50,6 +50,7 @@ export function Sidebar({ districtId, districtName, electionTypeLabel, active, l
               </a>
             </>
           )}
+          <div className="rail__navlabel">전국</div>
           <a className={active === "compare" ? "on" : ""} href="/compare">
             <Icon name="compare" />
             선거구 비교
