@@ -12,6 +12,20 @@ proposal: docs/proposals/A-003-issue-ranker.md
 #   스포츠·행사·인사·부고가 70%+ 이고(미분류 83%), 분류분에도 송파를 스쳐 언급한
 #   국가 뉴스(선관위 특검 등)가 섞인다. issue_lexicon.yaml 은 draft 이고 카드에
 #   표본 편향 경고를 상시 노출한다. 깨끗한 지역 뉴스 수집기가 생기면 재평가한다.
+#
+# 2026-09-13: 재확인, 여전히 미검증.
+#   - naver_news --reparse (P-006) 가 append 저장과 부딪혀 record_id 15,178개를
+#     중복 저장한 상태에서 처음 돌리니 격리율 100%(derived_from 중복 불가 위반)로
+#     완전히 실패했다 — news_pulse 와 달리 이 분석기는 중복을 그대로 계산에
+#     실어 계약 위반을 시끄럽게 드러냈다(의도한 fail-closed 동작). 근본 원인은
+#     votelink/collect/runner.py 의 --reparse 저장 경로(별도 수정 필요, 이
+#     분석기 범위 밖). data/shared/records/naver_news.jsonl 을 record_id 기준
+#     일회성 정리(백업: naver_news.jsonl.bak-dedup) 후 재실행해 격리 0%·멱등
+#     확인 완료.
+#   - 정리 후 표본 지표: 입력 167,939 (송파 window 10,398) · unclassified_count
+#     8,554 (82.3%) — 2026-09-06 시점의 83%와 사실상 동일하다. 즉 원래
+#     verified 를 막은 표본 편향 사유가 이번 재확인에서도 그대로 재현됐다.
+#     증분 수집 1주만으로는 해소되지 않는, 검색 소스 자체의 구조적 문제다.
 verified: false
 
 config:

@@ -12,6 +12,19 @@ proposal: docs/proposals/A-002-news-pulse.md
 #     최근으로 갈수록 기사량이 부풀어 있다 (2026-W36 2,445 vs W25 81). 이 계열의
 #     "급증"은 실제 뉴스량이 아니라 상한 아티팩트다. payload.backfill_distorted 가
 #     이를 True 로 표시하고, L3 카드가 경고를 띄운다.
+#
+# 2026-09-13: 재확인, 여전히 미검증.
+#   - naver_news --reparse (P-006 person_terms 반영) 가 append 저장 방식과 부딪혀
+#     record_id 15,178개가 중복 저장되는 버그를 만들었다 (분석기가 아니라
+#     votelink/collect/runner.py 의 --reparse 저장 경로 문제. 근본 수정은 별도
+#     제안 필요). 이 분석기는 derived_from 에서 중복을 걸러내지 않아 조용히
+#     기사 수를 이중 집계하고 있었다 — 중복 record_id 를 일회성으로 정리
+#     (data/shared/records/naver_news.jsonl.bak-dedup 에 정리 전 백업)한 뒤
+#     재실행해 격리 0%·멱등(교체 1·신규 0) 확인.
+#   - 정리 후에도 backfill_distorted=true 는 그대로다: 2026-08-31/09-07 두 주가
+#     각각 3,111 / 3,368건으로 직전 몇 주(약 400~900건) 대비 압도적으로 높다
+#     (spike_z 11.73 / 2.67). 증분 수집이 1주 쌓인 정도로는 첫 백필의 상한
+#     아티팩트가 아직 안 빠졌다. 원래 조건(여러 주 실측 대조) 그대로 미충족.
 verified: false
 
 config:
