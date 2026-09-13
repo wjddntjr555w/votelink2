@@ -28,6 +28,7 @@
 | 로그인·세션·계정·권한 | `votelink/control/` + `votelink/web/auth.py` + `docs/proposals/P-002-auth-and-camp-approval.md` |
 | 운영자 화면 (`/ops/*`) | `frontend/src/pages/Ops*.tsx` + `votelink/web/ops.py` + `docs/proposals/P-003-operator-console.md` |
 | 운영자가 캠프 주기를 대신 수정 | `frontend/src/pages/OpsCycleEditPage.tsx` + `votelink/web/ops.py` + `docs/proposals/P-005-operator-edits-camp-cycle.md` |
+| 정당·후보 태깅 뉴스로 뭘 만들지, 다음 단계가 뭔지 | `docs/roadmap-news-content.md` |
 
 수집기가 20개가 되어도 한 개를 고치는 비용은 그대로여야 한다.
 전체 목록이 필요하면 `collectors/registry.yaml` 한 파일만 본다.
