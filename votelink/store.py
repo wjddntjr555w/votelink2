@@ -134,10 +134,17 @@ def existing_record_ids(owner_id: str, space: DataSpace) -> set[str]:
 def upsert_records(owner_id: str, records: list[Record], space: DataSpace) -> tuple[int, int]:
     """같은 `record_id` 는 새 값으로 교체하고 나머지 줄은 보존한다. (교체수, 신규수).
 
-    **분석기용이다.** 수집기는 원본이 불변이라 append 로 충분하지만, 분석 결과는
+    **분석기 그리고 수집기의 `--reparse` 가 쓴다.** 보통 수집기는 원본이 불변이라
+    append 로 충분하지만, `--reparse`는 파싱 로직이 바뀌었을 때 같은 `record_id`가
+    다른 payload로 다시 나오는 것을 의도한다 — append 만 하면 그 갱신이 '중복'으로
+    조용히 쌓인다(`docs/proposals/D-007`). 분석 결과도 같은 이유로 upsert가 필요하다:
     로직이나 참조 데이터(`party_lineage.yaml` 등)를 고치면 같은 키에서 다른 값이
-    나온다. append 만 하면 그 갱신이 '중복'으로 조용히 버려져서, 매핑을 고치고
+    나오는데, append 만 하면 그 갱신이 '중복'으로 조용히 버려져서, 매핑을 고치고
     재실행해도 산출물이 그대로인 상태가 된다.
+
+    **한 owner_id 파일을 여러 선거구가 공유할 때도 이게 맞다** — 이 호출의
+    `records`에 없는 record_id(다른 선거구가 채운 것)는 `kept`로 그대로
+    보존된다. 파일 전체를 이 호출의 결과로 덮어쓰면 안 된다.
 
     다른 `as_of` 의 과거 분석은 record_id 가 다르므로 그대로 남는다.
     """

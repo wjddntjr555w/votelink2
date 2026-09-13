@@ -13,7 +13,7 @@ from datetime import datetime
 from votelink.collect import storage
 from votelink.collect.base import BaseCollector, Rejected
 from votelink.contract.models import KST, Record
-from votelink.store import DataSpace
+from votelink.store import DataSpace, upsert_records
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +108,15 @@ def run(
         if rejected:
             storage.append_rejected(collector.id, rejected, report.started_at, space)
         if accepted and not report.failed:
-            storage.append_records(collector.id, accepted, space)
+            if reparse:
+                # 같은 record_id 를 append 하면 중복이 쌓인다 (D-007). 이 owner_id
+                # 파일은 다른 선거구가 채운 record_id 와 공유될 수 있으므로(예:
+                # naver_news 는 선거구별로 같은 파일에 쌓인다, docs/11-storage.md §2)
+                # 파일 전체를 이 실행 결과로 교체하지 않는다 — upsert 로 일치하는
+                # record_id 만 갈아끼우고 나머지 줄은 보존한다.
+                upsert_records(collector.id, accepted, space)
+            else:
+                storage.append_records(collector.id, accepted, space)
             report.written = len(accepted)
 
     return report
