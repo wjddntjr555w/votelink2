@@ -15,14 +15,26 @@ from datetime import datetime
 from functools import cached_property
 from typing import Any
 
+from votelink.camp import candidate_queries_for_district, person_terms_for_district
 from votelink.collect import BaseCollector, FetchError, ParseResult, RawBatch, polite_client
 from votelink.contract.models import Record, to_kst
 from votelink.reference.districts import resolve_district
+from votelink.reference.news_parties import party_queries_for_geo
 
 from .text import clean_text, match_terms, normalize_url, parse_pub_date, publisher_from_url
 
 ENV_CLIENT_ID = "NAVER_CLIENT_ID"
 ENV_CLIENT_SECRET = "NAVER_CLIENT_SECRET"
+
+# 검색어 범위를 좁힌다. 운영자가 캠프 로스터를 막 갱신했을 때, 지명·정당 검색어까지
+# 전부 다시 돌리지 않고 후보·상대후보 검색어만 빠르게 재실행하고 싶을 때 쓴다
+# (`votelink/web/ops.py` 의 "이 지역구 후보 뉴스만 재수집" 버튼, P-006).
+# CLI 인자로 만들지 않는다 — `collect` 서브커맨드는 모든 수집기가 공유하는 generic
+# 인터페이스이고, 이건 naver_news 하나만의 관심사다. NAVER_CLIENT_ID 처럼 이미
+# 환경변수로 여닫는 값이 있으므로 같은 통로를 쓴다.
+ENV_QUERY_SCOPE = "NAVER_NEWS_QUERY_SCOPE"
+SCOPE_ALL = "all"
+SCOPE_CANDIDATES = "candidates"
 
 # 응답 필드명. fixture 없이 공식 문서만 보고 구현했으므로 한 곳에 모아 둔다.
 # 실제 응답이 다르면 여기만 고치면 된다.
@@ -38,6 +50,9 @@ SUMMARY_MAX = 600
 
 CONFIDENCE_DISTRICT = 0.9  # 지역구 안의 동·지명이 직접 나온 기사
 CONFIDENCE_SIGUNGU = 0.7  # 구 단위 표현만 나온 기사
+# 후보 실명은 지리적 모호성이 없다(동명이인 노이즈는 검색어 쪽에서 정당 한정어로 줄인다).
+# sigungu_terms(0.7)처럼 흔한 지명과 달리 district_terms 급 특정성을 준다.
+CONFIDENCE_PERSON = 0.9
 
 
 class Collector(BaseCollector):
@@ -51,8 +66,30 @@ class Collector(BaseCollector):
         display, max_start = int(paging["display"]), int(paging["max_start"])
 
         with polite_client(self.meta, headers=self._auth_headers()) as client:
-            for query in cfg["queries"]:
+            for query in self._queries():
                 yield from self._fetch_query(client, query, since, display, max_start)
+
+    def _queries(self) -> list[dict[str, str]]:
+        """지명 검색어(손입력) + 캠프 로스터 후보 검색어 + 전역 정당 검색어.
+
+        캠프별로 수집을 쪼개지 않는다 — 이 district 를 관할하는 모든 캠프의 로스터를
+        합쳐 한 번만 돈다 (P-001 §5, P-006).
+
+        `NAVER_NEWS_QUERY_SCOPE=candidates` 면 후보 검색어만 돈다 — 지명·정당
+        검색어는 건너뛴다. 매칭 사전(`_person_terms` 등)은 범위와 무관하게 항상
+        전부 채운다 — 그래야 이 범위로 받은 기사도 스코프 판정·mentioned_* 이
+        평소와 똑같이 계산된다.
+        """
+        cfg = self.config
+        district_id = cfg.get("district")
+        candidate_queries = candidate_queries_for_district(district_id) if district_id else []
+
+        if os.environ.get(ENV_QUERY_SCOPE) == SCOPE_CANDIDATES:
+            return candidate_queries
+
+        queries = list(cfg["queries"]) + candidate_queries
+        queries += party_queries_for_geo(cfg["geo_name"])
+        return queries
 
     def _auth_headers(self) -> dict[str, str]:
         client_id = os.environ.get(ENV_CLIENT_ID)
@@ -127,10 +164,10 @@ class Collector(BaseCollector):
 
     def parse(self, raw: RawBatch) -> Iterator[ParseResult]:
         items = raw.body.get(F_ITEMS) or []
-        # 지역 사전에 하나도 걸리지 않는 기사는 격리가 아니라 필터로 버린다.
+        # 지역 사전·후보명에 하나도 걸리지 않는 기사는 격리가 아니라 필터로 버린다.
         # 계약 위반이 아니라 대상이 아닐 뿐이고, 격리하면 격리율 임계(5%)를 넘겨
         # 수집 전체가 실패한다. ('송파'라는 이름의 인물·회사·아파트 브랜드)
-        local = [item for item in items if self._mentions_region(item)]
+        local = [item for item in items if self._in_scope(item)]
         yield from self.map_items(local, self._to_record)
 
     def _to_record(self, item: dict[str, Any]) -> Record:
@@ -143,6 +180,16 @@ class Collector(BaseCollector):
         haystack = f"{title}\n{summary}"
         district_hits = match_terms(haystack, self._district_terms)
         places = match_terms(haystack, self._district_terms + self._sigungu_terms)
+        persons = match_terms(haystack, self._person_terms)
+        # 지명이 district 급이면 그걸 우선한다. 지명은 없고 후보 실명만 걸린 기사도
+        # district 급 특정성을 준다 — 동명이인 노이즈는 검색어의 정당 한정어로 줄였다.
+        confidence = (
+            CONFIDENCE_DISTRICT
+            if district_hits
+            else CONFIDENCE_PERSON
+            if persons
+            else CONFIDENCE_SIGUNGU
+        )
 
         return Record(
             kind="news_article",
@@ -157,7 +204,7 @@ class Collector(BaseCollector):
             # 추정은 L1 의 일이 아니다 — L2 가 mentioned_places 로 파생 레코드를 만든다.
             geo_code=str(cfg["sigungu_code"]),
             geo_name=cfg["geo_name"],
-            confidence=CONFIDENCE_DISTRICT if district_hits else CONFIDENCE_SIGUNGU,
+            confidence=confidence,
             derived_from=[],
             # 같은 기사가 여러 검색어에 걸려도 record_id 가 같아 자동으로 하나가 된다.
             natural_key=url,
@@ -170,7 +217,7 @@ class Collector(BaseCollector):
                 "summary": summary[:SUMMARY_MAX],
                 "full_text_stored": False,
                 "mentioned_places": places,
-                "mentioned_persons": match_terms(haystack, self._person_terms),
+                "mentioned_persons": persons,
                 # 주제 분류는 해석이다. L2 의 local_issue 파생 레코드가 채운다.
                 "topics": [],
             },
@@ -178,13 +225,19 @@ class Collector(BaseCollector):
 
     # --- 지역 사전 -------------------------------------------------------------
 
-    def _mentions_region(self, item: dict[str, Any]) -> bool:
+    def _in_scope(self, item: dict[str, Any]) -> bool:
+        """지명 또는 후보 실명 중 하나라도 걸리면 이 district 의 대상으로 본다.
+
+        후보명만 걸리고 지명이 없는 기사(예: "OOO 의원, 국회서 OO법 발의")를 여기서
+        버리면 person 쿼리로 찾아놓고도 폐기된다 — person_terms 도 범위 판정 근거다.
+        """
         title = item.get(F_TITLE) or ""
         description = item.get(F_DESCRIPTION) or ""
         if not isinstance(title, str) or not isinstance(description, str):
             return False
         haystack = clean_text(f"{title}\n{description}")
-        return bool(match_terms(haystack, self._district_terms + self._sigungu_terms))
+        terms = self._district_terms + self._sigungu_terms + self._person_terms
+        return bool(match_terms(haystack, terms))
 
     @cached_property
     def _district_terms(self) -> list[str]:
@@ -204,5 +257,13 @@ class Collector(BaseCollector):
 
     @cached_property
     def _person_terms(self) -> list[str]:
-        """공인 화이트리스트. 일반인 이름은 어떤 경우에도 넣지 않는다 (절대규칙 3)."""
-        return sorted(set(self.config.get("person_terms") or []))
+        """공인 화이트리스트. 일반인 이름은 어떤 경우에도 넣지 않는다 (절대규칙 3).
+
+        meta.yaml 의 손입력 값 + 이 district 를 관할하는 캠프들의 candidates.yaml
+        (ours+opponents, 공개 출처 필드)에서 자동 파생된 값의 합집합이다 (P-006).
+        """
+        terms = set(self.config.get("person_terms") or [])
+        district_id = self.config.get("district")
+        if district_id:
+            terms.update(person_terms_for_district(district_id))
+        return sorted(terms)

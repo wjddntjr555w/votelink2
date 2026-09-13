@@ -347,3 +347,46 @@ def test_audit_is_newest_first(db):
     for i in range(3):
         audit.log(f"a{i}", path=db)
     assert [e.action for e in audit.recent(path=db)] == ["a2", "a1", "a0"]
+
+
+# --- 스키마 진화 --------------------------------------------------------------------
+
+
+def test_init_adds_a_missing_column_to_an_existing_table(tmp_path, monkeypatch):
+    """`CREATE TABLE IF NOT EXISTS` 는 이미 있는 테이블에 새 컬럼을 추가하지 않는다.
+
+    `jobs.note` 가 그런 사례다 — 이 컬럼이 생기기 전에 이미 `control.init()` 을
+    돌려본 적 있는 실제 배포판은, 마이그레이션 없이 새 코드를 올리면 `note` 를
+    쓰거나 읽는 순간(`jobs.start`/`jobs.get`) 그대로 터진다.
+    """
+    path = tmp_path / "control.db"
+    control.init(path)  # 지금 스키마로 처음 만든다(이미 note 가 있다)
+
+    # "옛 스키마"를 흉내낸다: note 컬럼이 없던 시절의 jobs 테이블로 되돌린다.
+    with connect(path) as conn:
+        conn.executescript(
+            """
+            DROP TABLE jobs;
+            CREATE TABLE jobs (
+              id INTEGER PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL,
+              args TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL,
+              finished_at TEXT, exit_code INTEGER, log_path TEXT, started_by INTEGER
+            );
+            """
+        )
+
+    control.init(path)  # 새 코드가 다시 기동하며 이 함수를 부른다
+
+    with connect(path) as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+    assert "note" in columns
+
+    import sys
+
+    from votelink.control import jobs
+
+    monkeypatch.setattr(jobs, "_command", lambda kind, target, args: [sys.executable, "-c", "pass"])
+    job = jobs.start(
+        "collect", "naver_news", [], 1, path=path, log_dir=tmp_path, note="이관 후 정상 동작"
+    )
+    assert jobs.get(job.id, path).note == "이관 후 정상 동작"

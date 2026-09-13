@@ -151,6 +151,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         # 웹은 테이블이 없다"는 어긋남이 생기지 않는다. 레코드가 아니므로
         # "L3 는 레코드를 쓰지 않는다"(web/__init__.py)를 깨지 않는다.
         control.init(s.control_db)
+        # 이전 프로세스 생애에서 'running' 으로 남은 작업은 전부 고아다 — 이 프로세스는
+        # 그 어떤 작업도 시작한 적이 없다 (`jobs.py::reap_orphans`, P-003 §4).
+        control.jobs.reap_orphans(s.control_db)
     # 운영자가 아직 배포 기본 비밀번호를 쓰는가. `None` 은 "아직 안 세어 봤다"는 뜻이다 —
     # 검사가 scrypt 라 요청마다는 물론이고 기동 때마다 돌릴 것도 아니다. 이 값을 보는
     # 화면(`/me`·`/ops/`)이 처음 열릴 때 한 번 세고, 비밀번호가 바뀌는 자리가 갱신한다.

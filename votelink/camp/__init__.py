@@ -32,6 +32,12 @@ from votelink.camp.models import (
     Roster,
     Territory,
 )
+from votelink.camp.roster_terms import (
+    camps_covering_district,
+    candidate_queries_for_district,
+    candidate_slug,
+    person_terms_for_district,
+)
 
 __all__ = [
     "CampConfigError",
@@ -45,7 +51,10 @@ __all__ = [
     "Roster",
     "Territory",
     "camp_dir",
+    "camps_covering_district",
     "camps_dir",
+    "candidate_queries_for_district",
+    "candidate_slug",
     "cycle_dir",
     "current_cycle_id",
     "cycle_id_for",
@@ -55,5 +64,6 @@ __all__ = [
     "load_camp",
     "load_cycle",
     "load_roster",
+    "person_terms_for_district",
     "space_for",
 ]

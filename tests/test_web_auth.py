@@ -85,6 +85,8 @@ class Env:
             data_root=data_root,
             policy_path=policy_path,
             boundaries_path=tmp_path / "없다.geojson",
+            news_parties_path=tmp_path / "news_parties.yaml",
+            job_log_dir=tmp_path / "job-logs",
         )
         self.operator = acc.create(
             "op@test", "pw", role=acc.Role.OPERATOR, status=acc.Status.ACTIVE, path=self.db

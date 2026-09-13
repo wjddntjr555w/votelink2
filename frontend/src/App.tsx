@@ -17,6 +17,7 @@ import { OpsConsolePage } from "./pages/OpsConsolePage";
 import { OpsCampPage } from "./pages/OpsCampPage";
 import { OpsCycleEditPage } from "./pages/OpsCycleEditPage";
 import { OpsAuditPage } from "./pages/OpsAuditPage";
+import { OpsNewsPartiesPage } from "./pages/OpsNewsPartiesPage";
 
 // 10단계 — 24개 화면 전부 React다. `/onboarding` 과 `/cycles/new` 는 같은
 // `CycleFormPage` 를 쓴다 — 페이지 안에서 경로로 첫 설정/주기 추가를 가른다
@@ -44,6 +45,7 @@ export function App() {
       <Route path="/cycles/:cycleId/roster" element={<RosterPage />} />
       <Route path="/ops/" element={<OpsConsolePage />} />
       <Route path="/ops/audit" element={<OpsAuditPage />} />
+      <Route path="/ops/news-parties" element={<OpsNewsPartiesPage />} />
       <Route path="/ops/camps/:campId" element={<OpsCampPage />} />
       <Route path="/ops/camps/:campId/cycles/:cycleId/edit" element={<OpsCycleEditPage />} />
     </Routes>

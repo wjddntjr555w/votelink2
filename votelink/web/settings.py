@@ -63,6 +63,14 @@ class WebSettings(BaseModel):
     boundaries_path: Path | None = None
     """`data/shared/reference/emd_boundaries.geojson`. 없으면 격자로 그린다."""
 
+    news_parties_path: Path | None = None
+    """뉴스 검색용 정당명 전역 목록(`data/shared/reference/news_parties.yaml`).
+    `None` 이면 `votelink.reference.news_parties.NEWS_PARTIES_PATH`. 주입은 테스트용이다."""
+
+    job_log_dir: Path | None = None
+    """운영자가 실행한 수집·분석 작업의 로그 디렉터리(`data/logs/jobs/`).
+    `None` 이면 `votelink.control.jobs.LOG_DIR`. 주입은 테스트용이다."""
+
     auth: bool = False
     """로그인을 요구하는가 (P-002).
 

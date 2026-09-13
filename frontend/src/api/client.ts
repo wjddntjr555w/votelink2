@@ -13,6 +13,8 @@ import type {
   OpsAuditApiResponse,
   OpsCampApiResponse,
   OpsConsoleApiResponse,
+  OpsNewsPartiesApiResponse,
+  NewsCollectJobsApiResponse,
   PendingApiResponse,
   RosterApiResponse,
 } from "./types";
@@ -94,12 +96,13 @@ export function fetchNation(
   return getJson<NationApiResponse>(`/api/nation${suffix}`);
 }
 
-async function postJson(
+async function methodJson(
+  method: "POST" | "PATCH" | "DELETE",
   path: string,
-  body: unknown,
+  body: unknown = {},
 ): Promise<{ ok: true; message?: string } | { error: string }> {
   const res = await fetch(path, {
-    method: "POST",
+    method,
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -107,6 +110,13 @@ async function postJson(
   const data = (await res.json()) as { ok?: true; message?: string; error?: string };
   if (!res.ok) return { error: data.error ?? `요청 실패 (${res.status})` };
   return { ok: true, message: data.message };
+}
+
+async function postJson(
+  path: string,
+  body: unknown,
+): Promise<{ ok: true; message?: string } | { error: string }> {
+  return methodJson("POST", path, body);
 }
 
 export function login(email: string, password: string) {
@@ -236,6 +246,41 @@ export function fetchOpsAudit(params: { camp?: string; limit?: number } = {}): P
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return getJson<OpsAuditApiResponse>(`/api/ops/audit${suffix}`);
+}
+
+export function fetchOpsNewsParties(): Promise<OpsNewsPartiesApiResponse> {
+  return getJson<OpsNewsPartiesApiResponse>("/api/ops/news-parties");
+}
+
+export function addNewsParty(name: string) {
+  return postJson("/api/ops/news-parties", { name });
+}
+
+export function renameNewsParty(partyId: string, name: string) {
+  return methodJson("PATCH", `/api/ops/news-parties/${encodeURIComponent(partyId)}`, { name });
+}
+
+export function deleteNewsParty(partyId: string) {
+  return methodJson("DELETE", `/api/ops/news-parties/${encodeURIComponent(partyId)}`);
+}
+
+export function fetchNewsCollectJobs(): Promise<NewsCollectJobsApiResponse> {
+  return getJson<NewsCollectJobsApiResponse>("/api/ops/news-parties/jobs");
+}
+
+export function collectAllNews() {
+  return postJson("/api/ops/news-parties/collect", {});
+}
+
+export function collectDistrictNews(districtId: string) {
+  return postJson(`/api/ops/news-parties/collect/${encodeURIComponent(districtId)}`, {});
+}
+
+export function collectDistrictCandidatesNews(districtId: string) {
+  return postJson(
+    `/api/ops/news-parties/collect/${encodeURIComponent(districtId)}/candidates`,
+    {},
+  );
 }
 
 export function fetchOpsEditCycleForm(campId: string, cycleId: string): Promise<CycleFormApiResponse> {

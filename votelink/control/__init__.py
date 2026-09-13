@@ -8,7 +8,7 @@
 이 패키지는 웹을 모른다 — 의존이 한 방향이다. 웹이 이것을 쓴다.
 """
 
-from votelink.control import accounts, audit, sessions, signup
+from votelink.control import accounts, audit, jobs, sessions, signup
 from votelink.control.accounts import Account, AccountError, Role, Status
 from votelink.control.db import CONTROL_DB, connect, init
 from votelink.control.sessions import COOKIE_NAME, Session
@@ -27,6 +27,7 @@ __all__ = [
     "audit",
     "connect",
     "init",
+    "jobs",
     "sessions",
     "signup",
 ]

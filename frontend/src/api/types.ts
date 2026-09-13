@@ -681,3 +681,33 @@ export interface OpsAuditApiResponse {
   auth_on: boolean;
   operator: { email: string; is_operator: boolean };
 }
+
+export interface NewsParty {
+  id: string;
+  name: string;
+}
+
+export interface OpsNewsPartiesApiResponse {
+  parties: NewsParty[];
+  districts: string[];
+  auth_on: boolean;
+  account: { email: string; is_operator: boolean };
+}
+
+export interface NewsCollectJob {
+  id: number;
+  kind: string;
+  target: string;
+  args: string[];
+  note: string | null;
+  status: "running" | "done" | "failed";
+  started_at: string;
+  finished_at: string | null;
+  exit_code: number | null;
+  log_path: string | null;
+  started_by: number | null;
+}
+
+export interface NewsCollectJobsApiResponse {
+  jobs: NewsCollectJob[];
+}

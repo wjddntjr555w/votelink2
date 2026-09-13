@@ -181,6 +181,7 @@ v0.1 규칙:
 | robots.txt·이용약관 준수 | `votelink/collect/http.py` 의 `polite_client` |
 | 뉴스는 링크 + 메타 + 요약. 원문 전문 저장은 예외 | `NewsArticlePayload.full_text_stored` 가 `source_license == public_open` 일 때만 참을 허용 |
 | 해석(감성·분류)을 수집 단계에 섞지 않음 | payload 모델의 `extra="forbid"` |
+| 뉴스 검색·매칭에 쓰는 후보 실명은 공개 출처 필드에서만 파생 | `candidates.yaml`(`votelink/camp/models.py`의 `Candidate`)·`data/shared/reference/news_parties.yaml`. 일반 유권자 이름은 어디에도 없다 (P-001 §14, P-006) |
 
 이 제약이 실제로 하나를 막고 있다: **지역 이슈 랭킹 분석기**는 뉴스 출처가 robots.txt·이용약관을
 통과하지 못해 착수하지 못한 상태다 (`docs/SETUP.md` 뉴스 수집 보류 결정). 제약이 장식이 아니라는

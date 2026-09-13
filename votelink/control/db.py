@@ -82,9 +82,33 @@ CREATE TABLE IF NOT EXISTS audit_log (
   ip         TEXT
 );
 
+-- 운영자 화면에서 누른 수집·분석 실행 (P-003 §4). CLI 를 subprocess 로 감싸기만
+-- 한다 — 격리율 임계·--dry-run 같은 규칙은 전부 CLI 에 있고 여기서 다시 구현하지
+-- 않는다. 웹 프로세스가 죽으면 실행 중이던 행이 고아로 남는다 — 재시작 시
+-- `jobs.reap_orphans` 가 그런 행을 failed 로 정리한다(완벽하지 않지만 운영자가
+-- 다시 누르면 된다. §4).
+--
+-- `started_by` 에 외래키를 걸지 않는다 — audit_log 와 같은 이유다(위 주석). 이건
+-- 실행 **이력**이고, 계정이 지워지거나 id 가 어긋나도 "누가 언제 무엇을 돌렸다"는
+-- 기록 자체는 남아야 한다.
+CREATE TABLE IF NOT EXISTS jobs (
+  id          INTEGER PRIMARY KEY,
+  kind        TEXT NOT NULL,        -- 'collect' | 'analyze'
+  target      TEXT NOT NULL,        -- collector_id / analyzer_id
+  args        TEXT NOT NULL,        -- JSON 목록. CLI 인자 그대로 (실행한 명령과 정확히 같다)
+  note        TEXT,                 -- 화면 표시용 부가 설명(예: "후보 검색어만"). 실행엔 안 쓰인다
+  status      TEXT NOT NULL,        -- 'running' | 'done' | 'failed'
+  started_at  TEXT NOT NULL,
+  finished_at TEXT,
+  exit_code   INTEGER,
+  log_path    TEXT,
+  started_by  INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
 CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 CREATE INDEX IF NOT EXISTS idx_audit_camp ON audit_log(camp_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_started_at ON jobs(started_at);
 """
 
 
@@ -117,11 +141,28 @@ def connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
 
 
 def init(path: Path | None = None) -> Path:
-    """스키마를 만든다. 여러 번 불러도 안전하다."""
+    """스키마를 만든다. 여러 번 불러도 안전하다.
+
+    **`CREATE TABLE IF NOT EXISTS` 는 이미 있는 테이블에 새 컬럼을 추가하지
+    않는다.** `jobs` 가 생긴 뒤 `note` 컬럼이 나중에 추가됐다 — 이 함수를 먼저
+    돌려본 적 있는 기존 `control.db` 는 새 코드가 참조하는 컬럼이 없어 다음
+    쓰기·읽기에서 그대로 터진다. 그래서 스키마를 만든 다음 부족한 컬럼을
+    `ALTER TABLE` 로 메운다. 새 컬럼이 생길 때마다 이 표에 한 줄 추가한다.
+    """
     target = path or CONTROL_DB
     with connect(target) as conn:
         conn.executescript(SCHEMA)
+        _add_missing_columns(conn, "jobs", [("note", "TEXT")])
     return target
+
+
+def _add_missing_columns(
+    conn: sqlite3.Connection, table: str, columns: list[tuple[str, str]]
+) -> None:
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for name, decl in columns:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def exists(path: Path | None = None) -> bool:

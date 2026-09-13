@@ -274,6 +274,11 @@ textarea 만 남는다.
 | `GET/POST /ops/camps/{camp_id}/cycles/{cid}/edit` | 주기 대리 수정 폼 → **미리보기** (P-005) |
 | `POST /ops/camps/{camp_id}/cycles/{cid}/apply` | 확인·사유를 거친 대리 수정을 저장 |
 | `GET /ops/audit` | 감사 로그 (캠프·건수 필터) |
+| `GET /ops/news-parties` | 뉴스 검색용 정당명 전역 목록 + 수집 실행 |
+| `GET/POST /ops/news-parties` · `PATCH`·`DELETE /ops/news-parties/{id}` | 목록 조회 · 추가 · 수정 · 삭제 (P-006) |
+| `POST /ops/news-parties/collect` · `/collect/{district_id}` | naver_news 수동 수집 실행 — 전체 지역구 / 지역구 하나 (P-003 §4, 지금은 이 수집기 전용) |
+| `POST /ops/news-parties/collect/{district_id}/candidates` | 위와 같은 지역구 수집이지만 지명·정당 검색어는 건너뛰고 후보·상대후보 검색어만 돈다(`NAVER_NEWS_QUERY_SCOPE=candidates`, P-006) |
+| `GET /ops/news-parties/jobs` | 실행 이력과 상태(running/done/failed) — 로그 본문은 안 올린다 |
 
 - **`role='operator'` 만 연다.** 판정은 `auth.is_ops` 접두어 검사이고 미들웨어에 있다 —
   라우터에 걸면 `include_router` 를 잊은 다음 사람이 통제까지 함께 잊는다.
@@ -288,7 +293,13 @@ textarea 만 남는다.
   **사유를 요구한다** (거절이 사유 없으면 거부되는 것과 같은 이유). 감사 액션은 캠프 자신의
   `edit_cycle` 과 구분해 `edit_cycle_by_operator` 로 남긴다 — 뭉치면 "이 캠프의 누군가"가
   고친 것처럼 보인다 (P-003 §5).
-- 수집·분석 실행과 참조데이터 편집은 **아직 없다.** 그때 이 절에 백그라운드 작업이 들어온다.
+- `party_lineage.yaml` 류 참조데이터의 **구조적** 편집기는 아직 없다(P-003 §3·§7).
+  `news-parties`(P-006)는 판단 근거 없는 단순 문자열 목록이라 그 제약과 무관한 일반
+  CRUD다 — 예외가 아니라 다른 성격의 데이터다.
+- 수집 실행은 **`naver_news` 하나로 범위를 좁혀 구현했다**(2026-09-13, P-003 §4).
+  `votelink/control/jobs.py`가 CLI 를 subprocess 로 감싸고 `jobs` 테이블에 상태를
+  기록한다 — 격리율 임계·`--dry-run` 같은 규칙은 CLI 에만 있고 여기서 다시 만들지
+  않는다. 다른 수집기까지 받는 범용 실행 화면은 아직 없다.
 
 ### 만들지 않는 것
 

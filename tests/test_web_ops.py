@@ -47,6 +47,7 @@ OPS_PATHS = [
     "/ops/audit",
     "/ops/camps/gap",
     "/ops/camps/gap/cycles/2028-04-12-national_assembly/edit",
+    "/ops/news-parties",
 ]
 
 API_OPS_PATHS = [
@@ -54,6 +55,7 @@ API_OPS_PATHS = [
     "/api/ops/audit",
     "/api/ops/camps/gap",
     "/api/ops/camps/gap/cycles/2028-04-12-national_assembly/edit",
+    "/api/ops/news-parties",
 ]
 
 
@@ -136,9 +138,7 @@ def test_approving_creates_the_camp_space(env):
 
 def test_the_operator_can_override_the_suggested_camp_id(env):
     req = signup.request("kim@test", "pw", "김철수", "010", path=env.db)
-    operator_client(env).post(
-        f"/api/ops/signups/{req.id}/approve", json={"camp_id": "songpa-kim"}
-    )
+    operator_client(env).post(f"/api/ops/signups/{req.id}/approve", json={"camp_id": "songpa-kim"})
     assert list_camps(env.root) == ["songpa-kim"]
 
 
@@ -393,6 +393,166 @@ def test_operator_edit_on_an_unknown_cycle_is_404(env):
 
 
 # --- 감사 로그 (JSON API) ----------------------------------------------------------
+
+
+# --- 뉴스 검색 정당 목록 (JSON API, P-006) -----------------------------------------
+
+
+def test_news_parties_starts_empty(env):
+    assert operator_client(env).get("/api/ops/news-parties").json()["parties"] == []
+
+
+def test_adding_a_party_is_recorded_in_the_audit_log(env):
+    client = operator_client(env)
+    response = client.post("/api/ops/news-parties", json={"name": "국민의힘"})
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    names = [p["name"] for p in client.get("/api/ops/news-parties").json()["parties"]]
+    assert names == ["국민의힘"]
+
+    entry = audit.recent(path=env.db)[0]
+    assert entry.action == "add_news_party"
+    assert entry.detail["name"] == "국민의힘"
+
+
+def test_renaming_a_party(env):
+    client = operator_client(env)
+    client.post("/api/ops/news-parties", json={"name": "국민의힘"})
+    party_id = client.get("/api/ops/news-parties").json()["parties"][0]["id"]
+
+    response = client.patch(f"/api/ops/news-parties/{party_id}", json={"name": "개혁신당"})
+    assert response.status_code == 200
+
+    names = [p["name"] for p in client.get("/api/ops/news-parties").json()["parties"]]
+    assert names == ["개혁신당"]
+
+
+def test_renaming_an_unknown_party_is_400(env):
+    response = operator_client(env).patch(
+        "/api/ops/news-parties/party-ffffffff", json={"name": "개혁신당"}
+    )
+    assert response.status_code == 400
+
+
+def test_deleting_a_party(env):
+    client = operator_client(env)
+    client.post("/api/ops/news-parties", json={"name": "국민의힘"})
+    party_id = client.get("/api/ops/news-parties").json()["parties"][0]["id"]
+
+    response = client.delete(f"/api/ops/news-parties/{party_id}")
+    assert response.status_code == 200
+    assert client.get("/api/ops/news-parties").json()["parties"] == []
+
+
+def test_deleting_an_unknown_party_is_400(env):
+    response = operator_client(env).delete("/api/ops/news-parties/party-ffffffff")
+    assert response.status_code == 400
+
+
+def test_no_limit_on_the_number_of_parties(env):
+    client = operator_client(env)
+    for i in range(30):
+        client.post("/api/ops/news-parties", json={"name": f"정당{i}"})
+    assert len(client.get("/api/ops/news-parties").json()["parties"]) == 30
+
+
+# --- 뉴스 수집 실행 (JSON API, P-003 §4) --------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _fast_news_collect(monkeypatch):
+    """실제 naver_news 수집을 돌리지 않는다 — 네트워크·API 키가 필요하다.
+    `jobs._command` 를 즉시 끝나는 파이썬 한 줄로 바꿔서 라우팅·감사 로그·거부
+    로직만 본다(실행 자체의 성공/실패 전이는 test_control_jobs.py 가 본다)."""
+    import sys
+
+    from votelink.control import jobs
+
+    monkeypatch.setattr(jobs, "_command", lambda kind, target, args: [sys.executable, "-c", "pass"])
+
+
+def test_news_district_list_is_exposed(env):
+    data = operator_client(env).get("/api/ops/news-parties").json()
+    assert "seoul_songpa_gap" in data["districts"]
+
+
+def test_starting_all_districts_collection(env):
+    client = operator_client(env)
+    response = client.post("/api/ops/news-parties/collect")
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    entry = audit.recent(path=env.db)[0]
+    assert entry.action == "start_news_collect"
+    assert entry.detail["args"] == ["--all-districts"]
+
+
+def test_starting_one_district_collection(env):
+    client = operator_client(env)
+    response = client.post("/api/ops/news-parties/collect/seoul_songpa_gap")
+    assert response.status_code == 200
+
+    entry = audit.recent(path=env.db)[0]
+    assert entry.detail["args"] == ["--district", "seoul_songpa_gap"]
+
+
+def test_starting_collection_for_an_unknown_district_is_400(env):
+    response = operator_client(env).post("/api/ops/news-parties/collect/없는지역구")
+    assert response.status_code == 400
+
+
+def test_starting_a_candidates_only_collection(env):
+    """지명·정당 검색어는 건너뛰고 후보·상대후보 검색어만 돈다 — 실제로 도는
+    명령(args)은 일반 지역구 수집과 같고, 범위는 note 와 감사 로그로만 드러난다."""
+    client = operator_client(env)
+    response = client.post("/api/ops/news-parties/collect/seoul_songpa_gap/candidates")
+    assert response.status_code == 200
+
+    jobs_data = client.get("/api/ops/news-parties/jobs").json()["jobs"]
+    job = jobs_data[0]
+    assert job["args"] == ["--district", "seoul_songpa_gap"]
+    assert job["note"] == "후보·상대후보 검색어만"
+
+    entry = audit.recent(path=env.db)[0]
+    assert entry.detail["scope"] == "candidates"
+
+
+def test_starting_a_candidates_only_collection_for_an_unknown_district_is_400(env):
+    response = operator_client(env).post("/api/ops/news-parties/collect/없는지역구/candidates")
+    assert response.status_code == 400
+
+
+def test_a_candidates_only_run_blocks_a_full_run_of_the_same_collector(env):
+    """같은 raw 를 두 프로세스가 동시에 쓰지 않도록 naver_news 전체가 하나의
+    실행 슬롯을 공유한다 — 범위가 달라도 예외가 아니다."""
+    client = operator_client(env)
+    client.post("/api/ops/news-parties/collect/seoul_songpa_gap/candidates")
+    response = client.post("/api/ops/news-parties/collect")
+    assert response.status_code == 400
+    assert "이미 실행 중" in response.json()["error"]
+
+
+def test_cannot_start_the_same_collection_twice_at_once(env):
+    client = operator_client(env)
+    client.post("/api/ops/news-parties/collect")
+    response = client.post("/api/ops/news-parties/collect")
+    assert response.status_code == 400
+    assert "이미 실행 중" in response.json()["error"]
+
+
+def test_a_camp_account_cannot_start_a_collection(env):
+    client = camp_client(env, "gap@test", "gap", "test_gap")
+    response = client.post("/api/ops/news-parties/collect", follow_redirects=False)
+    assert response.status_code == 403
+
+
+def test_jobs_endpoint_lists_started_jobs(env):
+    client = operator_client(env)
+    client.post("/api/ops/news-parties/collect")
+    jobs_data = client.get("/api/ops/news-parties/jobs").json()["jobs"]
+    assert jobs_data
+    assert jobs_data[0]["target"] == "naver_news"
 
 
 def test_the_audit_screen_states_its_own_limit(env):

@@ -519,6 +519,228 @@ def api_ops_apply_cycle(
 # --- 감사 로그 -----------------------------------------------------------------------
 
 
+@router.get("/news-parties", response_class=Response)
+def news_parties_page() -> Response:
+    from votelink.web.app import _spa_shell
+
+    return _spa_shell()
+
+
+# --- 정당명 목록 (뉴스 검색용, P-006) -----------------------------------------------
+#
+# `party_lineage.yaml`(진영 매핑, 판단 근거가 대부분인 파일)과 다르다. 여기는 판단
+# 근거 없는 단순 문자열 목록이라 P-003 §3 의 "원문 편집+git 커밋" 제약과 무관하다 —
+# 일반 CRUD 로 관리한다 (`votelink/reference/news_parties.py`).
+
+
+NEWS_COLLECTOR_ID = "naver_news"
+
+
+def _news_district_ids() -> list[str]:
+    from votelink.collect import registry
+
+    base = registry.load(NEWS_COLLECTOR_ID)
+    return sorted((base.meta.config.get("districts") or {}).keys())
+
+
+@api_router.get("/news-parties")
+def api_list_news_parties(request: Request) -> dict:
+    from votelink.reference import news_parties as np
+
+    s = _settings(request)
+    account = request.state.account
+    return {
+        "parties": [p.model_dump() for p in np.list_parties(s.news_parties_path)],
+        "districts": _news_district_ids(),
+        "auth_on": s.auth,
+        "account": {"email": account.email, "is_operator": account.is_operator},
+    }
+
+
+# --- 뉴스 수집 실행 (P-003 §4) -----------------------------------------------------
+#
+# **naver_news 전용이다.** 범용 수집 실행 인프라(어느 collector_id 든 받는 엔드포인트)는
+# 만들지 않는다 — 이번엔 이 화면 하나만 필요하고, 다른 수집기가 필요해지면 그때 다시
+# 설계한다. CLI 를 subprocess 로 감싸기만 한다(`votelink/control/jobs.py`) — 격리율
+# 임계·--dry-run 같은 규칙은 전부 CLI 에 있다.
+
+
+@api_router.get("/news-parties/jobs")
+def api_news_collect_jobs(request: Request) -> dict:
+    s = _settings(request)
+    jobs = control.jobs.recent(kind="collect", target=NEWS_COLLECTOR_ID, path=s.control_db)
+    return {"jobs": [j.__dict__ for j in jobs]}
+
+
+@api_router.post("/news-parties/collect")
+def api_collect_all_news(request: Request) -> Response:
+    s = _settings(request)
+    operator = request.state.account
+    try:
+        job = control.jobs.start(
+            "collect",
+            NEWS_COLLECTOR_ID,
+            ["--all-districts"],
+            operator.id,
+            path=s.control_db,
+            log_dir=s.job_log_dir,
+        )
+    except control.jobs.JobError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "start_news_collect",
+        account_id=operator.id,
+        target=NEWS_COLLECTOR_ID,
+        detail={"args": job.args, "job_id": job.id},
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse({"ok": True, "message": "전체 지역구 수집을 시작했다", "job_id": job.id})
+
+
+@api_router.post("/news-parties/collect/{district_id}")
+def api_collect_one_district_news(request: Request, district_id: str) -> Response:
+    s = _settings(request)
+    operator = request.state.account
+    known = _news_district_ids()
+    if district_id not in known:
+        return JSONResponse({"error": f"알 수 없는 지역구다: {district_id}"}, status_code=400)
+
+    try:
+        job = control.jobs.start(
+            "collect",
+            NEWS_COLLECTOR_ID,
+            ["--district", district_id],
+            operator.id,
+            path=s.control_db,
+            log_dir=s.job_log_dir,
+        )
+    except control.jobs.JobError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "start_news_collect",
+        account_id=operator.id,
+        target=NEWS_COLLECTOR_ID,
+        detail={"args": job.args, "job_id": job.id},
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse(
+        {"ok": True, "message": f"'{district_id}' 수집을 시작했다", "job_id": job.id}
+    )
+
+
+@api_router.post("/news-parties/collect/{district_id}/candidates")
+def api_collect_district_candidates_news(request: Request, district_id: str) -> Response:
+    """후보·상대후보 검색어만 재수집한다. 지명·정당 검색어는 건너뛴다.
+
+    로스터를 막 갱신한 뒤 전체 지역구를 다시 돌리지 않고 후보 관련 기사만
+    빠르게 보충하고 싶을 때 쓴다(`NAVER_NEWS_QUERY_SCOPE=candidates`,
+    `collectors/naver_news/collector.py::_queries`). 실제로 도는 명령은 일반
+    지역구 수집과 똑같다 — 범위는 환경변수로만 갈린다.
+    """
+    s = _settings(request)
+    operator = request.state.account
+    known = _news_district_ids()
+    if district_id not in known:
+        return JSONResponse({"error": f"알 수 없는 지역구다: {district_id}"}, status_code=400)
+
+    try:
+        job = control.jobs.start(
+            "collect",
+            NEWS_COLLECTOR_ID,
+            ["--district", district_id],
+            operator.id,
+            path=s.control_db,
+            log_dir=s.job_log_dir,
+            env={"NAVER_NEWS_QUERY_SCOPE": "candidates"},
+            note="후보·상대후보 검색어만",
+        )
+    except control.jobs.JobError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "start_news_collect",
+        account_id=operator.id,
+        target=NEWS_COLLECTOR_ID,
+        detail={"args": job.args, "job_id": job.id, "scope": "candidates"},
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse(
+        {"ok": True, "message": f"'{district_id}' 후보 뉴스 재수집을 시작했다", "job_id": job.id}
+    )
+
+
+@api_router.post("/news-parties")
+def api_add_news_party(request: Request, name: Annotated[str, Body(embed=True)]) -> Response:
+    from votelink.reference import news_parties as np
+
+    s = _settings(request)
+    operator = request.state.account
+    try:
+        party = np.add_party(name, s.news_parties_path)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "add_news_party",
+        account_id=operator.id,
+        target=party.id,
+        detail={"name": party.name},
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse({"ok": True, "message": f"'{party.name}' 를 추가했다"})
+
+
+@api_router.patch("/news-parties/{party_id}")
+def api_rename_news_party(
+    request: Request, party_id: str, name: Annotated[str, Body(embed=True)]
+) -> Response:
+    from votelink.reference import news_parties as np
+
+    s = _settings(request)
+    operator = request.state.account
+    try:
+        party = np.update_party(party_id, name, s.news_parties_path)
+    except (ValueError, np.PartyNotFound) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "rename_news_party",
+        account_id=operator.id,
+        target=party.id,
+        detail={"name": party.name},
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse({"ok": True, "message": f"'{party.name}' 로 수정했다"})
+
+
+@api_router.delete("/news-parties/{party_id}")
+def api_delete_news_party(request: Request, party_id: str) -> Response:
+    from votelink.reference import news_parties as np
+
+    s = _settings(request)
+    operator = request.state.account
+    try:
+        np.delete_party(party_id, s.news_parties_path)
+    except np.PartyNotFound as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    control.audit.log(
+        "delete_news_party",
+        account_id=operator.id,
+        target=party_id,
+        ip=client_ip(request),
+        path=s.control_db,
+    )
+    return JSONResponse({"ok": True, "message": "삭제했다"})
+
+
 @api_router.get("/audit")
 def api_audit_log(request: Request, camp: str = "", limit: int = AUDIT_LIMIT) -> dict:
     """접근 이력. **운영자만 본다** — 캠프에게 열지 않기로 했다 (P-003 §5).

@@ -276,6 +276,7 @@ table.ops th { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 .form--inline label { flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .form--inline input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 14px; background: var(--paper); color: var(--ink); }
 .form--inline button[type="submit"] { align-self: flex-end; padding: 8px 16px; border: none; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.form--inline button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
 .form--inline button.danger { background: var(--review-block-bg); color: var(--review-block-line); }
 .button-link { display: inline-block; padding: 8px 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--review-note-bg); color: var(--ink); font-size: 14px; text-decoration: none; }
 .errdetail { white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px; margin: 6px 0; }

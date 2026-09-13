@@ -16,7 +16,8 @@ interface Props {
     | "cycles"
     | "me"
     | "ops"
-    | "audit";
+    | "audit"
+    | "news-parties";
   lens: Lens | null;
   authOn: boolean;
   account: { email: string; is_operator: boolean } | null;
@@ -127,6 +128,10 @@ export function Sidebar({ districtId, districtName, electionTypeLabel, active, l
               <a className={active === "audit" ? "on" : ""} href="/ops/audit">
                 <Icon name="audit" />
                 감사 로그
+              </a>
+              <a className={active === "news-parties" ? "on" : ""} href="/ops/news-parties">
+                <Icon name="party" />
+                뉴스 검색 정당
               </a>
             </>
           )}
