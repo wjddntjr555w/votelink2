@@ -48,17 +48,18 @@
 
   `nec_archive_assembly`만 원래 문제없었고, 나머지 3개는 전부 같은 D-007 증상. 중복 쌍은 `ingested_at`만 다르고 payload는 동일해(순수 append 중복) 마지막 값을 남기는 정리가 안전했다. 백업 후 record_id 기준 정리 → `voter_profile`(48/48 선거구, 산출 850, 격리 0%, 재실행 시 교체 850·신규 0) · `turnout_gap`/`target_priority`(각 10/10, 격리 0%, 재실행 시 멱등) 재검증, 전체 `pytest` 953개 재확인 통과. `docs/proposals/D-007-reparse-dedup-fix.md`에 반영하고 커밋(`4b40038`)·푸시 완료. **지금은 모든 수집기의 records 파일이 중복 없이 깨끗하다.**
 
-### 2단계 — L2 신규 분석기: 후보/정당별 언급 비교 (`candidate_mention_share`) — **진행 중**
+### 2단계 — L2 신규 분석기: 후보/정당별 언급 비교 (`candidate_mention_share`) — **구현 완료, 실 로스터 대기**
 - **무엇**: `news_pulse`와 같은 주 단위 집계 프레임을 재사용하되, `mentioned_persons`/후보 로스터(ours/opponents)로 그룹핑 — 후보별 주간 언급 건수, 언급 점유율, 전주 대비 변화율을 산출. 범위는 후보 단위로 한정, 정당 단위는 3단계 이후 별도 과제로 분리.
 - **왜**: 지금 있는 두 분석기는 선거구 전체를 뭉뚱그린다. 캠프가 가장 먼저 묻는 질문은 "우리 후보가 상대보다 더/덜 언급되고 있나"이며, 이는 감성분석 없이 순수 카운팅만으로 답할 수 있어 수치 트랙에 맞고 구현 비용이 가장 낮다.
 - **입력**: `news_article` (kind), 캠프 로스터(`votelink/camp/` 경유 candidates.yaml).
-- **출력**: 새 파생 레코드 kind `candidate_mention_share` — `docs/10-data-contract.md` + `votelink/contract/payloads.py`에 추가 필요 (계약 변경, 착수 전 사용자 승인 필요).
-- **제안서**: `docs/proposals/A-006-candidate-mention-share.md` — 작성 완료.
-- **진행 상태 (2026-09-13 기준)**:
-  1. 제안서 작성 완료. 신규 kind `candidate_mention_share`을 payload 계약에 추가하는 건은 아직 승인 대기.
-  2. 선행 조건 ①(`mentioned_persons` 필드 미반영) 해소 — `uv run votelink collect naver_news --reparse` 실행 완료.
-  3. 선행 조건 ②(실제 후보 로스터 부재)는 송파구 갑 후보 미확정으로 **미정 유지**. 대신 분석기의 변별력(모든 후보가 같은 값을 내지 않는지)을 미리 확인하려고, 실제 인물(서명옥/국민의힘, 김태형·김성곤/더불어민주당)로 강남구 갑에 **테스트 전용 캠프**(`data/camps/gangnam-gap-test/`)를 만들어 `NAVER_NEWS_QUERY_SCOPE=candidates`로 후보 쿼리를 수집했다. 결과: `mentioned_persons` 언급 건수가 서명옥 930 / 김태형 985 / 김성곤 995로 **서로 다른 값**이 나와 변별력 0 위험은 없는 것으로 확인. 단 이 캠프는 검증용이며 송파구 갑 실제 로스터가 아니다 — 실제 후보 확정 전까지 이 분석기의 스캐폴딩·구현은 보류.
-- **다음**: 송파구 갑 후보 확정 시 실제 로스터 등록 → 계약 변경 승인 → `new-analyzer` 스킬로 스캐폴딩·구현.
+- **출력**: 파생 레코드 kind `candidate_mention_share` — `RecordKind.CANDIDATE_MENTION_SHARE` + `CandidateMentionSharePayload` 등록 완료(`votelink/contract/enums.py`, `payloads.py`, `docs/10-data-contract.md §5.7`).
+- **제안서**: `docs/proposals/A-006-candidate-mention-share.md`.
+- **진행 상태 (2026-09-14 기준)**:
+  1. 계약 변경 승인받아 반영 완료. `is_ours`는 "정확히 1명"이 아니라 "최소 1명"으로 검증한다 — 한 district를 여러 캠프가 관할할 수 있어서(P-001).
+  2. `analyzers/candidate_mention_share/` 스캐폴딩·구현 완료(analyzer.py/calc.py/meta.yaml/tests). 단위테스트 10개(손으로 검산한 주간 카운트·share_pct·wow_change_pct 포함) 전부 통과.
+  3. 강남구 갑 **테스트 전용 캠프**(`data/camps/gangnam-gap-test/`, 서명옥·김태형·김성곤)로 실행: 격리 0%, 재실행 시 멱등(교체 1·신규 0), 후보별 `total_articles`(299/119/8) 전부 다른 값으로 변별력 확인. 실행 중 기존 더미 캠프 `test1`의 관할이 실제로 강남구 갑과 겹치는 걸 발견해 — 위 "최소 1명 ours" 완화가 이론이 아니라 실측으로 필요했던 상황임이 확인됐다.
+  4. `meta.yaml`의 `verified`는 여전히 `false` — 강남구 갑은 검증용 데이터이고 송파구 갑 실제 로스터가 없다. 커밋(`d442773`) 완료.
+- **다음**: 송파구 갑 후보 확정 시 `candidates.yaml`에 실제 로스터 등록 → `--district seoul_songpa_gap`으로 재실행 → 실측 통과하면 `verified: true`로 승격.
 
 ### 3단계 — L2 신규 분석기: 이슈 × 후보 매트릭스
 - **무엇**: `issue_ranker`가 만드는 `local_issue`와 후보 언급을 교차 — 어떤 이슈 기사에 어떤 후보/정당이 함께 언급되는지 매트릭스로.
