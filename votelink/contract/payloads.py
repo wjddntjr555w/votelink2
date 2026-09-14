@@ -476,6 +476,92 @@ class TargetPriorityPayload(_Payload):
         return self
 
 
+# --- candidate_mention_share (파생) --------------------------------------------
+#
+# 선거구 등록 후보(우리 + 상대)별 주간 뉴스 언급 비교. news_pulse 가 "이 선거구에
+# 뉴스가 얼마나 있나"를 답한다면 이건 "그중 누가 언급됐나"를 답한다. 감성·논조는
+# 판정하지 않는다 — 순수 카운팅. 정당 단위 집계는 범위 밖(후보 단위만).
+# 제안서: docs/proposals/A-006-candidate-mention-share.md
+
+
+class CandidateWeekPoint(_Payload):
+    """한 후보의 한 주(ISO 월요일 시작) 언급 집계."""
+
+    week_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    article_count: int = Field(ge=0)
+    share_pct: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="그 주 등록 후보 전체 언급 합 대비 %. 분모(전체 합) 0이면 None",
+    )
+    wow_change_pct: float | None = Field(
+        default=None,
+        description="전주 대비 건수 변화율 %. 전주 건수가 0이면 None(0에서 어떤 수로 가도 무한대)",
+    )
+
+
+class CandidateMentionSeries(_Payload):
+    """한 후보의 로스터 정보 + 주간 언급 시계열."""
+
+    name: str = Field(min_length=1)
+    party: str = Field(min_length=1)
+    lineage: Camp
+    is_ours: bool
+    weekly: list[CandidateWeekPoint] = Field(min_length=1, description="오래된 주 순")
+    total_articles: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _check_series(self):
+        starts = [w.week_start for w in self.weekly]
+        if starts != sorted(starts):
+            raise ValueError(f"{self.name} weekly 가 시간순이 아니다: {starts}")
+        if len(starts) != len(set(starts)):
+            raise ValueError(f"{self.name} weekly 에 같은 주가 두 번 있다: {starts}")
+        summed = sum(w.article_count for w in self.weekly)
+        if summed != self.total_articles:
+            raise ValueError(
+                f"{self.name} total_articles({self.total_articles})가 weekly 합({summed})과 다르다"
+            )
+        return self
+
+
+class CandidateMentionSharePayload(_Payload):
+    """선거구 등록 후보별 주간 뉴스 언급 비교. 제안서: docs/proposals/A-006"""
+
+    as_of: str = Field(
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="가장 최근 매칭 기사의 연-월"
+    )
+    window_weeks: int = Field(ge=1, description="news_pulse 와 비교 가능하도록 같은 값을 쓴다")
+    candidates: list[CandidateMentionSeries] = Field(
+        min_length=1, description="ours 1명 먼저, opponents 는 candidates.yaml 순"
+    )
+    total_articles: int = Field(ge=0)
+    backfill_distorted: bool = Field(
+        default=False,
+        description="첫 백필의 검색 API 상한 때문에 최근 주가 부풀어 있으면 True "
+        "(news_pulse 와 같은 플래그)",
+    )
+
+    @model_validator(mode="after")
+    def _check_at_least_one_ours(self):
+        # 한 district 를 여러 캠프가 관할할 수 있어(P-001) is_ours=True 가 여럿일
+        # 수 있다 — "정확히 1명"으로 강제하지 않는다. 아예 없으면 캠프 매핑이 샌
+        # 것이니 그건 잡는다.
+        if not any(c.is_ours for c in self.candidates):
+            raise ValueError("candidates 안에 is_ours=True 인 후보가 하나도 없다")
+        return self
+
+    @model_validator(mode="after")
+    def _check_total(self):
+        summed = sum(c.total_articles for c in self.candidates)
+        if summed != self.total_articles:
+            raise ValueError(
+                f"total_articles({self.total_articles})가 candidates 합({summed})과 다르다"
+            )
+        return self
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
@@ -485,5 +571,6 @@ PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.LOCAL_ISSUE: LocalIssuePayload,
     RecordKind.TURNOUT_GAP: TurnoutGapPayload,
     RecordKind.TARGET_PRIORITY: TargetPriorityPayload,
+    RecordKind.CANDIDATE_MENTION_SHARE: CandidateMentionSharePayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""

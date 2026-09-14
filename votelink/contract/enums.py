@@ -21,6 +21,7 @@ class RecordKind(StrEnum):
     NEWS_PULSE = "news_pulse"
     TURNOUT_GAP = "turnout_gap"
     TARGET_PRIORITY = "target_priority"
+    CANDIDATE_MENTION_SHARE = "candidate_mention_share"
 
 
 class GeoLevel(StrEnum):

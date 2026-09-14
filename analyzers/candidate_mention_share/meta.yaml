@@ -1,0 +1,58 @@
+id: candidate_mention_share
+name: 선거구 등록 후보별 주간 뉴스 언급 비교
+inputs: [news_article]
+outputs: [candidate_mention_share]
+geo_level: sigungu
+proposal: docs/proposals/A-006-candidate-mention-share.md
+
+# 2026-09-13: 미검증. 송파구 갑 실제 후보가 아직 미확정이라(candidates.yaml
+#   더미) 이 선거구로는 검증할 수 없다. 강남구 갑에 만든 검증용 테스트 캠프
+#   (data/camps/gangnam-gap-test/, 서명옥·김태형·김성곤)로 수동 실행은
+#   확인했다 — 격리 없이 산출, 후보별 total_articles 가 서로 다른 값(변별력
+#   확인, A-006 §변별력 참고). 다만 이 캠프는 검증용이라 verified 는 올리지
+#   않는다. 송파구 갑 실제 로스터가 candidates.yaml 에 들어온 뒤 재검증한다.
+verified: false
+
+config:
+  default_district: seoul_songpa_gap
+  # naver_news 가 수집한 시군구(서울 25개 자치구)마다 대표 선거구 하나 — news_pulse/
+  # issue_ranker 의 config.districts 와 같은 목록이다. 캠프가 아직 없는 선거구는
+  # AnalyzeError로 멈춘다(로스터 없이는 후보를 특정할 수 없다) — 정상 동작이다.
+  districts:
+    seoul_songpa_gap: {}
+    seoul_jongno: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_gwangjin_gap: {}
+    seoul_dongdaemun_gap: {}
+    seoul_jungnang_gap: {}
+    seoul_seongbuk_gap: {}
+    seoul_gangbuk_gap: {}
+    seoul_dobong_gap: {}
+    seoul_nowon_gap: {}
+    seoul_eunpyeong_gap: {}
+    seoul_seodaemun_gap: {}
+    seoul_mapo_gap: {}
+    seoul_yangcheon_gap: {}
+    seoul_gangseo_gap: {}
+    seoul_guro_gap: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_dongjak_gap: {}
+    seoul_gwanak_gap: {}
+    seoul_seocho_gap: {}
+    seoul_gangnam_gap: {}
+    seoul_gangdong_gap: {}
+
+  common:
+    # news_pulse 와 반드시 같은 값. 다르면 두 분석기 산출물을 나란히 비교할 수
+    # 없다 (A-006 §판단이 들어가는 값).
+    window_weeks: 12
+
+    # 최근 주 언급 합이 창 중앙값의 이 배를 넘으면 backfill_distorted=true.
+    # news_pulse/issue_ranker 와 같은 값·같은 이유(검색 API 1,000건 상한 백필
+    # 아티팩트). 후보 단위로는 아직 실측하지 못했다 — 후보별로 API 페이징
+    # 상한에 걸리는 시점이 다를 수 있어 과소·과대 적용될 수 있다는 점을
+    # A-006 §제약에 적어뒀다. 실제 후보 데이터가 쌓이면 재검토한다.
+    backfill_distortion_ratio: 3.0

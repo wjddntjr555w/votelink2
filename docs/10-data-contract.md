@@ -147,6 +147,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `news_pulse` | 선거구 뉴스량·분포 (파생, 주 단위, 선거구당 1레코드) | 분석 산출 (`news_pulse`) | ✓ |
 | `turnout_gap` | 읍면동 투표율 편차 (파생, `election_type` 별 1레코드) | 분석 산출 (`turnout_gap`) | ✓ |
 | `target_priority` | 읍면동 자원배분 우선순위 (파생, `election_type` 별 1레코드, 지수는 선거구 내 정규화·진영 중립) | 분석 산출 (`target_priority`) | ✓ |
+| `candidate_mention_share` | 등록 후보별 주간 뉴스 언급 비교 (파생, 어휘 매칭, 선거구당 1레코드) | 분석 산출 (`candidate_mention_share`) | |
 
 ## 5. MVP 3종 payload
 
@@ -291,6 +292,39 @@ unclassified_count >= total_articles` (한 기사가 여러 카테고리에 걸�
 **GOTV 임계값을 두지 않는다** — `below_baseline` 인 동을 `mean_gap` 으로 정렬하면
 순위가 나오고, 어디까지 갈지는 캠프의 자원 문제다. 이 kind 는 성향을 말하지 않는다:
 `segment_profile` 과 함께 읽어야 "우리 편인데 투표를 안 하는 동"이 보인다.
+
+### 5.7 `candidate_mention_share` (파생)
+```jsonc
+{
+  "as_of": "2026-09",              // 가장 최근 매칭 기사의 연-월
+  "window_weeks": 12,              // news_pulse 와 비교 가능하도록 같은 값
+  "candidates": [                  // ours 1명 먼저, opponents 는 candidates.yaml 순
+    {
+      "name": "홍길동",
+      "party": "국민의힘",
+      "lineage": "conservative",   // Camp. ours/opponents 및 party_lineage 참고
+      "is_ours": true,
+      "weekly": [                  // 오래된 주 순, ISO 월요일 시작
+        {
+          "week_start": "2026-06-16",
+          "article_count": 12,
+          "share_pct": 63.2,       // 그 주 등록 후보 전체 언급 합 대비 %. 분모 0이면 null
+          "wow_change_pct": 20.0   // 전주 대비 건수 변화율 %. 전주 0이면 null
+        }
+      ],
+      "total_articles": 140
+    }
+  ],
+  "total_articles": 221,           // candidates[].total_articles 합 (불변식)
+  "backfill_distorted": true       // news_pulse 와 같은 플래그
+}
+```
+`geo_level: sigungu`, `geo_code`는 `news_pulse`/`local_issue`와 동일 규칙(선거구의
+시군구 코드, 두 시군구에 걸치면 사전순 첫 코드). 후보 매칭은 `news_article.
+mentioned_persons`의 정확 문자열 일치만 본다 — 동명이인·약칭 처리는 하지 않는다
+(수집기 단계 왜곡을 그대로 물려받는다). `share_pct`의 분모는 선거구 전체 뉴스가
+아니라 **등록된 후보 전원의 언급 합**이다("언론 노출의 share of voice"). 정당
+단위 집계는 범위 밖이다. 제안서: `docs/proposals/A-006-candidate-mention-share.md`.
 
 ## 6. 레코드 수명
 
