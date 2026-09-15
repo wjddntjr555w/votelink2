@@ -108,11 +108,11 @@
 8. ~~**표본 편향 고지 카드**~~ — **이미 있었다.** 위 7번 작업 중 확인 — `IssueBoardPanel.tsx`가 이미 `unclassified_pct`로 "표본은 지명 검색분이라 스포츠·행사·타지역 국가뉴스가 섞인다({pct}%가 분류 불가)" 고지와, 하단에 `unclassified_count`/"어휘집 보강 신호"(≥50%) 경고까지 갖고 있었다. 별도 구현 불필요.
 9. ~~**`/compare`에 뉴스량 열 추가**~~ — **완료 (2026-09-15).** `load_all_news_pulse`(loader.py, 신규) + `build_comparison`의 `news_pulse_by_district` 인자(viewmodel.py) + `ComparisonRow.news_total_articles`. `news_pulse`가 `blocked`면 그 칸만 `None`(개별 gate가 없어 "0건"으로 새지 않게 직접 거름). 실측: 강남 갑/을/병 4,924건, 강동 갑/을 1,791건 — 같은 시군구 선거구가 정확히 같은 값을 보였다(뉴스는 sigungu 단위라 의도된 동작). 백엔드 테스트 3개 신규, 프런트 lint/test/build 통과.
 
-### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에) — **10·11·13번 완료, 12번만 보류**
+### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에) — **완료 (10·11·13번 구현, 12번 파일럿 후 드롭)**
 
 10. ~~**뉴스량 대비 후보 노출 비율 오버레이**~~ — **완료 (2026-09-15).** `NewsVolumeOverlayCard.tsx` 신규 — `pulse.bars[].count`(선거구 전체, 배경 회색 막대)와 `candidate_mentions`의 우리 후보 `bars[].count`(전경, 진영색)를 같은 `peak` 기준·같은 시간축에 겹친다. 두 분석기의 week 그리드가 이론상 완전히 같다는 보장은 없어 `week_start` 문자열로 맞춰 읽는다(코드 주석에 근거 남김). 백엔드 변경 없음.
 11. ~~**미디어 노출 vs 표심 갭 카드**~~ — **완료 (2026-09-15).** `MediaElectoralGapCard.tsx` 신규 — `candidate_mentions`의 최신 `share_pct`(우리 vs 상대)와 `view.summary_card.camp_bar`(진영별 득표 근사 집계, `BarSlice.ours`로 우리 진영 판정)를 나란히 놓고 갭 문구(예: "언론 노출이 표심보다 X%p 앞서 있다")를 만든다. 백엔드 변경 없음 — `summary_card`는 이미 대시보드가 fetch 하던 값이다. **로그인한 캠프 렌즈가 있을 때만 렌더** — CandidateComparison과 같은 전제("우리"는 렌즈가 정한다). 두 소스가 다른 verdict를 가질 수 있어 WeeklyDigestCard와 같은 `shows()` 패턴으로 개별 배너 없이 값만 거른다.
-12. **동별 이슈-우선순위 오버레이 (지도 확장)** — **보류, 제안서 작성 완료.** 착수 전 조사에서 막혔다: 지도는 `geo_code`(행정동) 단위로 색칠하는데 `top_places`는 geo_code가 없는 자유 텍스트 지명이다. 상세 조사와 제안은 `docs/proposals/D-008-place-name-geo-mapping.md` — 송파구 갑 실측 결과 상위 지명 10개 중 매핑 가능한 게 사실상 없어(구 단위 term·동명 중복·랜드마크·선거구 밖 지명), 매핑표부터 만들기 전에 "파일럿으로 확정 가능 비율을 먼저 세어본다"를 권장안으로 남겼다. 이번 티어 2 범위(이미 계산된 필드 조합)를 넘어서는 참조 데이터 작업이라 별도 제안서로 분리했다.
+12. ~~**동별 이슈-우선순위 오버레이 (지도 확장)**~~ — **드롭 (2026-09-15), 파일럿 완료.** `docs/proposals/D-008-place-name-geo-mapping.md`에서 파일럿까지 마쳤다. 구 단위 term·동명 중복·랜드마크·선거구 밖 지명은 애초에 매핑 불가였고, 최선의 경우인 "EMD 정확 명칭"(오륜동 등, `districts.yaml`과 바로 join 가능)조차 실제로 세어보니 news_pulse/local_issue가 쓰는 최근 12주 창에서 표본이 0~2건대로 극히 적고, 그 몇 건마저 동명이동(전국에 같은 이름의 행정동이 있어 다른 도시 기사가 섞임) 오염이 확인됐다. 매핑 인프라를 만들 가치가 없다는 결론 — 재검토 조건은 D-008 참고.
 13. ~~**진영색 일관 스타일링**~~ — **완료 (2026-09-15).** `frontend/src/design-system/campColor.ts` 신규(`CAMP_COLOR` 맵 + `campColor()` 헬퍼) — `CandidateMentionPanel.tsx`가 이미 세 번째로 복붙하려던 참이라 이번에 뽑아냈다. `CandidateMentionPanel`·`MediaElectoralGapCard`·`NewsVolumeOverlayCard` 셋이 이걸 쓴다.
 
 ### 티어 3 — 후속 (새 분석기 또는 텍스트 트랙 필요, 설계만)
