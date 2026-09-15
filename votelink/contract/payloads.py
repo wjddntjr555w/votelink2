@@ -562,6 +562,61 @@ class CandidateMentionSharePayload(_Payload):
         return self
 
 
+# --- issue_candidate_matrix (파생) ----------------------------------------------
+#
+# local_issue(카테고리별 집계)와 candidate_mention_share(후보별 집계)는 둘 다
+# news_article을 각자 다른 축으로 집계한 뒤 버린 결과라 기사 단위 연결 정보가
+# 남지 않는다. 이 kind는 news_article을 다시 읽어 이슈 어휘집과 후보 로스터를
+# 같은 기사 집합에 동시 적용한 교차표다. 감성·유불리는 판정하지 않는다 — 순수
+# 카운팅. 제안서: docs/proposals/A-007-issue-candidate-matrix.md
+
+
+class CandidateHit(_Payload):
+    """한 카테고리 안에서 한 후보가 몇 건 걸렸는지."""
+
+    name: str = Field(min_length=1)
+    is_ours: bool
+    count: int = Field(ge=1)
+    share_of_category: float = Field(
+        ge=0.0, description="이 카테고리 article_count 대비 %. 비배타 매칭이라 le 제약 없음"
+    )
+
+
+class CategoryMatrixRow(_Payload):
+    """이슈 카테고리 한 줄. 후보 언급이 1건이라도 있는 카테고리만 담는다."""
+
+    category: str = Field(min_length=1, description="issue_lexicon.yaml 의 key")
+    label: str = Field(min_length=1)
+    article_count: int = Field(
+        ge=1, description="local_issue 와 같은 정의: 이 카테고리로 분류된 기사 수"
+    )
+    candidates: list[CandidateHit] = Field(min_length=1, description="count 내림차순")
+
+
+class IssueCandidateMatrixPayload(_Payload):
+    """이슈 × 후보 교차표. 제안서: docs/proposals/A-007"""
+
+    as_of: str = Field(
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="가장 최근 매칭 기사의 연-월"
+    )
+    window_weeks: int = Field(ge=1, description="news_pulse 계열과 비교 가능하도록 같은 값을 쓴다")
+    lexicon_version: str = Field(min_length=1, description="issue_ranker와 같은 값이면 같은 어휘집")
+    total_articles: int = Field(ge=0, description="window 안 · sigungu-scoped 전체 기사 수")
+    categories: list[CategoryMatrixRow] = Field(
+        default_factory=list, description="article_count 내림차순"
+    )
+
+    @model_validator(mode="after")
+    def _check_order_and_uniqueness(self):
+        cats = [c.category for c in self.categories]
+        if len(cats) != len(set(cats)):
+            raise ValueError(f"categories 에 같은 category 가 두 번 있다: {cats}")
+        counts = [-c.article_count for c in self.categories]
+        if counts != sorted(counts):
+            raise ValueError("categories 가 article_count 내림차순이 아니다")
+        return self
+
+
 PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.ELECTION_RESULT: ElectionResultPayload,
     RecordKind.POPULATION: PopulationPayload,
@@ -572,5 +627,6 @@ PAYLOAD_MODELS: dict[RecordKind, type[_Payload]] = {
     RecordKind.TURNOUT_GAP: TurnoutGapPayload,
     RecordKind.TARGET_PRIORITY: TargetPriorityPayload,
     RecordKind.CANDIDATE_MENTION_SHARE: CandidateMentionSharePayload,
+    RecordKind.ISSUE_CANDIDATE_MATRIX: IssueCandidateMatrixPayload,
 }
 """kind → 본문 모델. 여기 없는 kind는 아직 구현되지 않은 것이며 Record 생성이 거부된다."""

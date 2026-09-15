@@ -148,6 +148,7 @@ MVP(v0.1)에서 구현하는 것은 ✓ 표시.
 | `turnout_gap` | 읍면동 투표율 편차 (파생, `election_type` 별 1레코드) | 분석 산출 (`turnout_gap`) | ✓ |
 | `target_priority` | 읍면동 자원배분 우선순위 (파생, `election_type` 별 1레코드, 지수는 선거구 내 정규화·진영 중립) | 분석 산출 (`target_priority`) | ✓ |
 | `candidate_mention_share` | 등록 후보별 주간 뉴스 언급 비교 (파생, 어휘 매칭, 선거구당 1레코드) | 분석 산출 (`candidate_mention_share`) | |
+| `issue_candidate_matrix` | 이슈 × 후보 교차표 (파생, 어휘 매칭, 선거구당 1레코드) | 분석 산출 (`issue_candidate_matrix`) | |
 
 ## 5. MVP 3종 payload
 
@@ -325,6 +326,34 @@ mentioned_persons`의 정확 문자열 일치만 본다 — 동명이인·약칭
 (수집기 단계 왜곡을 그대로 물려받는다). `share_pct`의 분모는 선거구 전체 뉴스가
 아니라 **등록된 후보 전원의 언급 합**이다("언론 노출의 share of voice"). 정당
 단위 집계는 범위 밖이다. 제안서: `docs/proposals/A-006-candidate-mention-share.md`.
+
+### 5.8 `issue_candidate_matrix` (파생)
+```jsonc
+{
+  "as_of": "2026-09",              // 가장 최근 매칭 기사의 연-월
+  "window_weeks": 12,              // news_pulse 계열과 비교 가능하도록 같은 값
+  "lexicon_version": "draft-2026-09-06",  // issue_ranker와 같은 값이면 같은 어휘집 버전
+  "total_articles": 512,           // window 안 · sigungu-scoped 전체 기사 수
+  "categories": [                  // 후보 언급이 1건이라도 있는 카테고리만. article_count 내림차순
+    {
+      "category": "redevelopment",
+      "label": "재건축·재개발",
+      "article_count": 180,        // local_issue와 같은 정의
+      "candidates": [              // count 내림차순
+        {"name": "홍길동", "is_ours": true, "count": 12, "share_of_category": 6.7},
+        {"name": "김철수", "is_ours": false, "count": 3, "share_of_category": 1.7}
+      ]
+    }
+  ]
+}
+```
+`geo_level: sigungu`, `geo_code`는 `local_issue`/`candidate_mention_share`와 동일
+규칙. `local_issue`(카테고리별 집계)와 `candidate_mention_share`(후보별 집계)는 둘
+다 `news_article`을 각자 다른 축으로 집계한 뒤 버린 결과라 기사 단위 연결 정보가
+남지 않는다 — 이 kind는 `news_article`을 다시 읽어 이슈 어휘집과 후보 로스터를
+같은 기사 집합에 동시 적용한 교차표다. `share_of_category = count / article_count
+* 100`이며 한 기사에 후보가 여럿 언급될 수 있어 카테고리 안 후보 언급 합이
+`article_count`를 넘을 수 있다(비배타). 제안서: `docs/proposals/A-007-issue-candidate-matrix.md`.
 
 ## 6. 레코드 수명
 

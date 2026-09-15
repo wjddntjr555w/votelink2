@@ -115,9 +115,9 @@
 12. ~~**동별 이슈-우선순위 오버레이 (지도 확장)**~~ — **드롭 (2026-09-15), 파일럿 완료.** `docs/proposals/D-008-place-name-geo-mapping.md`에서 파일럿까지 마쳤다. 구 단위 term·동명 중복·랜드마크·선거구 밖 지명은 애초에 매핑 불가였고, 최선의 경우인 "EMD 정확 명칭"(오륜동 등, `districts.yaml`과 바로 join 가능)조차 실제로 세어보니 news_pulse/local_issue가 쓰는 최근 12주 창에서 표본이 0~2건대로 극히 적고, 그 몇 건마저 동명이동(전국에 같은 이름의 행정동이 있어 다른 도시 기사가 섞임) 오염이 확인됐다. 매핑 인프라를 만들 가치가 없다는 결론 — 재검토 조건은 D-008 참고.
 13. ~~**진영색 일관 스타일링**~~ — **완료 (2026-09-15).** `frontend/src/design-system/campColor.ts` 신규(`CAMP_COLOR` 맵 + `campColor()` 헬퍼) — `CandidateMentionPanel.tsx`가 이미 세 번째로 복붙하려던 참이라 이번에 뽑아냈다. `CandidateMentionPanel`·`MediaElectoralGapCard`·`NewsVolumeOverlayCard` 셋이 이걸 쓴다.
 
-### 티어 3 — 후속 (새 분석기 또는 텍스트 트랙 필요, 설계만)
+### 티어 3 — 후속 (새 분석기 또는 텍스트 트랙 필요) — **14번 구현 완료, 15·16번은 별도 승인·검토 대기**
 
-14. **이슈 × 후보 매트릭스** — 3단계 그대로. 티어2의 12번은 근사치일 뿐, 정확히 조인하려면 새 분석기가 필요.
+14. ~~**이슈 × 후보 매트릭스**~~ — **스캐폴딩·구현 완료 (2026-09-15), 실측 검증은 이중 대기.** 새 분석기 `issue_candidate_matrix`(`docs/proposals/A-007-issue-candidate-matrix.md`) — `local_issue`/`candidate_mention_share` 둘 다 기사 단위 연결 정보를 안 남겨서, `news_article`을 다시 읽어 이슈 어휘집(`issue_lexicon.yaml`)과 후보 로스터를 같은 기사 집합에 동시 적용한다(분석기 폴더 독립 원칙상 두 로직 다 재구현, import 안 함). 신규 kind `issue_candidate_matrix` 계약 등록 완료. 단위테스트 10개(손 검산 포함) 통과. 강남구 갑 실행: 격리 0%, 멱등 확인, 재건축·부동산·정치·복지 4개 카테고리에 후보 언급이 실제로 갈렸다(변별력 확인) — 어휘집이 송파 특정이라 전혀 안 걸릴 거라 예상했는데 "재건축"·"집값" 같은 일반 키워드가 강남 기사에도 걸려 뜻밖의 신호가 잡혔다. `verified`는 `candidate_mention_share`(실제 로스터 없음)와 `issue_ranker`(어휘집 미검증) 두 선행 조건에 모두 묶여 있어 false 유지.
 15. **자동 주간 브리핑 문장 (텍스트 트랙)** — 6번의 숫자 요약을 자연어로. Claude API 비용 발생 지점, 5단계와 함께 별도 승인 필요.
 16. **다음 액션 추천 카드** — "상대 언급 3주 연속 상승 — 대응 검토" 같은 제안형 카드는 `docs/90-compliance.md`의 중위험(해석 산출물) 범주. 법률 검토 경로 확인 전엔 만들지 않는다.
 

@@ -1,6 +1,6 @@
 # 자동 생성물. 손으로 고치지 말 것. `uv run votelink analyze --sync`
 generated_by: votelink analyze registry sync
-count: 6
+count: 7
 analyzers:
 - id: candidate_mention_share
   name: 선거구 등록 후보별 주간 뉴스 언급 비교
@@ -8,6 +8,14 @@ analyzers:
   - news_article
   outputs:
   - candidate_mention_share
+  geo_level: sigungu
+  verified: false
+- id: issue_candidate_matrix
+  name: 이슈 × 후보 교차표
+  inputs:
+  - news_article
+  outputs:
+  - issue_candidate_matrix
   geo_level: sigungu
   verified: false
 - id: issue_ranker

@@ -22,6 +22,7 @@ class RecordKind(StrEnum):
     TURNOUT_GAP = "turnout_gap"
     TARGET_PRIORITY = "target_priority"
     CANDIDATE_MENTION_SHARE = "candidate_mention_share"
+    ISSUE_CANDIDATE_MATRIX = "issue_candidate_matrix"
 
 
 class GeoLevel(StrEnum):

@@ -1,0 +1,54 @@
+id: issue_candidate_matrix
+name: 이슈 × 후보 교차표
+inputs: [news_article]
+outputs: [issue_candidate_matrix]
+geo_level: sigungu
+proposal: docs/proposals/A-007-issue-candidate-matrix.md
+
+# 2026-09-15: 미검증. 이중으로 막혀 있다 — ① candidate_mention_share와 같은
+#   이유로 송파구 갑 실제 후보 로스터가 없다. ② issue_ranker와 같은 이유로
+#   issue_lexicon.yaml이 초안이고 표본이 스포츠·행사 위주로 오염돼 있다(현재
+#   미분류 ~82%). 선행 분석기 둘 다 verified:false인 상태라 이 분석기는 그
+#   위에 쌓이는 만큼 실측 검증이 더 멀다. 강남구 갑 테스트 캠프로 수동 실행은
+#   가능하지만, issue_lexicon.yaml이 송파구 갑 지명·거리명 위주 키워드
+#   (가락시영, 잠실주공, 탄천, 성내천, 위례신사선 등)라 강남구 갑 기사에는
+#   거의 매칭되지 않는다 — 카테고리가 0~1개만 나와도 분석기 결함이 아니라
+#   어휘집의 지리적 특이성 때문이다(A-007 §변별력).
+verified: false
+
+config:
+  default_district: seoul_songpa_gap
+  # naver_news가 수집한 시군구(서울 25개 자치구)마다 대표 선거구 하나 —
+  # candidate_mention_share/news_pulse/issue_ranker의 config.districts와 같은 목록.
+  # 캠프가 아직 없는 선거구는 AnalyzeError로 멈춘다 — 정상 동작이다.
+  districts:
+    seoul_songpa_gap: {}
+    seoul_jongno: {}
+    seoul_jung_seongdong_eul: {}
+    seoul_yongsan: {}
+    seoul_jung_seongdong_gap: {}
+    seoul_gwangjin_gap: {}
+    seoul_dongdaemun_gap: {}
+    seoul_jungnang_gap: {}
+    seoul_seongbuk_gap: {}
+    seoul_gangbuk_gap: {}
+    seoul_dobong_gap: {}
+    seoul_nowon_gap: {}
+    seoul_eunpyeong_gap: {}
+    seoul_seodaemun_gap: {}
+    seoul_mapo_gap: {}
+    seoul_yangcheon_gap: {}
+    seoul_gangseo_gap: {}
+    seoul_guro_gap: {}
+    seoul_geumcheon: {}
+    seoul_yeongdeungpo_gap: {}
+    seoul_dongjak_gap: {}
+    seoul_gwanak_gap: {}
+    seoul_seocho_gap: {}
+    seoul_gangnam_gap: {}
+    seoul_gangdong_gap: {}
+
+  common:
+    # news_pulse/candidate_mention_share와 반드시 같은 값 — 다르면 세 산출물을
+    # 나란히 비교할 수 없다.
+    window_weeks: 12
