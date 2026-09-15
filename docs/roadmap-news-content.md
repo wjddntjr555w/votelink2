@@ -78,25 +78,32 @@
 
 ## L3 콘텐츠 기획 (2026-09-15)
 
-`candidate_mention_share`를 새로 만들고 보니, 이 분석기뿐 아니라 이미 있던 `news_pulse`·
-`issue_ranker`(→`local_issue`)까지 **셋 다 지금 프런트엔드 어디에도 렌더링되지 않는다**
-(grep 확인). `/d/{district}/news`는 `news_article` 원문을 표로만 보여줄 뿐이다. 반대로
-수치 트랙 3종(`voter_profile`→`segment_profile`, `turnout_gap`, `target_priority`)은
-전부 `verified: true`이고 이미 대시보드·지도·비교 화면에 녹아 있다.
+> **정정 (2026-09-15)**: `news_pulse`·`local_issue` 둘 다 최초 조사(grep)의 판단과 달리
+> **이미 대시보드(`/d/{district}/`)에 카드로 붙어 있었다** — `IssueBoardPanel.tsx`(이슈
+> 랭킹·추세 화살표 ↑↓→·대표 헤드라인·미분류율 경고), `PulsePanel.tsx`(주간 막대·급증
+> 표시·`backfill_distorted` 배너). 다만 두 컴포넌트 다 **백엔드가 이미 계산해 내려주는
+> 필드를 프런트가 빠뜨린 부분**이 있었다: `IssueBoardPanel`은 `top_places` 칩이 없었고
+> (추가 완료), `PulsePanel`은 `top_publishers`/`top_places`/`top_persons`가 아예
+> 없고 `IssueBoardPanel`은 자기 `backfill_distorted`를 표시 안 한다(둘 다 티어 1의
+> 5·7번으로 남겨둠). **아직 화면에 전혀 없는 건 `candidate_mention_share` 하나뿐**이고,
+> 티어 1의 1·2·3번(후보 언급 타임라인·점유율 스택바·급변 하이라이트)과 티어 2가 그걸
+> 다루는 실제 남은 작업이다.
 
-목표: 방치된 뉴스 3종을 대시보드 콘텐츠로 끌어올리되, 이미 화면에 있는 개표·투표율·유권자
-성향 데이터와 조합해 "미디어에서 보이는 그림"과 "실제 표심·전략 우선순위"를 나란히 비교할
-수 있게 한다 — `docs/00-overview.md` 5대 산출물 중 **갭 리포트**로 가는 다리다.
+`candidate_mention_share`를 새로 만들고 보니, 이 데이터를 대시보드 콘텐츠로 끌어올리되
+이미 화면에 있는 개표·투표율·유권자 성향 데이터, 그리고 이미 있는 `news_pulse`/
+`local_issue` 카드와 조합해 "미디어에서 보이는 그림"과 "실제 표심·전략 우선순위"를 나란히
+비교할 수 있게 하는 게 목표다 — `docs/00-overview.md` 5대 산출물 중 **갭 리포트**로 가는
+다리다.
 
 ### 티어 1 — 지금 바로 (프런트엔드만, 조합 불필요)
 
 1. **후보 언급 점유율 타임라인** — `candidate_mention_share.candidates[].weekly[]`를 멀티라인/바 차트로(x=주, y=`article_count`/`share_pct`). 진영색으로 우리 후보·상대 구분.
 2. **주간 점유율 100% 스택 바** — 같은 데이터를 `share_pct` 기준 스택 바로.
 3. **급변 하이라이트 카드** — `wow_change_pct` 절대값이 큰 후보·주를 뽑아 "이번 주 특이사항" 카드로.
-4. **이슈 랭킹 카드 목록** — `local_issue.issues[]`를 `recency_score` 내림차순 카드로, `trend` 화살표·`top_places` 칩·`sample_headlines` 3개. 구현 비용 대비 완성도가 가장 높다.
-5. **언론사 분포 카드** — `news_pulse.top_publishers`/`top_publisher_share`로 매체 쏠림 경고.
+4. ~~**이슈 랭킹 카드 목록**~~ — **완료.** `IssueBoardPanel.tsx`(대시보드)가 이미 랭킹·`trend` 화살표·`sample_headlines`를 보여주고 있었다. 빠져 있던 `top_places` 칩만 추가(`b.places` 렌더링, `votelink/web/viewmodel.py::build_issue_board`가 이미 계산해 내려주던 값이라 프런트만 고치면 됐다).
+5. **언론사 분포 카드** — 실제로 확인해보니 아직 없다. `PulsePanel.tsx`는 급증 막대·`backfill_distorted` 배너만 보여주고 `top_publishers`/`top_places`/`top_persons`는(`PulseCard`에 이미 다 있는 필드인데도) 렌더링하지 않는다 — 티어 1의 4번과 같은 유형의 진짜 남은 작업.
 6. **주간 브리핑 요약 카드** — 세 kind의 최신 주 값(총 기사 수·급증 여부·우리 vs 상대 점유율·최상위 이슈·언론사 수)을 한 장으로. LLM 불필요 — 필드 골라 배치만.
-7. **백필 왜곡 배너 (공용 컴포넌트)** — 세 kind 공통 `backfill_distorted` 플래그를 하나의 재사용 배너로.
+7. **백필 왜곡 배너 (공용 컴포넌트)** — `PulsePanel.tsx`는 이미 자체 배너로 `news_pulse.backfill_distorted`를 보여준다. `IssueBoardPanel.tsx`는 같은 필드(`issue_board.backfill_distorted`)가 있는데도 **표시하지 않는다** — 진짜 빠진 건 이 하나다. 셋(`candidate_mention_share` 포함)을 하나의 재사용 컴포넌트로 통일하면서 이 구멍을 메운다.
 8. **표본 편향 고지 카드 (`issue_ranker` 전용)** — `unclassified_count / total_articles`로 "분류율 X%" 노출. `meta.yaml`이 이미 미분류 82%를 지적했으니 화면에서도 투명하게.
 9. **`/compare`에 뉴스량 열 추가** — `news_pulse.total_articles`를 선거구 비교 표에. 후보 단위는 캠프마다 달라 비교가 자연스럽지 않지만 뉴스 총량은 선거구 단위라 바로 가능.
 

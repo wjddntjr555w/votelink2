@@ -40,6 +40,13 @@ export function IssueBoardPanel({
             <svg viewBox="0 0 100 6" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 6 }} role="img" aria-label={b.title}>
               <rect x="0" y="0" width={b.width_pct} height={6} fill="var(--accent)" />
             </svg>
+            {b.places.length > 0 && (
+              <p style={{ margin: "4px 0 0" }}>
+                {b.places.map(([name, n]) => (
+                  <span key={name} className="chip">{name} {n}</span>
+                ))}
+              </p>
+            )}
             {b.headlines.length > 0 && (
               <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 12, color: "var(--muted)" }}>
                 {b.headlines.map((h, i) => (
