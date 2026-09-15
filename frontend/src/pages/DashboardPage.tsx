@@ -17,6 +17,7 @@ import { PulsePanel } from "../components/dashboard/PulsePanel";
 import { IssueBoardPanel } from "../components/dashboard/IssueBoardPanel";
 import { CandidateMentionPanel } from "../components/dashboard/CandidateMentionPanel";
 import { WeeklyDigestCard } from "../components/dashboard/WeeklyDigestCard";
+import { MediaElectoralGapCard } from "../components/dashboard/MediaElectoralGapCard";
 
 export function DashboardPage() {
   const { districtId = "" } = useParams();
@@ -195,6 +196,7 @@ export function DashboardPage() {
               <CandidateMentionPanel card={candidate_mentions} districtId={districtId} />
             </ComplianceGate>
           )}
+          <MediaElectoralGapCard view={view} candidateMentions={candidate_mentions} />
 
           <footer className="page-foot">
             <span>산출물의 적법성은 이 시스템이 판정하지 않는다. 최종 판단자는 캠프의 법률 검토다.</span>
