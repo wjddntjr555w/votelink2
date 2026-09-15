@@ -108,11 +108,11 @@
 8. ~~**표본 편향 고지 카드**~~ — **이미 있었다.** 위 7번 작업 중 확인 — `IssueBoardPanel.tsx`가 이미 `unclassified_pct`로 "표본은 지명 검색분이라 스포츠·행사·타지역 국가뉴스가 섞인다({pct}%가 분류 불가)" 고지와, 하단에 `unclassified_count`/"어휘집 보강 신호"(≥50%) 경고까지 갖고 있었다. 별도 구현 불필요.
 9. ~~**`/compare`에 뉴스량 열 추가**~~ — **완료 (2026-09-15).** `load_all_news_pulse`(loader.py, 신규) + `build_comparison`의 `news_pulse_by_district` 인자(viewmodel.py) + `ComparisonRow.news_total_articles`. `news_pulse`가 `blocked`면 그 칸만 `None`(개별 gate가 없어 "0건"으로 새지 않게 직접 거름). 실측: 강남 갑/을/병 4,924건, 강동 갑/을 1,791건 — 같은 시군구 선거구가 정확히 같은 값을 보였다(뉴스는 sigungu 단위라 의도된 동작). 백엔드 테스트 3개 신규, 프런트 lint/test/build 통과.
 
-### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에)
+### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에) — **10·11·13번 완료, 12번만 보류**
 
 10. ~~**뉴스량 대비 후보 노출 비율 오버레이**~~ — **완료 (2026-09-15).** `NewsVolumeOverlayCard.tsx` 신규 — `pulse.bars[].count`(선거구 전체, 배경 회색 막대)와 `candidate_mentions`의 우리 후보 `bars[].count`(전경, 진영색)를 같은 `peak` 기준·같은 시간축에 겹친다. 두 분석기의 week 그리드가 이론상 완전히 같다는 보장은 없어 `week_start` 문자열로 맞춰 읽는다(코드 주석에 근거 남김). 백엔드 변경 없음.
 11. ~~**미디어 노출 vs 표심 갭 카드**~~ — **완료 (2026-09-15).** `MediaElectoralGapCard.tsx` 신규 — `candidate_mentions`의 최신 `share_pct`(우리 vs 상대)와 `view.summary_card.camp_bar`(진영별 득표 근사 집계, `BarSlice.ours`로 우리 진영 판정)를 나란히 놓고 갭 문구(예: "언론 노출이 표심보다 X%p 앞서 있다")를 만든다. 백엔드 변경 없음 — `summary_card`는 이미 대시보드가 fetch 하던 값이다. **로그인한 캠프 렌즈가 있을 때만 렌더** — CandidateComparison과 같은 전제("우리"는 렌즈가 정한다). 두 소스가 다른 verdict를 가질 수 있어 WeeklyDigestCard와 같은 `shows()` 패턴으로 개별 배너 없이 값만 거른다.
-12. **동별 이슈-우선순위 오버레이 (지도 확장)** — `local_issue`/`news_pulse`의 `top_places` 집계를 `target_priority`의 `rank`와 겹쳐 `/d/{district}/map`에 두 번째 레이어로. 겹치면 "미디어와 전략이 같은 곳", 안 겹치면 캠프가 놓치는 지역 신호.
+12. **동별 이슈-우선순위 오버레이 (지도 확장)** — **보류 (2026-09-15), 별도 제안서 필요.** 착수 전 조사에서 막혔다: 지도는 `geo_code`(행정동) 단위로 색칠하는데 `top_places`는 geo_code가 없는 자유 텍스트 지명이다. 송파구 갑 실제 EMD 9개(풍납1·2동, 방이1·2동, 오륜동, 송파1·2동, 잠실4·6동)와 대조하니 "송파"·"잠실"·"방이동"·"풍납동" 같은 term은 동명이 여럿이라 텍스트만으론 특정 동을 가릴 수 없고, "올림픽공원"·"석촌호수"·"가락시장"·"한성백제박물관"은 애초에 행정동명이 아닌 랜드마크라 EMD 이름과 매칭 자체가 안 된다(그중 "가락시장"은 이 선거구 EMD 9개에 속하지도 않는다 — sigungu 단위 매칭이라 선거구 밖 지명도 섞인다). 절대 규칙 4("`geo_code` 매핑 실패는 에러다, null로 넘어가지 않는다")를 생각하면 텍스트 유사도로 동을 추측해 지도에 색칠하는 건 원칙에 어긋난다. 제대로 하려면 "지명 텍스트 → geo_code" 매핑 참조 데이터가 새로 필요하고, 이는 `D-001`(행정동코드 백필)급 규모의 별도 제안서 대상이다 — 이번 티어 2 범위(이미 계산된 필드 조합)를 넘어선다.
 13. ~~**진영색 일관 스타일링**~~ — **완료 (2026-09-15).** `frontend/src/design-system/campColor.ts` 신규(`CAMP_COLOR` 맵 + `campColor()` 헬퍼) — `CandidateMentionPanel.tsx`가 이미 세 번째로 복붙하려던 참이라 이번에 뽑아냈다. `CandidateMentionPanel`·`MediaElectoralGapCard`·`NewsVolumeOverlayCard` 셋이 이걸 쓴다.
 
 ### 티어 3 — 후속 (새 분석기 또는 텍스트 트랙 필요, 설계만)
