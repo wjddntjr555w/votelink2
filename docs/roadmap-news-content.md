@@ -102,7 +102,7 @@
 2. **주간 점유율 100% 스택 바** — 아직 없음. 1번은 후보별 개별 막대라 "점유율 스택"과는 다른 표현 — 이 항목은 여전히 유효한 별도 작업.
 3. ~~**급변 하이라이트 카드**~~ — **완료 (2026-09-15).** `CandidateMentionPanel.tsx`에 통합 — 카드 전체에서 `|wow_change_pct|` 최댓값을 자동으로 뽑아 "이번 주 특이사항" 배너로 표시(`build_candidate_mention_card`의 `highlight` 필드). 강남구 갑 실데이터로 확인: 서명옥 550% 급증을 정확히 집어냄.
 4. ~~**이슈 랭킹 카드 목록**~~ — **완료.** `IssueBoardPanel.tsx`(대시보드)가 이미 랭킹·`trend` 화살표·`sample_headlines`를 보여주고 있었다. 빠져 있던 `top_places` 칩만 추가(`b.places` 렌더링, `votelink/web/viewmodel.py::build_issue_board`가 이미 계산해 내려주던 값이라 프런트만 고치면 됐다).
-5. **언론사 분포 카드** — 실제로 확인해보니 아직 없다. `PulsePanel.tsx`는 급증 막대·`backfill_distorted` 배너만 보여주고 `top_publishers`/`top_places`/`top_persons`는(`PulseCard`에 이미 다 있는 필드인데도) 렌더링하지 않는다 — 티어 1의 4번과 같은 유형의 진짜 남은 작업.
+5. ~~**언론사 분포 카드**~~ — **완료 (2026-09-15).** `PulsePanel.tsx`에 `top_publishers`/`top_places`/`top_persons` 칩 추가(`PulseCard`가 이미 갖고 있던 필드). 쏠림 경고는 `top_publisher_share`(주 단위 필드)가 카드에 없어서, 대신 창 전체 기준 `top_publishers[0]/total_articles`를 화면단에서 계산해 30% 이상이면 경고 문구를 띄운다(`IssueBoardPanel`의 `unclassified_pct>=50`과 같은 성격의 표시 임계값). 송파구 갑 실데이터로 확인: 1위 언론사 비중 4.5%로 정상 범위, 경고 안 뜸.
 6. **주간 브리핑 요약 카드** — 세 kind의 최신 주 값(총 기사 수·급증 여부·우리 vs 상대 점유율·최상위 이슈·언론사 수)을 한 장으로. LLM 불필요 — 필드 골라 배치만.
 7. **백필 왜곡 배너 (공용 컴포넌트)** — `PulsePanel.tsx`는 이미 자체 배너로 `news_pulse.backfill_distorted`를 보여준다. `IssueBoardPanel.tsx`는 같은 필드(`issue_board.backfill_distorted`)가 있는데도 **표시하지 않는다** — 진짜 빠진 건 이 하나다. 셋(`candidate_mention_share` 포함)을 하나의 재사용 컴포넌트로 통일하면서 이 구멍을 메운다.
 8. **표본 편향 고지 카드 (`issue_ranker` 전용)** — `unclassified_count / total_articles`로 "분류율 X%" 노출. `meta.yaml`이 이미 미분류 82%를 지적했으니 화면에서도 투명하게.
