@@ -16,6 +16,7 @@ import { DetailAccordion } from "../components/dashboard/DetailAccordion";
 import { PulsePanel } from "../components/dashboard/PulsePanel";
 import { IssueBoardPanel } from "../components/dashboard/IssueBoardPanel";
 import { CandidateMentionPanel } from "../components/dashboard/CandidateMentionPanel";
+import { WeeklyDigestCard } from "../components/dashboard/WeeklyDigestCard";
 
 export function DashboardPage() {
   const { districtId = "" } = useParams();
@@ -172,6 +173,12 @@ export function DashboardPage() {
               </ComplianceGate>
             </>
           )}
+
+          <WeeklyDigestCard
+            pulse={pulse}
+            issueBoard={issue_board}
+            candidateMentions={candidate_mentions}
+          />
 
           {pulse && (
             <ComplianceGate verdict={pulse.verdict}>
