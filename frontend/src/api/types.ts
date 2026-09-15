@@ -424,6 +424,7 @@ export interface ComparisonRow {
   agg: AggregateCard;
   loaded: number;
   expected: number;
+  news_total_articles: number | null;
   // coverage_text 는 백엔드 @property 라 JSON에 없다 — `${loaded} / ${expected}` 로 다시 계산한다.
 }
 

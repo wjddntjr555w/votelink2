@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from tests.test_web import POLICY_BLOCKED, POLICY_LOW, REVIEW_CLEARED, REVIEW_NONE
 from tests.test_web_loader import CODES, profile_record, write_districts
+from tests.test_web_pulse import pulse_record
 from votelink import store
 from votelink.reference import compliance as compliance_mod
 from votelink.reference import districts as districts_mod
@@ -37,8 +38,12 @@ def fresh_caches():
     compliance_mod.reset_cache()
 
 
-def build(tmp_path, policy: str = POLICY_LOW, *, review: str = REVIEW_CLEARED) -> TestClient:
+def build(
+    tmp_path, policy: str = POLICY_LOW, *, review: str = REVIEW_CLEARED, news_records=None
+) -> TestClient:
     store.append_records("voter_profile", [profile_record(c) for c in CODES], DataSpace(tmp_path))
+    if news_records:
+        store.append_records("news_pulse", news_records, DataSpace(tmp_path))
     policy_path = tmp_path / "compliance.policy.yaml"
     policy_path.write_text(policy, encoding="utf-8")
     review_path = tmp_path / "compliance.review.yaml"
@@ -83,3 +88,37 @@ def test_compare_for_a_type_with_no_data_is_all_skipped(tmp_path):
     view = build(tmp_path).get("/api/compare?election_type=national_assembly").json()["view"]
     assert view["rows"] == []
     assert len(view["skipped"]) == 2
+
+
+# --- 뉴스량 열 -----------------------------------------------------------------
+
+
+def test_compare_shows_news_total_articles(tmp_path):
+    client = build(tmp_path, news_records=[pulse_record()])
+    view = client.get("/api/compare").json()["view"]
+    assert view["rows"][0]["news_total_articles"] == 13
+
+
+def test_compare_news_total_articles_is_none_when_not_collected(tmp_path):
+    view = build(tmp_path).get("/api/compare").json()["view"]
+    assert view["rows"][0]["news_total_articles"] is None
+
+
+POLICY_NEWS_BLOCKED = (
+    "outputs:\n"
+    "  - kind: segment_profile\n"
+    "    risk: low\n"
+    "  - kind: news_pulse\n"
+    "    risk: high\n"
+    "    default_status: blocked\n"
+    '    note: "테스트 차단"\n'
+)
+
+
+def test_compare_hides_news_total_articles_when_news_pulse_is_blocked(tmp_path):
+    """행 자체(voter_profile)는 안 막혔어도, news_pulse 만 blocked 면 그 칸만 None 이다
+    — "0건"이 실제 값처럼 보이면 안 된다."""
+    client = build(tmp_path, POLICY_NEWS_BLOCKED, news_records=[pulse_record()])
+    view = client.get("/api/compare").json()["view"]
+    assert view["verdict"]["status"] != "blocked"  # 행 자체는 살아있다
+    assert view["rows"][0]["news_total_articles"] is None

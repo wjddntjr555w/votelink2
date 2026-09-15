@@ -1073,6 +1073,8 @@ class ComparisonRow(BaseModel):
     agg: AggregateCard
     loaded: int
     expected: int
+    news_total_articles: int | None = None
+    """news_pulse 창 합계. 없거나(수집 전) blocked 면 None — '0건'과 구분한다."""
 
     @property
     def coverage_text(self) -> str:
@@ -1126,7 +1128,9 @@ def build_comparison(
     *,
     sort: str = "name",
     lens: Lens | None = None,
+    news_pulse_by_district: dict[str, NewsPulse] | None = None,
 ) -> ComparisonView:
+    news_pulse_by_district = news_pulse_by_district or {}
     rows: list[ComparisonRow] = []
     for dp in comparison.rows:
         agg = aggregate_profiles(
@@ -1139,6 +1143,14 @@ def build_comparison(
         )
         if agg is None:  # comparison.rows 는 비지 않은 것만 담지만 방어적으로
             continue
+
+        news_total_articles = None
+        pulse = news_pulse_by_district.get(dp.district.id)
+        # blocked 면 개수조차 새지 않는다 — 이 표는 뉴스 카드의 verdict 를 따로
+        # 안 보여주므로 여기서 직접 걸러야 "0건"이 실제 값처럼 보이지 않는다.
+        if pulse is not None and review_with(compliance, pulse.record).status != "blocked":
+            news_total_articles = pulse.payload.total_articles
+
         rows.append(
             ComparisonRow(
                 district_id=dp.district.id,
@@ -1146,6 +1158,7 @@ def build_comparison(
                 agg=agg,
                 loaded=dp.diagnostics.loaded,
                 expected=dp.diagnostics.expected,
+                news_total_articles=news_total_articles,
             )
         )
     ordered = _sort_comparison(rows, sort)

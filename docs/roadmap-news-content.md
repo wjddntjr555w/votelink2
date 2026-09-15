@@ -106,7 +106,7 @@
 6. ~~**주간 브리핑 요약 카드**~~ — **완료 (2026-09-15).** `WeeklyDigestCard.tsx`(대시보드, 세 패널 위) 신규 — 백엔드 변경 없이 이미 fetch 된 `pulse`/`issue_board`/`candidate_mentions` 세 카드의 값만 골라 한 줄 요약(뉴스량·급증·우리 vs 상대 점유율·급변 하이라이트·최상위 이슈 2개·상위 언론사 수). 컴플라이언스 처리: 세 소스가 서로 다른 `verdict`를 가질 수 있어 이 카드 자체엔 `ComplianceGate` 배너를 씌우지 않고, 대신 각 소스가 `blocked`면 그 값만 조용히 생략한다(`shows(verdict)` 헬퍼) — 아래 개별 패널이 이미 자기 배너를 보여준다.
 7. **백필 왜곡 배너 (공용 컴포넌트)** — `PulsePanel.tsx`는 이미 자체 배너로 `news_pulse.backfill_distorted`를 보여준다. `IssueBoardPanel.tsx`는 같은 필드(`issue_board.backfill_distorted`)가 있는데도 **표시하지 않는다** — 진짜 빠진 건 이 하나다. 셋(`candidate_mention_share` 포함)을 하나의 재사용 컴포넌트로 통일하면서 이 구멍을 메운다.
 8. **표본 편향 고지 카드 (`issue_ranker` 전용)** — `unclassified_count / total_articles`로 "분류율 X%" 노출. `meta.yaml`이 이미 미분류 82%를 지적했으니 화면에서도 투명하게.
-9. **`/compare`에 뉴스량 열 추가** — `news_pulse.total_articles`를 선거구 비교 표에. 후보 단위는 캠프마다 달라 비교가 자연스럽지 않지만 뉴스 총량은 선거구 단위라 바로 가능.
+9. ~~**`/compare`에 뉴스량 열 추가**~~ — **완료 (2026-09-15).** `load_all_news_pulse`(loader.py, 신규) + `build_comparison`의 `news_pulse_by_district` 인자(viewmodel.py) + `ComparisonRow.news_total_articles`. `news_pulse`가 `blocked`면 그 칸만 `None`(개별 gate가 없어 "0건"으로 새지 않게 직접 거름). 실측: 강남 갑/을/병 4,924건, 강동 갑/을 1,791건 — 같은 시군구 선거구가 정확히 같은 값을 보였다(뉴스는 sigungu 단위라 의도된 동작). 백엔드 테스트 3개 신규, 프런트 lint/test/build 통과.
 
 ### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에)
 

@@ -54,6 +54,7 @@ from votelink.web.loader import (
     AmbiguousDistrict,
     available_districts,
     load_all_emd,
+    load_all_news_pulse,
     load_candidate_mention_share,
     load_comparison,
     load_local_issue,
@@ -386,7 +387,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         et = resolve_election_type(election_type)
         lens = request.state.lens
         comparison = load_comparison(settings, election_type=et)
-        view = build_comparison(comparison, _compliance(request), sort=sort, lens=lens)
+        news_pulse_by_district = load_all_news_pulse(settings)
+        view = build_comparison(
+            comparison,
+            _compliance(request),
+            sort=sort,
+            lens=lens,
+            news_pulse_by_district=news_pulse_by_district,
+        )
         account = getattr(request.state, "account", None)
 
         shows = view.verdict is not None and view.verdict.status != "blocked"

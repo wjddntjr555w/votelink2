@@ -273,6 +273,21 @@ def load_comparison(
     return ComparisonProfiles(election_type=election_type, rows=rows, skipped=skipped)
 
 
+def load_all_news_pulse(settings: WebSettings) -> dict[str, NewsPulse]:
+    """정의된 모든 선거구의 news_pulse, `/compare`용. district_id → NewsPulse.
+
+    같은 시군구를 공유하는 선거구는 값이 같다 — 뉴스는 sigungu 단위로만
+    들어오기 때문이다(`docs/10-data-contract.md §4`). `load_comparison`과 같은
+    O(N·R) 스캔이고 규모가 같아 무의미하다.
+    """
+    result: dict[str, NewsPulse] = {}
+    for district in load_districts(settings.districts_path).values():
+        pulse = load_news_pulse(settings, district.id)
+        if pulse is not None:
+            result[district.id] = pulse
+    return result
+
+
 def load_all_emd(
     settings: WebSettings, *, election_type: ElectionType = DEFAULT_ELECTION_TYPE
 ) -> NationProfiles:

@@ -137,6 +137,7 @@ export function ComparePage() {
                       <th>스윙</th>
                       <th>{view.gap_labels.nation} 대비</th>
                       <th>인구</th>
+                      <th title="최근 12주 창 합계 (같은 자치구 선거구는 값이 같다 — 뉴스는 시군구 단위다)">뉴스량</th>
                       <th>동</th>
                       <th>검토</th>
                     </tr>
@@ -169,6 +170,13 @@ export function ComparePage() {
                         <td className="num">{row.agg.swing.toFixed(1)}%p</td>
                         <td className="num">{row.agg.gaps.nation?.text}</td>
                         <td className="num">{row.agg.population_total.toLocaleString()}</td>
+                        <td className="num">
+                          {row.news_total_articles !== null ? (
+                            `${row.news_total_articles.toLocaleString()}건`
+                          ) : (
+                            <span className="muted" title="수집 전이거나 검토 전이라 표시하지 않는다">—</span>
+                          )}
+                        </td>
                         <td className={row.loaded === row.expected ? "" : "warn-text"}>
                           {row.loaded} / {row.expected}
                         </td>
