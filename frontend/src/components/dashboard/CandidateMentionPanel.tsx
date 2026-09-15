@@ -1,4 +1,5 @@
 import type { CandidateMentionCard, CandidateMentionSeries } from "../../api/types";
+import { BackfillBanner } from "./BackfillBanner";
 
 const LINEAGE_COLOR: Record<CandidateMentionSeries["lineage"], string> = {
   conservative: "var(--camp-conservative)",
@@ -16,6 +17,47 @@ function ChangeBadge({ pct }: { pct: number | null }) {
     <span className={`status-pill ${up ? "watch" : "stable"}`}>
       {up ? "▲" : pct < 0 ? "▼" : "—"} {Math.abs(pct).toFixed(0)}%
     </span>
+  );
+}
+
+/** 주간 점유율을 100% 기준 스택 바로 — 후보별 개별 막대(CandidateRow)는 각자
+ * "얼마나 많이 나왔나"를 보여주고, 이건 "그 주 언론 노출을 누가 나눠 가졌나"를
+ * 보여준다. 같은 주 후보들의 share_pct 는 분모가 같아 합이 100에 수렴한다
+ * (분석기 쪽 계산, `analyzers/candidate_mention_share/calc.py::share_pct`). */
+function WeeklyShareStack({ card }: { card: CandidateMentionCard }) {
+  const weeks = card.candidates[0]?.bars.map((b) => b.week_start) ?? [];
+  if (weeks.length === 0) {
+    return null;
+  }
+  return (
+    <div style={{ margin: "8px 0 12px" }}>
+      <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 6px" }}>
+        주간 언급 점유율 (100% 기준)
+      </p>
+      {weeks.map((weekStart, i) => {
+        const segments = card.candidates
+          .map((c) => ({ name: c.name, color: LINEAGE_COLOR[c.lineage], pct: c.bars[i]?.share_pct ?? null }))
+          .filter((s): s is { name: string; color: string; pct: number } => s.pct !== null && s.pct > 0);
+        return (
+          <div key={weekStart} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 11, color: "var(--muted)", width: 76, flexShrink: 0 }}>{weekStart}</span>
+            {segments.length > 0 ? (
+              <div style={{ display: "flex", flex: 1, height: 12, borderRadius: 2, overflow: "hidden" }}>
+                {segments.map((s) => (
+                  <span
+                    key={s.name}
+                    title={`${s.name} ${s.pct.toFixed(0)}%`}
+                    style={{ width: `${s.pct}%`, background: s.color }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>데이터 없음</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -75,18 +117,15 @@ export function CandidateMentionPanel({
         창 합계 {card.total_articles}건 · 뉴스에 이름이 얼마나 나오는가 (감성·유불리 판정 아님)
       </p>
 
-      {card.backfill_distorted && (
-        <p style={{ fontSize: 12, color: "var(--signal-behind)" }}>
-          첫 백필의 검색 API 상한(검색어당 1,000건) 때문에 최근으로 갈수록 기사량이 부풀어 있다.
-          증분 수집이 여러 주 쌓이기 전까지 이번 주 변화율을 신뢰하지 않는다.
-        </p>
-      )}
+      <BackfillBanner distorted={card.backfill_distorted} trustNote="이번 주 변화율" />
 
       {card.highlight && (
         <p className="banner banner--warn" style={{ fontSize: 13 }}>
           이번 주 특이사항: {card.highlight.text}
         </p>
       )}
+
+      <WeeklyShareStack card={card} />
 
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {card.candidates.map((series) => (

@@ -1,4 +1,5 @@
 import type { PulseCard } from "../../api/types";
+import { BackfillBanner } from "./BackfillBanner";
 
 const PUBLISHER_CONCENTRATION_WARN_PCT = 30;
 /** 창 전체 기사의 이 비율 이상이 한 언론사에서 나오면 쏠림 경고를 띄운다.
@@ -25,12 +26,7 @@ export function PulsePanel({ pulse, districtId }: { pulse: PulseCard; districtId
         </span>
       </p>
 
-      {pulse.backfill_distorted && (
-        <p style={{ fontSize: 12, color: "var(--signal-behind)" }}>
-          첫 백필의 검색 API 상한(검색어당 1,000건) 때문에 최근으로 갈수록 기사량이 부풀어 있다.
-          증분 수집이 여러 주 쌓이기 전까지 급증 판정을 신뢰하지 않는다.
-        </p>
-      )}
+      <BackfillBanner distorted={pulse.backfill_distorted} trustNote="급증 판정" />
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, margin: "8px 0" }}>
         {pulse.bars.map((b) => (

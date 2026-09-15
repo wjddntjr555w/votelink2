@@ -1,5 +1,6 @@
 import { Icon } from "../layout/Icon";
 import type { IssueBoardCard } from "../../api/types";
+import { BackfillBanner } from "./BackfillBanner";
 
 export function IssueBoardPanel({
   issueBoard,
@@ -25,6 +26,7 @@ export function IssueBoardPanel({
         표본은 '{districtName}' 지명 검색분이라 스포츠·행사·타지역 국가뉴스가 많이 섞인다
         ({issueBoard.unclassified_pct.toFixed(0)}%가 분류 불가). 카테고리 랭킹·추세는 방향 참고용이다.
       </p>
+      <BackfillBanner distorted={issueBoard.backfill_distorted} trustNote="최근성·추세 판정" />
 
       <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {issueBoard.bars.map((b) => (

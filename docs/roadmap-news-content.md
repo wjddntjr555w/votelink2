@@ -99,13 +99,13 @@
 ### 티어 1 — 지금 바로 (프런트엔드만, 조합 불필요)
 
 1. ~~**후보 언급 점유율 타임라인**~~ — **완료 (2026-09-15).** `CandidateMentionPanel.tsx`(대시보드) 신규 — `candidate_mention_share.candidates[].weekly[]`를 후보별 진영색 스파크라인 막대로, 이번 주 건수·점유율을 함께 표시.
-2. **주간 점유율 100% 스택 바** — 아직 없음. 1번은 후보별 개별 막대라 "점유율 스택"과는 다른 표현 — 이 항목은 여전히 유효한 별도 작업.
+2. ~~**주간 점유율 100% 스택 바**~~ — **완료 (2026-09-15).** `WeeklyShareStack`(`CandidateMentionPanel.tsx` 안, 신규 함수) — 주마다 후보들의 `share_pct`를 100% 기준 가로 스택 바로. 1번(후보별 개별 막대)이 "누가 얼마나 나왔나"라면 이건 "그 주 노출을 누가 나눠 가졌나". 백엔드 변경 없음(share_pct는 이미 계산돼 있다).
 3. ~~**급변 하이라이트 카드**~~ — **완료 (2026-09-15).** `CandidateMentionPanel.tsx`에 통합 — 카드 전체에서 `|wow_change_pct|` 최댓값을 자동으로 뽑아 "이번 주 특이사항" 배너로 표시(`build_candidate_mention_card`의 `highlight` 필드). 강남구 갑 실데이터로 확인: 서명옥 550% 급증을 정확히 집어냄.
 4. ~~**이슈 랭킹 카드 목록**~~ — **완료.** `IssueBoardPanel.tsx`(대시보드)가 이미 랭킹·`trend` 화살표·`sample_headlines`를 보여주고 있었다. 빠져 있던 `top_places` 칩만 추가(`b.places` 렌더링, `votelink/web/viewmodel.py::build_issue_board`가 이미 계산해 내려주던 값이라 프런트만 고치면 됐다).
 5. ~~**언론사 분포 카드**~~ — **완료 (2026-09-15).** `PulsePanel.tsx`에 `top_publishers`/`top_places`/`top_persons` 칩 추가(`PulseCard`가 이미 갖고 있던 필드). 쏠림 경고는 `top_publisher_share`(주 단위 필드)가 카드에 없어서, 대신 창 전체 기준 `top_publishers[0]/total_articles`를 화면단에서 계산해 30% 이상이면 경고 문구를 띄운다(`IssueBoardPanel`의 `unclassified_pct>=50`과 같은 성격의 표시 임계값). 송파구 갑 실데이터로 확인: 1위 언론사 비중 4.5%로 정상 범위, 경고 안 뜸.
 6. ~~**주간 브리핑 요약 카드**~~ — **완료 (2026-09-15).** `WeeklyDigestCard.tsx`(대시보드, 세 패널 위) 신규 — 백엔드 변경 없이 이미 fetch 된 `pulse`/`issue_board`/`candidate_mentions` 세 카드의 값만 골라 한 줄 요약(뉴스량·급증·우리 vs 상대 점유율·급변 하이라이트·최상위 이슈 2개·상위 언론사 수). 컴플라이언스 처리: 세 소스가 서로 다른 `verdict`를 가질 수 있어 이 카드 자체엔 `ComplianceGate` 배너를 씌우지 않고, 대신 각 소스가 `blocked`면 그 값만 조용히 생략한다(`shows(verdict)` 헬퍼) — 아래 개별 패널이 이미 자기 배너를 보여준다.
-7. **백필 왜곡 배너 (공용 컴포넌트)** — `PulsePanel.tsx`는 이미 자체 배너로 `news_pulse.backfill_distorted`를 보여준다. `IssueBoardPanel.tsx`는 같은 필드(`issue_board.backfill_distorted`)가 있는데도 **표시하지 않는다** — 진짜 빠진 건 이 하나다. 셋(`candidate_mention_share` 포함)을 하나의 재사용 컴포넌트로 통일하면서 이 구멍을 메운다.
-8. **표본 편향 고지 카드 (`issue_ranker` 전용)** — `unclassified_count / total_articles`로 "분류율 X%" 노출. `meta.yaml`이 이미 미분류 82%를 지적했으니 화면에서도 투명하게.
+7. ~~**백필 왜곡 배너 (공용 컴포넌트)**~~ — **완료 (2026-09-15).** `BackfillBanner.tsx` 신규 — `distorted`/`trustNote`(무엇을 못 믿는지, 패널마다 다름)만 받는 공용 컴포넌트로 세 패널(`PulsePanel`="급증 판정", `IssueBoardPanel`="최근성·추세 판정", `CandidateMentionPanel`="이번 주 변화율")을 통일. `IssueBoardPanel`이 갖고 있던 진짜 구멍(자기 `backfill_distorted` 미표시)을 이번에 메웠다.
+8. ~~**표본 편향 고지 카드**~~ — **이미 있었다.** 위 7번 작업 중 확인 — `IssueBoardPanel.tsx`가 이미 `unclassified_pct`로 "표본은 지명 검색분이라 스포츠·행사·타지역 국가뉴스가 섞인다({pct}%가 분류 불가)" 고지와, 하단에 `unclassified_count`/"어휘집 보강 신호"(≥50%) 경고까지 갖고 있었다. 별도 구현 불필요.
 9. ~~**`/compare`에 뉴스량 열 추가**~~ — **완료 (2026-09-15).** `load_all_news_pulse`(loader.py, 신규) + `build_comparison`의 `news_pulse_by_district` 인자(viewmodel.py) + `ComparisonRow.news_total_articles`. `news_pulse`가 `blocked`면 그 칸만 `None`(개별 gate가 없어 "0건"으로 새지 않게 직접 거름). 실측: 강남 갑/을/병 4,924건, 강동 갑/을 1,791건 — 같은 시군구 선거구가 정확히 같은 값을 보였다(뉴스는 sigungu 단위라 의도된 동작). 백엔드 테스트 3개 신규, 프런트 lint/test/build 통과.
 
 ### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에)
@@ -128,8 +128,8 @@
 3. 미디어 노출 vs 표심 갭 카드(11) — "뉴스 × 개표율" 요청에 가장 직접 답한다.
 4. 나머지는 여유에 따라.
 
-공통 선행 작업: 백필 배너(7)·표본 편향 고지(8)는 어느 카드를 먼저 만들든 같이 붙인다 —
-없으면 이미 알려진 데이터 품질 문제(미분류 82%, backfill 왜곡)를 화면이 조용히 감추게 된다.
+~~공통 선행 작업: 백필 배너(7)·표본 편향 고지(8)는 어느 카드를 먼저 만들든 같이 붙인다~~
+— **완료.** **티어 1 전 항목(1~9번) 완료 (2026-09-15).**
 
 ## 다음 액션
 2단계(`candidate_mention_share`)는 송파구 갑 후보 확정 대기 중. 1단계(기존 분석기 검증)는 시간 경과·소스 개선 대기 중. 4단계(L3 콘텐츠)는 위 우선순위 순서대로 다음 대화에서 바로 착수 가능 — 프런트엔드 작업이므로 커밋 전 `npm run lint && npm test && npm run build` 필요.
