@@ -22,6 +22,7 @@ from votelink.reference.compliance import Compliance, ReviewStatus, Verdict, rev
 from votelink.reference.districts import District
 from votelink.web.lens import Lens
 from votelink.web.loader import (
+    CandidateMentionShare,
     ComparisonProfiles,
     DistrictNews,
     DistrictProfiles,
@@ -1621,6 +1622,139 @@ def build_issue_board(issue: LocalIssue | None, compliance: Compliance) -> Issue
         backfill_distorted=p.backfill_distorted,
         bars=bars,
         verdict=review_with(compliance, issue.record),
+    )
+
+
+# --- 후보 언급 비교 카드 (대시보드) ---------------------------------------------
+#
+# candidate_mention_share 레코드 1건 → 카드 한 장. news_pulse/local_issue 카드와
+# 같은 정신이다 — 분석기가 이미 계산한 share_pct/wow_change_pct 를 그대로 옮겨
+# 그린다(L3 는 계산하지 않는다). 진영색은 `lineage` 로 입힌다.
+# 제안서: docs/proposals/A-006-candidate-mention-share.md
+
+
+class CandidateWeekBar(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    week_start: str
+    count: int
+    height_pct: float
+    """이 카드 안 모든 후보·모든 주를 통틀어 최댓값 대비 %. 후보 간 막대 높이가
+    서로 비교 가능해야 하므로 후보별 최댓값이 아니라 카드 전체 최댓값을 쓴다."""
+    share_pct: float | None
+    wow_change_pct: float | None
+    title: str
+
+
+class CandidateSeries(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    party: str
+    lineage: Camp
+    lineage_label: str
+    is_ours: bool
+    total_articles: int
+    latest_count: int
+    latest_share_pct: float | None
+    latest_wow_change_pct: float | None
+    bars: list[CandidateWeekBar]
+
+
+class CandidateMentionHighlight(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    week_start: str
+    wow_change_pct: float
+    direction: str
+    """`up` 또는 `down`."""
+    text: str
+
+
+class CandidateMentionCard(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    as_of: str
+    window_weeks: int
+    total_articles: int
+    backfill_distorted: bool
+    candidates: list[CandidateSeries]
+    highlight: CandidateMentionHighlight | None
+    verdict: Verdict | None = None
+
+
+def build_candidate_mention_card(
+    cms: CandidateMentionShare | None, compliance: Compliance
+) -> CandidateMentionCard | None:
+    if cms is None:
+        return None
+    p = cms.payload
+    peak = max((w.article_count for c in p.candidates for w in c.weekly), default=0) or 1
+
+    series: list[CandidateSeries] = []
+    for c in p.candidates:
+        bars = [
+            CandidateWeekBar(
+                week_start=w.week_start,
+                count=w.article_count,
+                height_pct=round(w.article_count / peak * 100, 1),
+                share_pct=w.share_pct,
+                wow_change_pct=w.wow_change_pct,
+                title=(
+                    f"{w.week_start} — {c.name} {w.article_count}건"
+                    + (f" · 점유 {w.share_pct:.0f}%" if w.share_pct is not None else "")
+                ),
+            )
+            for w in c.weekly
+        ]
+        last = c.weekly[-1]
+        series.append(
+            CandidateSeries(
+                name=c.name,
+                party=c.party,
+                lineage=c.lineage,
+                lineage_label=CAMP_LABELS[c.lineage],
+                is_ours=c.is_ours,
+                total_articles=c.total_articles,
+                latest_count=last.article_count,
+                latest_share_pct=last.share_pct,
+                latest_wow_change_pct=last.wow_change_pct,
+                bars=bars,
+            )
+        )
+
+    # 급변 하이라이트: 카드 전체에서 |wow_change_pct| 가 가장 큰 (후보, 주) 하나.
+    # None(전주 0건이라 정의 안 됨)은 후보 대상에서 제외한다.
+    biggest: tuple[str, float, str] | None = None
+    for c in p.candidates:
+        for w in c.weekly:
+            if w.wow_change_pct is None:
+                continue
+            if biggest is None or abs(w.wow_change_pct) > abs(biggest[1]):
+                biggest = (c.name, w.wow_change_pct, w.week_start)
+
+    highlight = None
+    if biggest is not None:
+        name, pct, week = biggest
+        direction = "up" if pct > 0 else "down"
+        verb = "급증" if direction == "up" else "급감"
+        highlight = CandidateMentionHighlight(
+            name=name,
+            week_start=week,
+            wow_change_pct=pct,
+            direction=direction,
+            text=f"{name} 언급 {abs(pct):.0f}% {verb} ({week} 주)",
+        )
+
+    return CandidateMentionCard(
+        as_of=p.as_of,
+        window_weeks=p.window_weeks,
+        total_articles=p.total_articles,
+        backfill_distorted=p.backfill_distorted,
+        candidates=series,
+        highlight=highlight,
+        verdict=review_with(compliance, cms.record),
     )
 
 

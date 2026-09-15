@@ -260,10 +260,51 @@ export interface CandidateComparison {
   strong_regions_theirs: number;
 }
 
+export interface CandidateMentionBar {
+  week_start: string;
+  count: number;
+  height_pct: number;
+  share_pct: number | null;
+  wow_change_pct: number | null;
+  title: string;
+}
+
+export interface CandidateMentionSeries {
+  name: string;
+  party: string;
+  lineage: "conservative" | "progressive" | "centrist" | "other";
+  lineage_label: string;
+  is_ours: boolean;
+  total_articles: number;
+  latest_count: number;
+  latest_share_pct: number | null;
+  latest_wow_change_pct: number | null;
+  bars: CandidateMentionBar[];
+}
+
+export interface CandidateMentionHighlight {
+  name: string;
+  week_start: string;
+  wow_change_pct: number;
+  direction: "up" | "down";
+  text: string;
+}
+
+export interface CandidateMentionCard {
+  as_of: string;
+  window_weeks: number;
+  total_articles: number;
+  backfill_distorted: boolean;
+  candidates: CandidateMentionSeries[];
+  highlight: CandidateMentionHighlight | null;
+  verdict: Verdict | null;
+}
+
 export interface DashboardResponse {
   view: DistrictView;
   pulse: PulseCard | null;
   issue_board: IssueBoardCard | null;
+  candidate_mentions: CandidateMentionCard | null;
   candidate_comparison: CandidateComparison | null;
   district_id: string;
   districts: [string, string][];

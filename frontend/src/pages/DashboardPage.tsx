@@ -15,6 +15,7 @@ import { CandidateComparison } from "../components/dashboard/CandidateComparison
 import { DetailAccordion } from "../components/dashboard/DetailAccordion";
 import { PulsePanel } from "../components/dashboard/PulsePanel";
 import { IssueBoardPanel } from "../components/dashboard/IssueBoardPanel";
+import { CandidateMentionPanel } from "../components/dashboard/CandidateMentionPanel";
 
 export function DashboardPage() {
   const { districtId = "" } = useParams();
@@ -85,7 +86,7 @@ export function DashboardPage() {
     );
   }
 
-  const { view, pulse, issue_board, candidate_comparison } = data;
+  const { view, pulse, issue_board, candidate_mentions, candidate_comparison } = data;
 
   return (
     <div className="shell">
@@ -180,6 +181,11 @@ export function DashboardPage() {
           {issue_board && (
             <ComplianceGate verdict={issue_board.verdict}>
               <IssueBoardPanel issueBoard={issue_board} districtName={view.district_name} districtId={districtId} />
+            </ComplianceGate>
+          )}
+          {candidate_mentions && (
+            <ComplianceGate verdict={candidate_mentions.verdict}>
+              <CandidateMentionPanel card={candidate_mentions} districtId={districtId} />
             </ComplianceGate>
           )}
 

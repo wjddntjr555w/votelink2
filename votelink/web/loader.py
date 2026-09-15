@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, computed_field
 from votelink.contract.enums import ElectionType, RecordKind
 from votelink.contract.models import Record
 from votelink.contract.payloads import (
+    CandidateMentionSharePayload,
     LocalIssuePayload,
     NewsArticlePayload,
     NewsPulsePayload,
@@ -431,4 +432,35 @@ def load_local_issue(settings: WebSettings, district_id: str | None = None) -> L
             continue
         if best is None or payload.as_of > best.payload.as_of:
             best = LocalIssue(record=record, payload=payload)
+    return best
+
+
+# --- 후보 언급 비교 (candidate_mention_share, L2 파생) -------------------------
+#
+# 선거구당 레코드 1건. as_of(연-월)가 여럿이면 최신 하나만 — load_local_issue 와 동형.
+
+
+class CandidateMentionShare(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    record: Record
+    payload: CandidateMentionSharePayload
+
+
+def load_candidate_mention_share(
+    settings: WebSettings, district_id: str | None = None
+) -> CandidateMentionShare | None:
+    district = pick_district(settings, district_id)
+    wanted = _sigungu_codes(district)
+
+    best: CandidateMentionShare | None = None
+    for record in iter_records([RecordKind.CANDIDATE_MENTION_SHARE], space=settings.space):
+        if record.geo_code not in wanted:
+            continue
+        try:
+            payload = CandidateMentionSharePayload.model_validate(record.payload)
+        except ValidationError:
+            continue
+        if best is None or payload.as_of > best.payload.as_of:
+            best = CandidateMentionShare(record=record, payload=payload)
     return best

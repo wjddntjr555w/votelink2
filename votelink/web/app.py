@@ -54,6 +54,7 @@ from votelink.web.loader import (
     AmbiguousDistrict,
     available_districts,
     load_all_emd,
+    load_candidate_mention_share,
     load_comparison,
     load_local_issue,
     load_news,
@@ -69,6 +70,7 @@ from votelink.web.viewmodel import (
     CAMP_LABELS,
     DEFAULT_METRIC,
     build_candidate_comparison,
+    build_candidate_mention_card,
     build_comparison,
     build_issue_board,
     build_map,
@@ -265,6 +267,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         issue_board = build_issue_board(
             load_local_issue(settings, district_id), _compliance(request)
         )
+        candidate_mentions = build_candidate_mention_card(
+            load_candidate_mention_share(settings, district_id), _compliance(request)
+        )
         candidate_comparison = _candidate_comparison(request, view)
         lens = request.state.lens
         account = getattr(request.state, "account", None)
@@ -274,6 +279,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "view": _redact_district_view(view, view_shows),
             "pulse": _redact_output(pulse, ("verdict",)),
             "issue_board": _redact_output(issue_board, ("verdict",)),
+            "candidate_mentions": _redact_output(candidate_mentions, ("verdict",)),
             "candidate_comparison": candidate_comparison.model_dump(mode="json")
             if candidate_comparison and view_shows
             else None,

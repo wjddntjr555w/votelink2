@@ -85,9 +85,10 @@
 > 필드를 프런트가 빠뜨린 부분**이 있었다: `IssueBoardPanel`은 `top_places` 칩이 없었고
 > (추가 완료), `PulsePanel`은 `top_publishers`/`top_places`/`top_persons`가 아예
 > 없고 `IssueBoardPanel`은 자기 `backfill_distorted`를 표시 안 한다(둘 다 티어 1의
-> 5·7번으로 남겨둠). **아직 화면에 전혀 없는 건 `candidate_mention_share` 하나뿐**이고,
-> 티어 1의 1·2·3번(후보 언급 타임라인·점유율 스택바·급변 하이라이트)과 티어 2가 그걸
-> 다루는 실제 남은 작업이다.
+> 5·7번으로 남겨둠). `candidate_mention_share`는 이 정정 작성 당시엔 화면에 전혀
+> 없었으나, 같은 세션에서 `CandidateMentionPanel.tsx`로 바로 구현했다(티어 1의
+> 1·3번, 아래 참고) — 이제 세 kind 모두 대시보드에 카드로 올라와 있다. 남은 건
+> 위에서 짚은 진짜 갭들(2·5·6·7·8·9번)과 티어 2다.
 
 `candidate_mention_share`를 새로 만들고 보니, 이 데이터를 대시보드 콘텐츠로 끌어올리되
 이미 화면에 있는 개표·투표율·유권자 성향 데이터, 그리고 이미 있는 `news_pulse`/
@@ -97,9 +98,9 @@
 
 ### 티어 1 — 지금 바로 (프런트엔드만, 조합 불필요)
 
-1. **후보 언급 점유율 타임라인** — `candidate_mention_share.candidates[].weekly[]`를 멀티라인/바 차트로(x=주, y=`article_count`/`share_pct`). 진영색으로 우리 후보·상대 구분.
-2. **주간 점유율 100% 스택 바** — 같은 데이터를 `share_pct` 기준 스택 바로.
-3. **급변 하이라이트 카드** — `wow_change_pct` 절대값이 큰 후보·주를 뽑아 "이번 주 특이사항" 카드로.
+1. ~~**후보 언급 점유율 타임라인**~~ — **완료 (2026-09-15).** `CandidateMentionPanel.tsx`(대시보드) 신규 — `candidate_mention_share.candidates[].weekly[]`를 후보별 진영색 스파크라인 막대로, 이번 주 건수·점유율을 함께 표시.
+2. **주간 점유율 100% 스택 바** — 아직 없음. 1번은 후보별 개별 막대라 "점유율 스택"과는 다른 표현 — 이 항목은 여전히 유효한 별도 작업.
+3. ~~**급변 하이라이트 카드**~~ — **완료 (2026-09-15).** `CandidateMentionPanel.tsx`에 통합 — 카드 전체에서 `|wow_change_pct|` 최댓값을 자동으로 뽑아 "이번 주 특이사항" 배너로 표시(`build_candidate_mention_card`의 `highlight` 필드). 강남구 갑 실데이터로 확인: 서명옥 550% 급증을 정확히 집어냄.
 4. ~~**이슈 랭킹 카드 목록**~~ — **완료.** `IssueBoardPanel.tsx`(대시보드)가 이미 랭킹·`trend` 화살표·`sample_headlines`를 보여주고 있었다. 빠져 있던 `top_places` 칩만 추가(`b.places` 렌더링, `votelink/web/viewmodel.py::build_issue_board`가 이미 계산해 내려주던 값이라 프런트만 고치면 됐다).
 5. **언론사 분포 카드** — 실제로 확인해보니 아직 없다. `PulsePanel.tsx`는 급증 막대·`backfill_distorted` 배너만 보여주고 `top_publishers`/`top_places`/`top_persons`는(`PulseCard`에 이미 다 있는 필드인데도) 렌더링하지 않는다 — 티어 1의 4번과 같은 유형의 진짜 남은 작업.
 6. **주간 브리핑 요약 카드** — 세 kind의 최신 주 값(총 기사 수·급증 여부·우리 vs 상대 점유율·최상위 이슈·언론사 수)을 한 장으로. LLM 불필요 — 필드 골라 배치만.
