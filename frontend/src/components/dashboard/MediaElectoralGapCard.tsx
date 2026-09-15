@@ -1,11 +1,5 @@
 import type { CandidateMentionCard, DistrictView, Verdict } from "../../api/types";
-
-const CAMP_COLOR: Record<string, string> = {
-  conservative: "var(--camp-conservative)",
-  progressive: "var(--camp-progressive)",
-  centrist: "var(--camp-centrist)",
-  other: "var(--camp-other)",
-};
+import { campColor } from "../../design-system/campColor";
 
 function shows(verdict: Verdict | null | undefined): boolean {
   return !!verdict && verdict.status !== "blocked";
@@ -57,7 +51,7 @@ export function MediaElectoralGapCard({
         ? `표심이 언론 노출보다 ${Math.abs(gap).toFixed(0)}%p 앞서 있다.`
         : "언론 노출과 표심이 비슷한 수준이다.";
 
-  const oursColor = CAMP_COLOR[view.lens.lineage] ?? "var(--camp-other)";
+  const oursColor = campColor(view.lens.lineage);
 
   return (
     <section className="panel">

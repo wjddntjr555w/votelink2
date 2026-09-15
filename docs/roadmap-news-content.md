@@ -110,10 +110,10 @@
 
 ### 티어 2 — 조합 필요 (새 분석기 없이 기존 kind 2개 이상을 한 화면에)
 
-10. **뉴스량 대비 후보 노출 비율 오버레이** — `news_pulse.weekly[].article_count`(배경)와 `candidate_mention_share` 우리 후보 카운트(전경)를 같은 시간축에.
+10. ~~**뉴스량 대비 후보 노출 비율 오버레이**~~ — **완료 (2026-09-15).** `NewsVolumeOverlayCard.tsx` 신규 — `pulse.bars[].count`(선거구 전체, 배경 회색 막대)와 `candidate_mentions`의 우리 후보 `bars[].count`(전경, 진영색)를 같은 `peak` 기준·같은 시간축에 겹친다. 두 분석기의 week 그리드가 이론상 완전히 같다는 보장은 없어 `week_start` 문자열로 맞춰 읽는다(코드 주석에 근거 남김). 백엔드 변경 없음.
 11. ~~**미디어 노출 vs 표심 갭 카드**~~ — **완료 (2026-09-15).** `MediaElectoralGapCard.tsx` 신규 — `candidate_mentions`의 최신 `share_pct`(우리 vs 상대)와 `view.summary_card.camp_bar`(진영별 득표 근사 집계, `BarSlice.ours`로 우리 진영 판정)를 나란히 놓고 갭 문구(예: "언론 노출이 표심보다 X%p 앞서 있다")를 만든다. 백엔드 변경 없음 — `summary_card`는 이미 대시보드가 fetch 하던 값이다. **로그인한 캠프 렌즈가 있을 때만 렌더** — CandidateComparison과 같은 전제("우리"는 렌즈가 정한다). 두 소스가 다른 verdict를 가질 수 있어 WeeklyDigestCard와 같은 `shows()` 패턴으로 개별 배너 없이 값만 거른다.
 12. **동별 이슈-우선순위 오버레이 (지도 확장)** — `local_issue`/`news_pulse`의 `top_places` 집계를 `target_priority`의 `rank`와 겹쳐 `/d/{district}/map`에 두 번째 레이어로. 겹치면 "미디어와 전략이 같은 곳", 안 겹치면 캠프가 놓치는 지역 신호.
-13. **진영색 일관 스타일링** — `Camp` enum 기준 색상 토큰을 디자인 시스템에 하나 정의해 1·2·10·11에서 재사용.
+13. ~~**진영색 일관 스타일링**~~ — **완료 (2026-09-15).** `frontend/src/design-system/campColor.ts` 신규(`CAMP_COLOR` 맵 + `campColor()` 헬퍼) — `CandidateMentionPanel.tsx`가 이미 세 번째로 복붙하려던 참이라 이번에 뽑아냈다. `CandidateMentionPanel`·`MediaElectoralGapCard`·`NewsVolumeOverlayCard` 셋이 이걸 쓴다.
 
 ### 티어 3 — 후속 (새 분석기 또는 텍스트 트랙 필요, 설계만)
 

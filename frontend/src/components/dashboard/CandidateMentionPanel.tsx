@@ -1,12 +1,6 @@
 import type { CandidateMentionCard, CandidateMentionSeries } from "../../api/types";
 import { BackfillBanner } from "./BackfillBanner";
-
-const LINEAGE_COLOR: Record<CandidateMentionSeries["lineage"], string> = {
-  conservative: "var(--camp-conservative)",
-  progressive: "var(--camp-progressive)",
-  centrist: "var(--camp-centrist)",
-  other: "var(--camp-other)",
-};
+import { campColor } from "../../design-system/campColor";
 
 function ChangeBadge({ pct }: { pct: number | null }) {
   if (pct === null) {
@@ -36,7 +30,7 @@ function WeeklyShareStack({ card }: { card: CandidateMentionCard }) {
       </p>
       {weeks.map((weekStart, i) => {
         const segments = card.candidates
-          .map((c) => ({ name: c.name, color: LINEAGE_COLOR[c.lineage], pct: c.bars[i]?.share_pct ?? null }))
+          .map((c) => ({ name: c.name, color: campColor(c.lineage), pct: c.bars[i]?.share_pct ?? null }))
           .filter((s): s is { name: string; color: string; pct: number } => s.pct !== null && s.pct > 0);
         return (
           <div key={weekStart} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
@@ -62,7 +56,7 @@ function WeeklyShareStack({ card }: { card: CandidateMentionCard }) {
 }
 
 function CandidateRow({ series }: { series: CandidateMentionSeries }) {
-  const color = LINEAGE_COLOR[series.lineage];
+  const color = campColor(series.lineage);
   return (
     <li style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 3 }}>

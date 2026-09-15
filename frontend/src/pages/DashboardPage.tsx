@@ -18,6 +18,7 @@ import { IssueBoardPanel } from "../components/dashboard/IssueBoardPanel";
 import { CandidateMentionPanel } from "../components/dashboard/CandidateMentionPanel";
 import { WeeklyDigestCard } from "../components/dashboard/WeeklyDigestCard";
 import { MediaElectoralGapCard } from "../components/dashboard/MediaElectoralGapCard";
+import { NewsVolumeOverlayCard } from "../components/dashboard/NewsVolumeOverlayCard";
 
 export function DashboardPage() {
   const { districtId = "" } = useParams();
@@ -196,6 +197,7 @@ export function DashboardPage() {
               <CandidateMentionPanel card={candidate_mentions} districtId={districtId} />
             </ComplianceGate>
           )}
+          <NewsVolumeOverlayCard pulse={pulse} candidateMentions={candidate_mentions} />
           <MediaElectoralGapCard view={view} candidateMentions={candidate_mentions} />
 
           <footer className="page-foot">
